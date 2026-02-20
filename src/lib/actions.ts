@@ -811,6 +811,157 @@ export async function getHomepageData() {
 }
 
 // ────────────────────────────────────────
+// Dashboard Actions (with filters)
+// ────────────────────────────────────────
+
+export async function getDashboardFilters() {
+  const leagues = await prisma.league.findMany({
+    include: {
+      seasons: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          tournaments: {
+            orderBy: { createdAt: "desc" },
+            select: { id: true, name: true, status: true },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return serialize(
+    leagues.map((l) => ({
+      id: l.id,
+      name: l.name,
+      seasons: l.seasons.map((s) => ({
+        id: s.id,
+        name: s.name,
+        isActive: s.isActive,
+        tournaments: s.tournaments,
+      })),
+    }))
+  );
+}
+
+export async function getDashboardData(filters: {
+  leagueId?: string;
+  seasonId?: string;
+  tournamentId?: string;
+}) {
+  // Find the target league
+  let leagueWhere = {};
+  if (filters.leagueId) {
+    leagueWhere = { id: filters.leagueId };
+  }
+
+  const league = await prisma.league.findFirst({
+    where: {
+      ...leagueWhere,
+      seasons: { some: {} },
+    },
+    include: {
+      seasons: {
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+
+  if (!league) {
+    return serialize({ league: null, season: null, rankings: [], recentMatches: [], activeTournaments: [] });
+  }
+
+  // Find target season
+  let season;
+  if (filters.seasonId) {
+    season = league.seasons.find((s) => s.id === filters.seasonId);
+  }
+  if (!season) {
+    season = league.seasons.find((s) => s.isActive) || league.seasons[0];
+  }
+  if (!season) {
+    return serialize({ league: { id: league.id, name: league.name }, season: null, rankings: [], recentMatches: [], activeTournaments: [] });
+  }
+
+  // Ranking for this season
+  const rankingEntries = await prisma.seasonRankingEntry.findMany({
+    where: { seasonId: season.id },
+    orderBy: { pointsTotal: "desc" },
+    take: 10,
+    include: { player: true },
+  });
+
+  const rankings = rankingEntries.map((r, i) => ({
+    position: i + 1,
+    playerName: r.player.nickname || r.player.fullName,
+    pointsTotal: r.pointsTotal,
+    matchesPlayed: r.matchesPlayed,
+    wins: r.wins,
+    draws: r.draws,
+    losses: r.losses,
+    setsWon: r.setsWon,
+    setsLost: r.setsLost,
+    setsDiff: r.setsDiff,
+  }));
+
+  // Recent matches — optionally filtered by tournament
+  const matchWhere: Record<string, unknown> = {
+    tournament: { seasonId: season.id },
+    status: "FINISHED",
+  };
+  if (filters.tournamentId) {
+    matchWhere.tournamentId = filters.tournamentId;
+  }
+
+  const recentMatches = await prisma.match.findMany({
+    where: matchWhere,
+    orderBy: { playedAt: "desc" },
+    take: 6,
+    include: {
+      teamA: { include: { player1: true, player2: true } },
+      teamB: { include: { player1: true, player2: true } },
+      tournament: { select: { name: true, id: true } },
+      court: true,
+    },
+  });
+
+  // Active tournaments
+  const tournaments = await prisma.tournament.findMany({
+    where: { seasonId: season.id },
+    orderBy: { createdAt: "desc" },
+    include: { _count: { select: { teams: true, matches: true } } },
+  });
+
+  const activeTournaments = tournaments.filter(
+    (t) => t.status === "RUNNING" || t.status === "PUBLISHED"
+  );
+
+  const activeTournamentsWithProgress = await Promise.all(
+    activeTournaments.map(async (t) => {
+      const finishedCount = await prisma.match.count({
+        where: { tournamentId: t.id, status: "FINISHED" },
+      });
+      return {
+        id: t.id,
+        name: t.name,
+        status: t.status,
+        totalMatches: t._count.matches,
+        finishedMatches: finishedCount,
+        teamsCount: t._count.teams,
+      };
+    })
+  );
+
+  return serialize({
+    league: { id: league.id, name: league.name },
+    season: { id: season.id, name: season.name },
+    rankings,
+    recentMatches,
+    activeTournaments: activeTournamentsWithProgress,
+  });
+}
+
+// ────────────────────────────────────────
 // Auth & Registration Actions
 // ────────────────────────────────────────
 
