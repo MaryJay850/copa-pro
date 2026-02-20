@@ -9,6 +9,9 @@ import { Footer } from "@/components/landing/footer";
 import { getLandingPageData } from "@/lib/actions";
 import Link from "next/link";
 
+// Force dynamic rendering — DB not available at build time
+export const dynamic = "force-dynamic";
+
 export default async function LandingPage() {
   const data = await getLandingPageData();
 
