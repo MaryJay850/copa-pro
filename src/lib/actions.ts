@@ -1328,3 +1328,93 @@ export async function getLeagueManagers(leagueId: string) {
 
   return serialize(managers);
 }
+
+// ────────────────────────────────────────
+// Landing Page (public — no auth required)
+// ────────────────────────────────────────
+
+export async function getLandingPageData() {
+  // Find the first league with an active season that has rankings
+  const league = await prisma.league.findFirst({
+    where: {
+      seasons: {
+        some: {
+          rankings: { some: {} },
+        },
+      },
+    },
+    include: {
+      seasons: {
+        where: { rankings: { some: {} } },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+      },
+    },
+  });
+
+  if (!league || league.seasons.length === 0) {
+    return serialize({
+      leagueName: null,
+      seasonName: null,
+      rankings: [],
+      recentMatches: [],
+    });
+  }
+
+  const season = league.seasons[0];
+
+  // Top 4 ranking entries for this season
+  const rankingEntries = await prisma.seasonRankingEntry.findMany({
+    where: { seasonId: season.id },
+    orderBy: { pointsTotal: "desc" },
+    take: 4,
+    include: { player: true },
+  });
+
+  const rankings = rankingEntries.map((r, i) => ({
+    position: i + 1,
+    playerName: r.player.nickname || r.player.fullName,
+    pointsTotal: r.pointsTotal,
+    matchesPlayed: r.matchesPlayed,
+    wins: r.wins,
+  }));
+
+  // Last 2 finished matches for this season
+  const matches = await prisma.match.findMany({
+    where: {
+      tournament: { seasonId: season.id },
+      status: "FINISHED",
+    },
+    orderBy: { playedAt: "desc" },
+    take: 2,
+    include: {
+      teamA: { include: { player1: true, player2: true } },
+      teamB: { include: { player1: true, player2: true } },
+      round: true,
+    },
+  });
+
+  const recentMatches = matches.map((m) => {
+    const scores: string[] = [];
+    if (m.set1A !== null && m.set1B !== null) scores.push(`${m.set1A}-${m.set1B}`);
+    if (m.set2A !== null && m.set2B !== null) scores.push(`${m.set2A}-${m.set2B}`);
+    if (m.set3A !== null && m.set3B !== null) scores.push(`${m.set3A}-${m.set3B}`);
+
+    const teamAName = `${(m.teamA.player1.nickname || m.teamA.player1.fullName.split(" ")[0])} / ${(m.teamA.player2.nickname || m.teamA.player2.fullName.split(" ")[0])}`;
+    const teamBName = `${(m.teamB.player1.nickname || m.teamB.player1.fullName.split(" ")[0])} / ${(m.teamB.player2.nickname || m.teamB.player2.fullName.split(" ")[0])}`;
+
+    return {
+      teamA: teamAName,
+      teamB: teamBName,
+      score: scores.join(" / ") || "—",
+      round: m.round.index + 1,
+    };
+  });
+
+  return serialize({
+    leagueName: league.name,
+    seasonName: season.name,
+    rankings,
+    recentMatches,
+  });
+}

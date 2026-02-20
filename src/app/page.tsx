@@ -6,9 +6,12 @@ import { ScoringSection } from "@/components/landing/scoring-section";
 import { AudienceSection } from "@/components/landing/audience-section";
 import { CtaSection } from "@/components/landing/cta-section";
 import { Footer } from "@/components/landing/footer";
+import { getLandingPageData } from "@/lib/actions";
 import Link from "next/link";
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const data = await getLandingPageData();
+
   return (
     <div className="min-h-screen bg-white">
       {/* Landing Nav */}
@@ -51,7 +54,12 @@ export default function LandingPage() {
       </header>
 
       <main>
-        <HeroSection />
+        <HeroSection
+          leagueName={data.leagueName}
+          seasonName={data.seasonName}
+          rankings={data.rankings}
+          recentMatches={data.recentMatches}
+        />
         <div id="problema">
           <ProblemSection />
         </div>
