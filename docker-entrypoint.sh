@@ -26,7 +26,7 @@ echo "==> PostgreSQL disponivel!"
 
 # Push schema (creates tables if they don't exist, safe for existing data)
 echo "==> A sincronizar schema da base de dados..."
-npx prisma db push --skip-generate 2>&1 || {
+npx prisma db push 2>&1 || {
   echo "==> ERRO: Falha ao sincronizar schema"
   exit 1
 }
