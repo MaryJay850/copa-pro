@@ -41,5 +41,53 @@ if [ "$RUN_SEED" = "true" ]; then
   echo "==> Seed concluido!"
 fi
 
+# Auto-create or promote admin user if ADMIN_EMAIL is set
+if [ -n "$ADMIN_EMAIL" ]; then
+  echo "==> A verificar administrador ($ADMIN_EMAIL)..."
+  node -e "
+    const { PrismaPg } = require('@prisma/adapter-pg');
+    const { PrismaClient } = require('./generated/prisma/client');
+    const bcrypt = require('bcryptjs');
+
+    async function ensureAdmin() {
+      const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+      const prisma = new PrismaClient({ adapter });
+
+      try {
+        const existing = await prisma.user.findUnique({ where: { email: process.env.ADMIN_EMAIL } });
+
+        if (existing) {
+          if (existing.role !== 'ADMINISTRADOR') {
+            await prisma.user.update({ where: { id: existing.id }, data: { role: 'ADMINISTRADOR' } });
+            console.log('==> Utilizador promovido a ADMINISTRADOR');
+          } else {
+            console.log('==> Administrador ja existe');
+          }
+        } else if (process.env.ADMIN_PASSWORD) {
+          const hashed = await bcrypt.hash(process.env.ADMIN_PASSWORD, 12);
+          const player = await prisma.player.create({
+            data: { fullName: process.env.ADMIN_NAME || 'Administrador' },
+          });
+          await prisma.user.create({
+            data: {
+              email: process.env.ADMIN_EMAIL,
+              hashedPassword: hashed,
+              role: 'ADMINISTRADOR',
+              playerId: player.id,
+            },
+          });
+          console.log('==> Administrador criado com sucesso');
+        } else {
+          console.log('==> ADMIN_PASSWORD nao definido, a ignorar criacao');
+        }
+      } finally {
+        await prisma.\$disconnect();
+      }
+    }
+
+    ensureAdmin().catch(e => { console.error('==> AVISO: Falha ao configurar admin:', e.message); });
+  " 2>&1
+fi
+
 echo "==> A iniciar servidor Next.js..."
 exec node server.js
