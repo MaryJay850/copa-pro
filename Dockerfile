@@ -49,10 +49,13 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/generated ./generated
 
-# Install only runtime deps needed for DB migrations and seeding
-RUN npm init -y > /dev/null 2>&1 && \
-    npm install --no-save prisma@7 @prisma/adapter-pg@7 pg dotenv seedrandom bcryptjs 2>&1 && \
+# Install runtime deps in a separate directory to avoid conflicts with standalone node_modules
+RUN mkdir -p /app/runtime_deps && cd /app/runtime_deps && \
+    npm init -y > /dev/null 2>&1 && \
+    npm install prisma@7 @prisma/adapter-pg@7 pg postgres-array dotenv seedrandom bcryptjs 2>&1 && \
     npm install -g tsx 2>&1
+
+ENV NODE_PATH="/app/runtime_deps/node_modules"
 
 # Copy entrypoint script
 COPY docker-entrypoint.sh ./docker-entrypoint.sh

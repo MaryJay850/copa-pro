@@ -4,6 +4,10 @@ set -e
 echo "==> CopaPro: A iniciar..."
 echo "==> DATABASE_URL host: $(echo $DATABASE_URL | sed 's/.*@\(.*\):.*/\1/')"
 
+# Runtime deps are in a separate directory
+export NODE_PATH="/app/runtime_deps/node_modules:$NODE_PATH"
+export PATH="/app/runtime_deps/node_modules/.bin:$PATH"
+
 # Wait for PostgreSQL to be ready using simple TCP check
 echo "==> A aguardar PostgreSQL..."
 DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
@@ -41,47 +45,49 @@ if [ "$RUN_SEED" = "true" ]; then
   echo "==> Seed concluido!"
 fi
 
-# Auto-create or promote admin user if ADMIN_EMAIL is set
+# Auto-create or promote admin user using raw SQL (no Prisma, no module conflicts)
 if [ -n "$ADMIN_EMAIL" ]; then
   echo "==> A verificar administrador ($ADMIN_EMAIL)..."
   node -e "
-    const { PrismaPg } = require('@prisma/adapter-pg');
-    const { PrismaClient } = require('./generated/prisma/client');
+    const { Client } = require('pg');
     const bcrypt = require('bcryptjs');
+    const crypto = require('crypto');
+
+    function cuid() {
+      return 'c' + crypto.randomBytes(12).toString('hex');
+    }
 
     async function ensureAdmin() {
-      const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
-      const prisma = new PrismaClient({ adapter });
+      const client = new Client({ connectionString: process.env.DATABASE_URL });
+      await client.connect();
 
       try {
-        const existing = await prisma.user.findUnique({ where: { email: process.env.ADMIN_EMAIL } });
+        const res = await client.query('SELECT id, role FROM users WHERE email = \$1', [process.env.ADMIN_EMAIL]);
 
-        if (existing) {
-          if (existing.role !== 'ADMINISTRADOR') {
-            await prisma.user.update({ where: { id: existing.id }, data: { role: 'ADMINISTRADOR' } });
+        if (res.rows.length > 0) {
+          if (res.rows[0].role !== 'ADMINISTRADOR') {
+            await client.query('UPDATE users SET role = \$1 WHERE id = \$2', ['ADMINISTRADOR', res.rows[0].id]);
             console.log('==> Utilizador promovido a ADMINISTRADOR');
           } else {
             console.log('==> Administrador ja existe');
           }
         } else if (process.env.ADMIN_PASSWORD) {
           const hashed = await bcrypt.hash(process.env.ADMIN_PASSWORD, 12);
-          const player = await prisma.player.create({
-            data: { fullName: process.env.ADMIN_NAME || 'Administrador' },
-          });
-          await prisma.user.create({
-            data: {
-              email: process.env.ADMIN_EMAIL,
-              hashedPassword: hashed,
-              role: 'ADMINISTRADOR',
-              playerId: player.id,
-            },
-          });
+          const playerId = cuid();
+          const userId = cuid();
+          const adminName = process.env.ADMIN_NAME || 'Administrador';
+
+          await client.query('INSERT INTO players (id, \"fullName\", \"createdAt\") VALUES (\$1, \$2, NOW())', [playerId, adminName]);
+          await client.query(
+            'INSERT INTO users (id, email, \"hashedPassword\", role, \"playerId\", \"createdAt\", \"updatedAt\") VALUES (\$1, \$2, \$3, \$4, \$5, NOW(), NOW())',
+            [userId, process.env.ADMIN_EMAIL, hashed, 'ADMINISTRADOR', playerId]
+          );
           console.log('==> Administrador criado com sucesso');
         } else {
           console.log('==> ADMIN_PASSWORD nao definido, a ignorar criacao');
         }
       } finally {
-        await prisma.\$disconnect();
+        await client.end();
       }
     }
 

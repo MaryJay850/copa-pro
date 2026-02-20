@@ -10,7 +10,7 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log("Seeding database...");
 
-  // Clean up in a single transaction
+  // Clean up in a single transaction (order matters for foreign keys)
   await prisma.$transaction([
     prisma.seasonRankingEntry.deleteMany(),
     prisma.match.deleteMany(),
@@ -19,6 +19,10 @@ async function main() {
     prisma.team.deleteMany(),
     prisma.tournament.deleteMany(),
     prisma.season.deleteMany(),
+    prisma.leagueInvite.deleteMany(),
+    prisma.leagueMembership.deleteMany(),
+    prisma.leagueManager.deleteMany(),
+    prisma.user.deleteMany(),
     prisma.player.deleteMany(),
     prisma.league.deleteMany(),
   ]);
