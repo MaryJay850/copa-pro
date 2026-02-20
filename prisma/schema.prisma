@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model League {
+  id        String   @id @default(cuid())
+  name      String
+  location  String?
+  createdAt DateTime @default(now())
+
+  seasons     Season[]
+  tournaments Tournament[]
+
+  @@map("leagues")
+}
+
+model Season {
+  id         String    @id @default(cuid())
+  leagueId   String
+  name       String
+  startDate  DateTime?
+  endDate    DateTime?
+  isActive   Boolean   @default(true)
+  allowDraws Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+
+  league      League              @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  tournaments Tournament[]
+  rankings    SeasonRankingEntry[]
+
+  @@map("seasons")
+}
+
+model Player {
+  id        String   @id @default(cuid())
+  fullName  String
+  nickname  String?
+  level     String?
+  createdAt DateTime @default(now())
+
+  teamsAsPlayer1 Team[]               @relation("Player1")
+  teamsAsPlayer2 Team[]               @relation("Player2")
+  rankings       SeasonRankingEntry[]
+
+  @@map("players")
+}
+
+model Tournament {
+  id             String   @id @default(cuid())
+  leagueId       String
+  seasonId       String
+  name           String
+  startDate      DateTime?
+  format         String   @default("ROUND_ROBIN")
+  teamMode       String   @default("FIXED_TEAMS")
+  teamSize       Int      @default(2)
+  courtsCount    Int      @default(1)
+  matchesPerPair Int      @default(1)
+  status         String   @default("DRAFT")
+  randomSeed     String?
+  createdAt      DateTime @default(now())
+
+  league  League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  season  Season  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  teams   Team[]
+  courts  Court[]
+  rounds  Round[]
+  matches Match[]
+
+  @@map("tournaments")
+}
+
+model Team {
+  id                String  @id @default(cuid())
+  tournamentId      String
+  name              String
+  player1Id         String
+  player2Id         String
+  isRandomGenerated Boolean @default(false)
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player1    Player     @relation("Player1", fields: [player1Id], references: [id])
+  player2    Player     @relation("Player2", fields: [player2Id], references: [id])
+  matchesAsA Match[]    @relation("TeamA")
+  matchesAsB Match[]    @relation("TeamB")
+  matchesWon Match[]    @relation("Winner")
+
+  @@map("teams")
+}
+
+model Court {
+  id           String @id @default(cuid())
+  tournamentId String
+  name         String
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matches    Match[]
+
+  @@map("courts")
+}
+
+model Round {
+  id           String @id @default(cuid())
+  tournamentId String
+  index        Int
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matches    Match[]
+
+  @@unique([tournamentId, index])
+  @@map("rounds")
+}
+
+model Match {
+  id           String   @id @default(cuid())
+  tournamentId String
+  roundId      String
+  courtId      String?
+  slotIndex    Int      @default(0)
+
+  teamAId String
+  teamBId String
+
+  set1A Int?
+  set1B Int?
+  set2A Int?
+  set2B Int?
+  set3A Int?
+  set3B Int?
+
+  status       String    @default("SCHEDULED")
+  resultType   String    @default("UNDECIDED")
+  winnerTeamId String?
+  playedAt     DateTime?
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  round      Round      @relation(fields: [roundId], references: [id], onDelete: Cascade)
+  court      Court?     @relation(fields: [courtId], references: [id])
+  teamA      Team       @relation("TeamA", fields: [teamAId], references: [id])
+  teamB      Team       @relation("TeamB", fields: [teamBId], references: [id])
+  winner     Team?      @relation("Winner", fields: [winnerTeamId], references: [id])
+
+  @@map("matches")
+}
+
+model SeasonRankingEntry {
+  id            String   @id @default(cuid())
+  seasonId      String
+  playerId      String
+  pointsTotal   Int      @default(0)
+  matchesPlayed Int      @default(0)
+  wins          Int      @default(0)
+  draws         Int      @default(0)
+  losses        Int      @default(0)
+  setsWon       Int      @default(0)
+  setsLost      Int      @default(0)
+  setsDiff      Int      @default(0)
+  updatedAt     DateTime @updatedAt
+
+  season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([seasonId, playerId])
+  @@map("season_ranking_entries")
+}
