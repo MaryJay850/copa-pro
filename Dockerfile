@@ -13,11 +13,14 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
+# Dummy DATABASE_URL for build time (prisma generate + next build don't need real DB)
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
+ENV NEXT_TELEMETRY_DISABLED=1
+
 # Generate Prisma client
 RUN npx prisma generate
 
 # Build Next.js (standalone mode)
-ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
 # ── Stage 3: Runner (production) ──
@@ -33,6 +36,9 @@ RUN addgroup --system --gid 1001 nodejs && \
 # Copy standalone build (includes server.js and minimal node_modules)
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+
+# Create public dir (may not exist if empty)
+RUN mkdir -p ./public
 COPY --from=builder /app/public ./public
 
 # Copy Prisma schema + config (needed for db push at startup)
