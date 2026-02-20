@@ -35,16 +35,16 @@ export default function LandingPage() {
           </nav>
           <div className="flex items-center gap-3">
             <Link
-              href="/dashboard"
+              href="/login"
               className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
             >
-              Painel
+              Entrar
             </Link>
             <Link
-              href="/ligas"
+              href="/registar"
               className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
             >
-              Começar
+              Criar Conta
             </Link>
           </div>
         </div>

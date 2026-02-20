@@ -1,3 +1,5 @@
+import { AuthNav } from "@/components/auth-nav";
+
 export default function AppLayout({
   children,
 }: {
@@ -11,15 +13,13 @@ export default function AppLayout({
             Copa<span className="text-emerald-600">Pro</span>
           </a>
           <nav className="flex items-center gap-4 text-sm">
-            <a href="/" className="text-text-muted hover:text-text transition-colors">
-              Início
-            </a>
             <a href="/dashboard" className="text-text-muted hover:text-text transition-colors">
               Painel
             </a>
             <a href="/ligas" className="text-text-muted hover:text-text transition-colors">
               Ligas
             </a>
+            <AuthNav />
           </nav>
         </div>
       </header>

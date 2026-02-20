@@ -4,6 +4,8 @@ import { prisma } from "./db";
 import { generateRoundRobinPairings, generateRandomTeams, type TeamRef } from "./scheduling";
 import { computeMatchContribution, validateMatchScores, determineResult } from "./ranking";
 import { revalidatePath } from "next/cache";
+import bcrypt from "bcryptjs";
+import { requireAuth, requireAdmin, requireLeagueManager } from "./auth-guards";
 
 // Helper: strip Prisma Date objects → plain JSON-safe objects
 // Converts Date → string (ISO), BigInt → string, etc.
@@ -806,4 +808,372 @@ export async function getHomepageData() {
     recentMatches,
     activeTournaments: activeTournamentsWithProgress,
   });
+}
+
+// ────────────────────────────────────────
+// Auth & Registration Actions
+// ────────────────────────────────────────
+
+export async function registerUser(formData: FormData) {
+  const email = (formData.get("email") as string)?.trim();
+  const password = formData.get("password") as string;
+  const fullName = (formData.get("fullName") as string)?.trim();
+  const nickname = (formData.get("nickname") as string)?.trim() || null;
+
+  if (!email || !password || !fullName) {
+    throw new Error("Todos os campos obrigatórios devem ser preenchidos.");
+  }
+  if (password.length < 6) {
+    throw new Error("A palavra-passe deve ter pelo menos 6 caracteres.");
+  }
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    throw new Error("Este email já está registado.");
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 12);
+
+  await prisma.$transaction(async (tx) => {
+    const player = await tx.player.create({
+      data: { fullName, nickname },
+    });
+    await tx.user.create({
+      data: {
+        email,
+        hashedPassword,
+        playerId: player.id,
+        role: "JOGADOR",
+      },
+    });
+  });
+}
+
+// ────────────────────────────────────────
+// League Membership Actions
+// ────────────────────────────────────────
+
+export async function requestJoinLeague(leagueId: string) {
+  const user = await requireAuth();
+
+  const existing = await prisma.leagueMembership.findUnique({
+    where: { userId_leagueId: { userId: user.id, leagueId } },
+  });
+  if (existing) {
+    throw new Error(
+      existing.status === "PENDING"
+        ? "Já tem um pedido pendente para esta liga."
+        : existing.status === "APPROVED"
+        ? "Já é membro desta liga."
+        : "O seu pedido anterior foi rejeitado."
+    );
+  }
+
+  await prisma.leagueMembership.create({
+    data: { userId: user.id, leagueId, status: "PENDING" },
+  });
+
+  revalidatePath(`/ligas/${leagueId}`);
+}
+
+export async function handleMembershipRequest(
+  membershipId: string,
+  action: "APPROVED" | "REJECTED"
+) {
+  const membership = await prisma.leagueMembership.findUnique({
+    where: { id: membershipId },
+  });
+  if (!membership) throw new Error("Pedido não encontrado.");
+
+  await requireLeagueManager(membership.leagueId);
+
+  await prisma.leagueMembership.update({
+    where: { id: membershipId },
+    data: { status: action },
+  });
+
+  revalidatePath(`/ligas/${membership.leagueId}`);
+  revalidatePath(`/ligas/${membership.leagueId}/membros`);
+}
+
+export async function addPlayerToLeague(userId: string, leagueId: string) {
+  await requireLeagueManager(leagueId);
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error("Utilizador não encontrado.");
+
+  await prisma.leagueMembership.upsert({
+    where: { userId_leagueId: { userId, leagueId } },
+    update: { status: "APPROVED" },
+    create: { userId, leagueId, status: "APPROVED" },
+  });
+
+  revalidatePath(`/ligas/${leagueId}/membros`);
+}
+
+export async function removePlayerFromLeague(userId: string, leagueId: string) {
+  await requireLeagueManager(leagueId);
+
+  await prisma.leagueMembership.deleteMany({
+    where: { userId, leagueId },
+  });
+
+  revalidatePath(`/ligas/${leagueId}/membros`);
+}
+
+export async function getLeagueMembershipRequests(leagueId: string) {
+  await requireLeagueManager(leagueId);
+
+  const requests = await prisma.leagueMembership.findMany({
+    where: { leagueId, status: "PENDING" },
+    include: { user: { include: { player: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return serialize(requests);
+}
+
+export async function getLeagueMembers(leagueId: string) {
+  await requireLeagueManager(leagueId);
+
+  const members = await prisma.leagueMembership.findMany({
+    where: { leagueId, status: "APPROVED" },
+    include: { user: { include: { player: true } } },
+    orderBy: { createdAt: "asc" },
+  });
+
+  return serialize(members);
+}
+
+export async function searchUsers(query: string) {
+  await requireAuth();
+
+  const users = await prisma.user.findMany({
+    where: {
+      OR: [
+        { email: { contains: query, mode: "insensitive" } },
+        { player: { fullName: { contains: query, mode: "insensitive" } } },
+      ],
+    },
+    include: { player: { select: { fullName: true, nickname: true } } },
+    take: 20,
+  });
+
+  return serialize(users);
+}
+
+export async function createLeagueInvite(leagueId: string) {
+  const user = await requireLeagueManager(leagueId);
+
+  const invite = await prisma.leagueInvite.create({
+    data: {
+      leagueId,
+      createdBy: user.id,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  return { token: invite.token };
+}
+
+export async function acceptLeagueInvite(token: string) {
+  const user = await requireAuth();
+
+  const invite = await prisma.leagueInvite.findUnique({
+    where: { token },
+  });
+
+  if (!invite) throw new Error("Convite não encontrado.");
+  if (invite.usedBy) throw new Error("Este convite já foi utilizado.");
+  if (invite.expiresAt < new Date()) throw new Error("Este convite expirou.");
+
+  await prisma.$transaction(async (tx) => {
+    await tx.leagueInvite.update({
+      where: { id: invite.id },
+      data: { usedBy: user.id, usedAt: new Date() },
+    });
+
+    await tx.leagueMembership.upsert({
+      where: { userId_leagueId: { userId: user.id, leagueId: invite.leagueId } },
+      update: { status: "APPROVED" },
+      create: { userId: user.id, leagueId: invite.leagueId, status: "APPROVED" },
+    });
+  });
+
+  return { leagueId: invite.leagueId };
+}
+
+export async function getLeaguePlayers(leagueId: string) {
+  await requireLeagueManager(leagueId);
+
+  const memberships = await prisma.leagueMembership.findMany({
+    where: { leagueId, status: "APPROVED" },
+    include: { user: { include: { player: true } } },
+  });
+
+  const unlinkedPlayers = await prisma.player.findMany({
+    where: { user: null },
+    orderBy: { fullName: "asc" },
+  });
+
+  const players = [
+    ...memberships
+      .filter((m) => m.user.player)
+      .map((m) => m.user.player!),
+    ...unlinkedPlayers,
+  ];
+
+  return serialize(players);
+}
+
+// ────────────────────────────────────────
+// Admin Actions
+// ────────────────────────────────────────
+
+export async function getUsers() {
+  await requireAdmin();
+
+  const users = await prisma.user.findMany({
+    include: { player: true, managedLeagues: { include: { league: true } } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return serialize(users);
+}
+
+export async function updateUserRole(userId: string, role: "JOGADOR" | "GESTOR" | "ADMINISTRADOR") {
+  const currentUser = await requireAdmin();
+
+  if (currentUser.id === userId && role !== "ADMINISTRADOR") {
+    throw new Error("Não pode alterar o seu próprio papel de administrador.");
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { role },
+  });
+
+  revalidatePath("/admin/utilizadores");
+}
+
+export async function deleteUser(userId: string) {
+  const currentUser = await requireAdmin();
+
+  if (currentUser.id === userId) {
+    throw new Error("Não pode eliminar a sua própria conta.");
+  }
+
+  // Unlink player before deleting user (preserve tournament history)
+  await prisma.user.update({
+    where: { id: userId },
+    data: { playerId: null },
+  });
+
+  await prisma.user.delete({ where: { id: userId } });
+  revalidatePath("/admin/utilizadores");
+}
+
+export async function createUserManually(data: {
+  email: string;
+  password: string;
+  fullName: string;
+  nickname?: string;
+  role: "JOGADOR" | "GESTOR" | "ADMINISTRADOR";
+}) {
+  await requireAdmin();
+
+  const existing = await prisma.user.findUnique({ where: { email: data.email } });
+  if (existing) throw new Error("Este email já está registado.");
+
+  const hashedPassword = await bcrypt.hash(data.password, 12);
+
+  await prisma.$transaction(async (tx) => {
+    const player = await tx.player.create({
+      data: { fullName: data.fullName, nickname: data.nickname || null },
+    });
+    await tx.user.create({
+      data: {
+        email: data.email,
+        hashedPassword,
+        role: data.role,
+        playerId: player.id,
+      },
+    });
+  });
+
+  revalidatePath("/admin/utilizadores");
+}
+
+export async function linkPlayerToUser(userId: string, playerId: string) {
+  await requireAdmin();
+
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+    include: { user: true },
+  });
+  if (!player) throw new Error("Jogador não encontrado.");
+  if (player.user) throw new Error("Este jogador já está associado a um utilizador.");
+
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new Error("Utilizador não encontrado.");
+  if (user.playerId) throw new Error("Este utilizador já tem um jogador associado.");
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { playerId },
+  });
+
+  revalidatePath("/admin/utilizadores");
+}
+
+export async function getUnlinkedPlayers() {
+  await requireAdmin();
+
+  const players = await prisma.player.findMany({
+    where: { user: null },
+    orderBy: { fullName: "asc" },
+  });
+
+  return serialize(players);
+}
+
+export async function assignLeagueManager(userId: string, leagueId: string) {
+  await requireAdmin();
+
+  await prisma.leagueManager.upsert({
+    where: { userId_leagueId: { userId, leagueId } },
+    update: {},
+    create: { userId, leagueId },
+  });
+
+  await prisma.leagueMembership.upsert({
+    where: { userId_leagueId: { userId, leagueId } },
+    update: { status: "APPROVED" },
+    create: { userId, leagueId, status: "APPROVED" },
+  });
+
+  revalidatePath("/admin/ligas");
+  revalidatePath(`/ligas/${leagueId}`);
+}
+
+export async function removeLeagueManager(userId: string, leagueId: string) {
+  await requireAdmin();
+
+  await prisma.leagueManager.deleteMany({
+    where: { userId, leagueId },
+  });
+
+  revalidatePath("/admin/ligas");
+  revalidatePath(`/ligas/${leagueId}`);
+}
+
+export async function getLeagueManagers(leagueId: string) {
+  await requireAuth();
+
+  const managers = await prisma.leagueManager.findMany({
+    where: { leagueId },
+    include: { user: { include: { player: true } } },
+  });
+
+  return serialize(managers);
 }

@@ -7,6 +7,84 @@ datasource db {
   provider = "postgresql"
 }
 
+// ── Auth Enums ──
+
+enum UserRole {
+  JOGADOR
+  GESTOR
+  ADMINISTRADOR
+}
+
+enum MembershipStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ── Auth Models ──
+
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  hashedPassword String
+  role           UserRole @default(JOGADOR)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // 1:1 link to Player — every User IS a Player
+  playerId String? @unique
+  player   Player? @relation(fields: [playerId], references: [id])
+
+  managedLeagues    LeagueManager[]
+  leagueMemberships LeagueMembership[]
+
+  @@map("users")
+}
+
+model LeagueManager {
+  id       String @id @default(cuid())
+  userId   String
+  leagueId String
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, leagueId])
+  @@map("league_managers")
+}
+
+model LeagueMembership {
+  id        String           @id @default(cuid())
+  userId    String
+  leagueId  String
+  status    MembershipStatus @default(PENDING)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, leagueId])
+  @@map("league_memberships")
+}
+
+model LeagueInvite {
+  id        String    @id @default(cuid())
+  leagueId  String
+  token     String    @unique @default(cuid())
+  createdBy String
+  expiresAt DateTime
+  usedBy    String?
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@map("league_invites")
+}
+
+// ── Domain Models ──
+
 model League {
   id        String   @id @default(cuid())
   name      String
@@ -15,6 +93,9 @@ model League {
 
   seasons     Season[]
   tournaments Tournament[]
+  managers    LeagueManager[]
+  memberships LeagueMembership[]
+  invites     LeagueInvite[]
 
   @@map("leagues")
 }
@@ -43,6 +124,7 @@ model Player {
   level     String?
   createdAt DateTime @default(now())
 
+  user           User?
   teamsAsPlayer1 Team[]               @relation("Player1")
   teamsAsPlayer2 Team[]               @relation("Player2")
   rankings       SeasonRankingEntry[]
@@ -51,20 +133,20 @@ model Player {
 }
 
 model Tournament {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   leagueId       String
   seasonId       String
   name           String
   startDate      DateTime?
-  format         String   @default("ROUND_ROBIN")
-  teamMode       String   @default("FIXED_TEAMS")
-  teamSize       Int      @default(2)
-  courtsCount    Int      @default(1)
-  matchesPerPair Int      @default(1)
-  numberOfSets   Int      @default(1)
-  status         String   @default("DRAFT")
+  format         String    @default("ROUND_ROBIN")
+  teamMode       String    @default("FIXED_TEAMS")
+  teamSize       Int       @default(2)
+  courtsCount    Int       @default(1)
+  matchesPerPair Int       @default(1)
+  numberOfSets   Int       @default(1)
+  status         String    @default("DRAFT")
   randomSeed     String?
-  createdAt      DateTime @default(now())
+  createdAt      DateTime  @default(now())
 
   league  League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   season  Season  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
