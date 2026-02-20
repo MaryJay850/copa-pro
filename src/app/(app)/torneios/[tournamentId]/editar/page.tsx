@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 import { getTournamentForEdit, getPlayers } from "@/lib/actions";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { TournamentWizard } from "@/app/ligas/[leagueId]/epocas/[seasonId]/torneios/novo/wizard";
+import { TournamentWizard } from "@/app/(app)/ligas/[leagueId]/epocas/[seasonId]/torneios/novo/wizard";
 
 export default async function EditTournamentPage({
   params,

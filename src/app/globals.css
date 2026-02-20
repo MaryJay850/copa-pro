@@ -13,6 +13,10 @@
   --color-text-muted: #64748b;
 }
 
+html {
+  scroll-behavior: smooth;
+}
+
 /* Print styles */
 @media print {
   body {
