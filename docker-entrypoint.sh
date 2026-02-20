@@ -2,16 +2,18 @@
 set -e
 
 echo "==> CopaPro: A iniciar..."
+echo "==> DATABASE_URL host: $(echo $DATABASE_URL | sed 's/.*@\(.*\):.*/\1/')"
 
-# Wait for PostgreSQL to be ready
+# Wait for PostgreSQL to be ready using simple TCP check
 echo "==> A aguardar PostgreSQL..."
+DB_HOST=$(echo $DATABASE_URL | sed -n 's/.*@\([^:]*\):.*/\1/p')
+DB_PORT=$(echo $DATABASE_URL | sed -n 's/.*:\([0-9]*\)\/.*/\1/p')
+
+echo "==> Host: $DB_HOST Port: $DB_PORT"
+
 MAX_RETRIES=30
 RETRY=0
-until node -e "
-  const { Client } = require('pg');
-  const c = new Client({ connectionString: process.env.DATABASE_URL });
-  c.connect().then(() => c.end()).catch(() => process.exit(1));
-" 2>/dev/null; do
+while ! nc -z "$DB_HOST" "$DB_PORT" 2>/dev/null; do
   RETRY=$((RETRY + 1))
   if [ $RETRY -ge $MAX_RETRIES ]; then
     echo "==> ERRO: PostgreSQL nao respondeu apos ${MAX_RETRIES} tentativas"
