@@ -51,7 +51,8 @@ COPY --from=builder /app/generated ./generated
 
 # Install only runtime deps needed for DB migrations and seeding
 RUN npm init -y > /dev/null 2>&1 && \
-    npm install --no-save prisma@7 @prisma/adapter-pg@7 pg dotenv tsx seedrandom 2>&1
+    npm install --no-save prisma@7 @prisma/adapter-pg@7 pg dotenv seedrandom bcryptjs 2>&1 && \
+    npm install -g tsx 2>&1
 
 # Copy entrypoint script
 COPY docker-entrypoint.sh ./docker-entrypoint.sh

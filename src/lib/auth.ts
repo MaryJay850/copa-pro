@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./db";
+import { authConfig } from "./auth.config";
 import type { UserRole } from "../../generated/prisma/enums";
 
 declare module "next-auth" {
@@ -20,7 +21,7 @@ declare module "@auth/core/jwt" {
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
-  session: { strategy: "jwt", maxAge: 24 * 60 * 60 },
+  ...authConfig,
   providers: [
     Credentials({
       credentials: {
@@ -51,13 +52,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     }),
   ],
   callbacks: {
+    ...authConfig.callbacks,
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id!;
         token.role = (user as { role: UserRole }).role;
         token.playerId = (user as { playerId: string | null }).playerId;
       } else {
-        // Re-fetch role from DB on every request (ensures admin changes propagate)
+        // Re-fetch role from DB on every request (Node runtime only)
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id },
           select: { role: true, playerId: true },
@@ -69,14 +71,5 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       }
       return token;
     },
-    async session({ session, token }) {
-      session.user.id = token.id;
-      (session.user as { role: UserRole }).role = token.role;
-      (session.user as { playerId: string | null }).playerId = token.playerId;
-      return session;
-    },
-  },
-  pages: {
-    signIn: "/login",
   },
 });

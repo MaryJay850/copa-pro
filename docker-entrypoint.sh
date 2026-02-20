@@ -35,7 +35,7 @@ echo "==> Schema sincronizado com sucesso!"
 # Optional: Run seed if RUN_SEED=true
 if [ "$RUN_SEED" = "true" ]; then
   echo "==> A semear base de dados..."
-  node --import tsx/esm prisma/seed.ts 2>&1 || {
+  tsx prisma/seed.ts 2>&1 || {
     echo "==> AVISO: Seed falhou (pode ja estar semeado)"
   }
   echo "==> Seed concluido!"
