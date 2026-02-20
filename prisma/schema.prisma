@@ -61,6 +61,7 @@ model Tournament {
   teamSize       Int      @default(2)
   courtsCount    Int      @default(1)
   matchesPerPair Int      @default(1)
+  numberOfSets   Int      @default(1)
   status         String   @default("DRAFT")
   randomSeed     String?
   createdAt      DateTime @default(now())

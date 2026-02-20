@@ -36,6 +36,7 @@ export function TournamentWizard({
       name: string;
       courtsCount: number;
       matchesPerPair: number;
+      numberOfSets: number;
       teamMode: string;
       randomSeed?: string;
       teams: { name: string; player1Id: string; player2Id: string }[];
@@ -52,6 +53,7 @@ export function TournamentWizard({
   const [name, setName] = useState(editMode?.initialData.name ?? "");
   const [courtsCount, setCourtsCount] = useState(editMode?.initialData.courtsCount ?? 2);
   const [matchesPerPair, setMatchesPerPair] = useState(editMode?.initialData.matchesPerPair ?? 1);
+  const [numberOfSets, setNumberOfSets] = useState(editMode?.initialData.numberOfSets ?? 1);
   const [teamMode, setTeamMode] = useState<TeamMode>(
     (editMode?.initialData.teamMode as TeamMode) ?? "FIXED_TEAMS"
   );
@@ -223,6 +225,7 @@ export function TournamentWizard({
           name,
           courtsCount,
           matchesPerPair,
+          numberOfSets,
           teamMode,
           randomSeed: teamMode === "RANDOM_TEAMS" ? randomSeed : undefined,
           teams,
@@ -236,6 +239,7 @@ export function TournamentWizard({
           name,
           courtsCount,
           matchesPerPair,
+          numberOfSets,
           teamMode,
           randomSeed: teamMode === "RANDOM_TEAMS" ? randomSeed : undefined,
           teams,
@@ -348,6 +352,38 @@ export function TournamentWizard({
                     className="text-primary focus:ring-primary"
                   />
                   Round Robin Duplo
+                </label>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-text mb-1">Sets por Jogo</label>
+              <div className="flex gap-3">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={numberOfSets === 1}
+                    onChange={() => setNumberOfSets(1)}
+                    className="text-primary focus:ring-primary"
+                  />
+                  1 Set
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={numberOfSets === 2}
+                    onChange={() => setNumberOfSets(2)}
+                    className="text-primary focus:ring-primary"
+                  />
+                  2 Sets
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={numberOfSets === 3}
+                    onChange={() => setNumberOfSets(3)}
+                    className="text-primary focus:ring-primary"
+                  />
+                  Melhor de 3
                 </label>
               </div>
             </div>
@@ -573,6 +609,12 @@ export function TournamentWizard({
             <div className="flex justify-between py-2 border-b border-border">
               <span className="text-text-muted">Formato</span>
               <span className="font-medium">{matchesPerPair === 1 ? "RR Simples" : "RR Duplo"}</span>
+            </div>
+            <div className="flex justify-between py-2 border-b border-border">
+              <span className="text-text-muted">Sets por Jogo</span>
+              <span className="font-medium">
+                {numberOfSets === 1 ? "1 Set" : numberOfSets === 2 ? "2 Sets" : "Melhor de 3"}
+              </span>
             </div>
             <div className="flex justify-between py-2 border-b border-border">
               <span className="text-text-muted">Modo</span>

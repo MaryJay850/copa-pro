@@ -210,76 +210,141 @@ describe("sortRankings", () => {
 });
 
 describe("validateMatchScores", () => {
-  it("accepts valid 2-0 result", () => {
-    expect(validateMatchScores(6, 3, 6, 4, null, null, false)).toBeNull();
+  // ── 3 Sets (Best of 3) ──
+  it("accepts valid 2-0 result (3 sets)", () => {
+    expect(validateMatchScores(6, 3, 6, 4, null, null, false, 3)).toBeNull();
   });
 
-  it("accepts valid 2-1 result", () => {
-    expect(validateMatchScores(6, 3, 3, 6, 7, 5, false)).toBeNull();
+  it("accepts valid 2-1 result (3 sets)", () => {
+    expect(validateMatchScores(6, 3, 3, 6, 7, 5, false, 3)).toBeNull();
   });
 
   it("rejects tied set scores", () => {
-    const err = validateMatchScores(6, 6, 6, 3, null, null, false);
+    const err = validateMatchScores(6, 6, 6, 3, null, null, false, 3);
     expect(err).not.toBeNull();
   });
 
-  it("rejects only 1 set", () => {
-    const err = validateMatchScores(6, 3, null, null, null, null, false);
+  it("rejects only 1 set in 3-set format", () => {
+    const err = validateMatchScores(6, 3, null, null, null, null, false, 3);
     expect(err).not.toBeNull();
   });
 
   it("rejects unnecessary 3rd set when match is decided", () => {
-    const err = validateMatchScores(6, 3, 6, 4, 6, 3, false);
+    const err = validateMatchScores(6, 3, 6, 4, 6, 3, false, 3);
     expect(err).not.toBeNull();
   });
 
   it("rejects draw when allowDraws is off", () => {
-    const err = validateMatchScores(6, 3, 3, 6, null, null, false);
+    const err = validateMatchScores(6, 3, 3, 6, null, null, false, 3);
     expect(err).not.toBeNull();
   });
 
   it("accepts draw when allowDraws is on", () => {
-    expect(validateMatchScores(6, 3, 3, 6, null, null, true)).toBeNull();
+    expect(validateMatchScores(6, 3, 3, 6, null, null, true, 3)).toBeNull();
   });
 
   it("rejects invalid score values", () => {
-    const err = validateMatchScores(10, 3, 6, 4, null, null, false);
+    const err = validateMatchScores(10, 3, 6, 4, null, null, false, 3);
     expect(err).not.toBeNull();
   });
 
   it("rejects negative scores", () => {
-    const err = validateMatchScores(-1, 3, 6, 4, null, null, false);
+    const err = validateMatchScores(-1, 3, 6, 4, null, null, false, 3);
+    expect(err).not.toBeNull();
+  });
+
+  // ── 1 Set ──
+  it("accepts valid 1-set result", () => {
+    expect(validateMatchScores(6, 3, null, null, null, null, false, 1)).toBeNull();
+  });
+
+  it("rejects extra sets in 1-set format", () => {
+    const err = validateMatchScores(6, 3, 6, 4, null, null, false, 1);
+    expect(err).not.toBeNull();
+  });
+
+  it("rejects missing set1 in 1-set format", () => {
+    const err = validateMatchScores(null, null, null, null, null, null, false, 1);
+    expect(err).not.toBeNull();
+  });
+
+  // ── 2 Sets ──
+  it("accepts valid 2-set result (2-0)", () => {
+    expect(validateMatchScores(6, 3, 6, 4, null, null, false, 2)).toBeNull();
+  });
+
+  it("accepts 1-1 draw in 2-set format when allowed", () => {
+    expect(validateMatchScores(6, 3, 3, 6, null, null, true, 2)).toBeNull();
+  });
+
+  it("rejects 1-1 draw in 2-set format when not allowed", () => {
+    const err = validateMatchScores(6, 3, 3, 6, null, null, false, 2);
+    expect(err).not.toBeNull();
+  });
+
+  it("rejects 3rd set in 2-set format", () => {
+    const err = validateMatchScores(6, 3, 3, 6, 6, 4, false, 2);
+    expect(err).not.toBeNull();
+  });
+
+  it("rejects missing set2 in 2-set format", () => {
+    const err = validateMatchScores(6, 3, null, null, null, null, false, 2);
     expect(err).not.toBeNull();
   });
 });
 
 describe("determineResult", () => {
-  it("determines WIN_A for 2-0", () => {
-    const r = determineResult(6, 3, 6, 4, null, null, false);
+  it("determines WIN_A for 2-0 (3 sets)", () => {
+    const r = determineResult(6, 3, 6, 4, null, null, false, 3);
     expect(r.resultType).toBe("WIN_A");
     expect(r.setsA).toBe(2);
     expect(r.setsB).toBe(0);
   });
 
-  it("determines WIN_B for 0-2", () => {
-    const r = determineResult(3, 6, 4, 6, null, null, false);
+  it("determines WIN_B for 0-2 (3 sets)", () => {
+    const r = determineResult(3, 6, 4, 6, null, null, false, 3);
     expect(r.resultType).toBe("WIN_B");
   });
 
-  it("determines WIN_A for 2-1", () => {
-    const r = determineResult(6, 3, 3, 6, 6, 4, false);
+  it("determines WIN_A for 2-1 (3 sets)", () => {
+    const r = determineResult(6, 3, 3, 6, 6, 4, false, 3);
     expect(r.resultType).toBe("WIN_A");
     expect(r.setsA).toBe(2);
     expect(r.setsB).toBe(1);
   });
 
-  it("determines DRAW when allowed", () => {
-    const r = determineResult(6, 3, 3, 6, null, null, true);
+  it("determines DRAW when allowed (3 sets)", () => {
+    const r = determineResult(6, 3, 3, 6, null, null, true, 3);
     expect(r.resultType).toBe("DRAW");
   });
 
   it("determines UNDECIDED when draw not allowed and tied", () => {
-    const r = determineResult(6, 3, 3, 6, null, null, false);
+    const r = determineResult(6, 3, 3, 6, null, null, false, 3);
     expect(r.resultType).toBe("UNDECIDED");
+  });
+
+  // ── 1 Set ──
+  it("determines WIN_A for 1-set win", () => {
+    const r = determineResult(6, 3, null, null, null, null, false, 1);
+    expect(r.resultType).toBe("WIN_A");
+    expect(r.setsA).toBe(1);
+    expect(r.setsB).toBe(0);
+  });
+
+  it("determines WIN_B for 1-set win", () => {
+    const r = determineResult(3, 6, null, null, null, null, false, 1);
+    expect(r.resultType).toBe("WIN_B");
+  });
+
+  // ── 2 Sets ──
+  it("determines WIN_A for 2-0 (2 sets)", () => {
+    const r = determineResult(6, 3, 6, 4, null, null, false, 2);
+    expect(r.resultType).toBe("WIN_A");
+    expect(r.setsA).toBe(2);
+  });
+
+  it("determines DRAW for 1-1 (2 sets, draws allowed)", () => {
+    const r = determineResult(6, 3, 3, 6, null, null, true, 2);
+    expect(r.resultType).toBe("DRAW");
   });
 });

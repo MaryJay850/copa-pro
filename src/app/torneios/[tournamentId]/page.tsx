@@ -78,6 +78,9 @@ export default async function TournamentPage({
             {tournament.matchesPerPair === 1 ? "RR Simples" : "RR Duplo"}
           </span>
           <span>
+            {tournament.numberOfSets === 1 ? "1 Set" : tournament.numberOfSets === 2 ? "2 Sets" : "Melhor de 3"}
+          </span>
+          <span>
             {finishedMatches}/{totalMatches} jogos completos
           </span>
         </div>
@@ -140,7 +143,7 @@ export default async function TournamentPage({
               </CardHeader>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {round.matches.map((match) => (
-                  <MatchCard key={match.id} match={match} />
+                  <MatchCard key={match.id} match={match} numberOfSets={tournament.numberOfSets} />
                 ))}
               </div>
             </Card>

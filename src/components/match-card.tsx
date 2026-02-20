@@ -30,11 +30,12 @@ interface MatchCardProps {
       player2: { fullName: string; nickname: string | null };
     };
   };
+  numberOfSets?: number;
 }
 function playerLabel(p: { fullName: string; nickname: string | null }) {
   return p.nickname || p.fullName.split(" ")[0];
 }
-export function MatchCard({ match }: MatchCardProps) {
+export function MatchCard({ match, numberOfSets = 3 }: MatchCardProps) {
   const [set1A, setSet1A] = useState(match.set1A);
   const [set1B, setSet1B] = useState(match.set1B);
   const [set2A, setSet2A] = useState(match.set2A);
@@ -116,8 +117,12 @@ export function MatchCard({ match }: MatchCardProps) {
 
       <div className="space-y-1.5 pt-2 border-t border-border">
         <ScoreInput label="Set 1" valueA={set1A} valueB={set1B} onChangeA={setSet1A} onChangeB={setSet1B} disabled={saving} />
-        <ScoreInput label="Set 2" valueA={set2A} valueB={set2B} onChangeA={setSet2A} onChangeB={setSet2B} disabled={saving} />
-        <ScoreInput label="Set 3" valueA={set3A} valueB={set3B} onChangeA={setSet3A} onChangeB={setSet3B} disabled={saving} />
+        {numberOfSets >= 2 && (
+          <ScoreInput label="Set 2" valueA={set2A} valueB={set2B} onChangeA={setSet2A} onChangeB={setSet2B} disabled={saving} />
+        )}
+        {numberOfSets >= 3 && (
+          <ScoreInput label="Set 3" valueA={set3A} valueB={set3B} onChangeA={setSet3A} onChangeB={setSet3B} disabled={saving} />
+        )}
       </div>
       {error && <p className="text-xs text-danger">{error}</p>}
 

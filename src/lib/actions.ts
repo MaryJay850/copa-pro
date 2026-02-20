@@ -152,6 +152,7 @@ export async function createTournament(data: {
   name: string;
   courtsCount: number;
   matchesPerPair: number;
+  numberOfSets: number;
   teamMode: string;
   randomSeed?: string;
   teams: { name: string; player1Id: string; player2Id: string }[];
@@ -163,6 +164,7 @@ export async function createTournament(data: {
       name: data.name,
       courtsCount: data.courtsCount,
       matchesPerPair: data.matchesPerPair,
+      numberOfSets: data.numberOfSets,
       teamMode: data.teamMode,
       randomSeed: data.randomSeed || null,
       status: "DRAFT",
@@ -387,13 +389,15 @@ export async function saveMatchScore(
     if (!match) return { success: false, error: "Jogo não encontrado." };
 
     const allowDraws = match.tournament.season.allowDraws;
+    const numberOfSets = match.tournament.numberOfSets;
 
     // Validate scores
     const validationError = validateMatchScores(
       scores.set1A, scores.set1B,
       scores.set2A, scores.set2B,
       scores.set3A, scores.set3B,
-      allowDraws
+      allowDraws,
+      numberOfSets
     );
 
     if (validationError) return { success: false, error: validationError };
@@ -403,7 +407,8 @@ export async function saveMatchScore(
       scores.set1A!, scores.set1B!,
       scores.set2A, scores.set2B,
       scores.set3A, scores.set3B,
-      allowDraws
+      allowDraws,
+      numberOfSets
     );
 
     const winnerTeamId =
@@ -640,6 +645,7 @@ export async function updateTournament(data: {
   name: string;
   courtsCount: number;
   matchesPerPair: number;
+  numberOfSets: number;
   teamMode: string;
   randomSeed?: string;
   teams: { name: string; player1Id: string; player2Id: string }[];
@@ -673,6 +679,7 @@ export async function updateTournament(data: {
         name: data.name,
         courtsCount: data.courtsCount,
         matchesPerPair: data.matchesPerPair,
+        numberOfSets: data.numberOfSets,
         teamMode: data.teamMode,
         randomSeed: data.randomSeed || null,
         status: "DRAFT",

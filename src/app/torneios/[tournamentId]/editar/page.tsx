@@ -33,6 +33,7 @@ export default async function EditTournamentPage({
     name: tournament.name,
     courtsCount: tournament.courtsCount,
     matchesPerPair: tournament.matchesPerPair,
+    numberOfSets: tournament.numberOfSets,
     teamMode: tournament.teamMode,
     randomSeed: tournament.randomSeed ?? undefined,
     teams: tournament.teams.map((t) => ({

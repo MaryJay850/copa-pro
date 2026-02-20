@@ -226,6 +226,11 @@ export function sortRankings(entries: RankingEntry[]): RankingEntry[] {
 /**
  * Validate match scores.
  * Returns null if valid, or an error message string.
+ *
+ * numberOfSets controls the match format:
+ *   1 = single set (only set1 required)
+ *   2 = two sets (set1 + set2 required, no set3)
+ *   3 = best of 3 (set1 + set2 required, set3 as tiebreaker)
  */
 export function validateMatchScores(
   set1A: number | null,
@@ -234,7 +239,8 @@ export function validateMatchScores(
   set2B: number | null,
   set3A: number | null,
   set3B: number | null,
-  allowDraws: boolean
+  allowDraws: boolean,
+  numberOfSets: number = 3
 ): string | null {
   const isValidScore = (s: number | null) => s === null || (Number.isInteger(s) && s >= 0 && s <= 7);
 
@@ -244,50 +250,67 @@ export function validateMatchScores(
     return "Pontuação inválida. Valores permitidos: 0-7.";
   }
 
-  // Must have at least set 1
+  // Set 1 is always required
   if (set1A === null || set1B === null) {
     return "O primeiro set é obrigatório.";
   }
-
-  // Set scores can't be tied
   if (set1A === set1B) {
     return "Set 1: empate não é permitido num set.";
   }
 
-  // If set 2 provided
-  if (set2A !== null && set2B !== null) {
-    if (set2A === set2B) {
-      return "Set 2: empate não é permitido num set.";
+  // ── 1 Set format ──
+  if (numberOfSets === 1) {
+    if (set2A !== null || set2B !== null || set3A !== null || set3B !== null) {
+      return "Este torneio é de 1 set. Não preencha o set 2 ou 3.";
     }
-
-    const s1Winner = set1A > set1B ? "A" : "B";
-    const s2Winner = set2A > set2B ? "A" : "B";
-
-    // If same team won both sets, match is decided - no set 3 needed
-    if (s1Winner === s2Winner) {
-      if (set3A !== null || set3B !== null) {
-        return "O jogo já está decidido em 2 sets. Não é necessário um 3º set.";
-      }
-      return null;
-    }
-
-    // If split 1-1
-    if (set3A !== null && set3B !== null) {
-      if (set3A === set3B) {
-        return "Set 3: empate não é permitido num set.";
-      }
-      return null; // 3 sets played, match decided
-    }
-
-    // Split 1-1 and no set 3
-    if (allowDraws) {
-      return null; // Draw is allowed
-    }
-    return "Resultado empatado em sets. Insira o 3º set ou ative empates nas definições da época.";
+    return null; // Valid: single set decides the match
   }
 
-  // Only set 1 entered - match can't be finished with just 1 set
-  return "É necessário inserir pelo menos 2 sets.";
+  // ── 2 Sets or 3 Sets (Best of 3) ──
+  // Set 2 is required
+  if (set2A === null || set2B === null) {
+    return "O segundo set é obrigatório.";
+  }
+  if (set2A === set2B) {
+    return "Set 2: empate não é permitido num set.";
+  }
+
+  const s1Winner = set1A > set1B ? "A" : "B";
+  const s2Winner = set2A > set2B ? "A" : "B";
+
+  // ── 2 Sets format (no 3rd set allowed) ──
+  if (numberOfSets === 2) {
+    if (set3A !== null || set3B !== null) {
+      return "Este torneio é de 2 sets. Não preencha o 3º set.";
+    }
+    // 2-0 or 0-2 → clear winner. 1-1 → draw (if allowed)
+    if (s1Winner !== s2Winner && !allowDraws) {
+      return "Resultado empatado em sets (1-1). Ative empates nas definições da época.";
+    }
+    return null;
+  }
+
+  // ── 3 Sets (Best of 3) ──
+  // If same team won both sets → match decided, no set 3 needed
+  if (s1Winner === s2Winner) {
+    if (set3A !== null || set3B !== null) {
+      return "O jogo já está decidido em 2 sets. Não é necessário um 3º set.";
+    }
+    return null;
+  }
+
+  // Split 1-1 → set 3 needed (or draw if allowed)
+  if (set3A !== null && set3B !== null) {
+    if (set3A === set3B) {
+      return "Set 3: empate não é permitido num set.";
+    }
+    return null; // 3 sets played, match decided
+  }
+
+  if (allowDraws) {
+    return null; // Draw is allowed with 1-1
+  }
+  return "Resultado empatado em sets. Insira o 3º set ou ative empates nas definições da época.";
 }
 
 /**
@@ -300,7 +323,8 @@ export function determineResult(
   set2B: number | null,
   set3A: number | null,
   set3B: number | null,
-  allowDraws: boolean
+  allowDraws: boolean,
+  numberOfSets: number = 3
 ): { resultType: string; setsA: number; setsB: number } {
   let setsA = 0;
   let setsB = 0;
@@ -308,12 +332,12 @@ export function determineResult(
   if (set1A > set1B) setsA++;
   else setsB++;
 
-  if (set2A !== null && set2B !== null) {
+  if (numberOfSets >= 2 && set2A !== null && set2B !== null) {
     if (set2A > set2B) setsA++;
     else setsB++;
   }
 
-  if (set3A !== null && set3B !== null) {
+  if (numberOfSets >= 3 && set3A !== null && set3B !== null) {
     if (set3A > set3B) setsA++;
     else setsB++;
   }
