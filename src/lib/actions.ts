@@ -5,6 +5,20 @@ import { generateRoundRobinPairings, generateRandomTeams, type TeamRef } from ".
 import { computeMatchContribution, validateMatchScores, determineResult } from "./ranking";
 import { revalidatePath } from "next/cache";
 
+// Helper: strip Prisma Date objects → plain JSON-safe objects
+// Converts Date → string (ISO), BigInt → string, etc.
+type Serialized<T> = T extends Date
+  ? string
+  : T extends Array<infer U>
+    ? Serialized<U>[]
+    : T extends object
+      ? { [K in keyof T]: Serialized<T[K]> }
+      : T;
+
+function serialize<T>(obj: T): Serialized<T> {
+  return JSON.parse(JSON.stringify(obj));
+}
+
 // ── League actions ──
 
 export async function createLeague(formData: FormData) {
@@ -22,19 +36,21 @@ export async function createLeague(formData: FormData) {
 }
 
 export async function getLeagues() {
-  return prisma.league.findMany({
+  const result = await prisma.league.findMany({
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { seasons: true } } },
   });
+  return serialize(result);
 }
 
 export async function getLeague(id: string) {
-  return prisma.league.findUnique({
+  const result = await prisma.league.findUnique({
     where: { id },
     include: {
       seasons: { orderBy: { createdAt: "desc" } },
     },
   });
+  return serialize(result);
 }
 
 export async function deleteLeague(id: string) {
@@ -68,7 +84,7 @@ export async function createSeason(formData: FormData) {
 }
 
 export async function getSeason(id: string) {
-  return prisma.season.findUnique({
+  const result = await prisma.season.findUnique({
     where: { id },
     include: {
       league: true,
@@ -82,6 +98,7 @@ export async function getSeason(id: string) {
       },
     },
   });
+  return serialize(result);
 }
 
 export async function updateSeasonDraws(seasonId: string, allowDraws: boolean) {
@@ -94,7 +111,8 @@ export async function updateSeasonDraws(seasonId: string, allowDraws: boolean) {
 // ── Player actions ──
 
 export async function getPlayers() {
-  return prisma.player.findMany({ orderBy: { fullName: "asc" } });
+  const result = await prisma.player.findMany({ orderBy: { fullName: "asc" } });
+  return serialize(result);
 }
 
 export async function createPlayer(formData: FormData) {
@@ -316,7 +334,7 @@ export async function forceRegenerateSchedule(tournamentId: string) {
 }
 
 export async function getTournament(id: string) {
-  return prisma.tournament.findUnique({
+  const result = await prisma.tournament.findUnique({
     where: { id },
     include: {
       league: true,
@@ -340,6 +358,7 @@ export async function getTournament(id: string) {
       },
     },
   });
+  return serialize(result);
 }
 
 // ── Match scoring ──
@@ -603,7 +622,7 @@ export async function getTournamentForEdit(tournamentId: string) {
     throw new Error("Não é possível editar este torneio (tem resultados ou está terminado).");
   }
 
-  return tournament;
+  return serialize(tournament);
 }
 
 export async function updateTournament(data: {
@@ -676,4 +695,98 @@ export async function updateTournament(data: {
 
   revalidatePath(`/torneios/${data.tournamentId}`);
   return { tournamentId: data.tournamentId };
+}
+
+// ── Homepage data ──
+
+export async function getHomepageData() {
+  // Find first league with an active season
+  const league = await prisma.league.findFirst({
+    where: { seasons: { some: { isActive: true } } },
+    include: {
+      seasons: {
+        where: { isActive: true },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        include: {
+          rankings: {
+            orderBy: { pointsTotal: "desc" },
+            take: 10,
+            include: { player: true },
+          },
+          tournaments: {
+            orderBy: { createdAt: "desc" },
+            include: {
+              _count: { select: { teams: true, matches: true } },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!league || league.seasons.length === 0) {
+    return serialize({ league: null, season: null, rankings: [], recentMatches: [], activeTournaments: [] });
+  }
+
+  const season = league.seasons[0];
+
+  // Get recent finished matches from this season's tournaments
+  const recentMatches = await prisma.match.findMany({
+    where: {
+      tournament: { seasonId: season.id },
+      status: "FINISHED",
+    },
+    orderBy: { playedAt: "desc" },
+    take: 6,
+    include: {
+      teamA: { include: { player1: true, player2: true } },
+      teamB: { include: { player1: true, player2: true } },
+      tournament: { select: { name: true, id: true } },
+      court: true,
+    },
+  });
+
+  // Active tournaments (RUNNING or PUBLISHED)
+  const activeTournaments = season.tournaments.filter(
+    (t) => t.status === "RUNNING" || t.status === "PUBLISHED"
+  );
+
+  // Count finished matches per active tournament
+  const activeTournamentsWithProgress = await Promise.all(
+    activeTournaments.map(async (t) => {
+      const finishedCount = await prisma.match.count({
+        where: { tournamentId: t.id, status: "FINISHED" },
+      });
+      return {
+        id: t.id,
+        name: t.name,
+        status: t.status,
+        totalMatches: t._count.matches,
+        finishedMatches: finishedCount,
+        teamsCount: t._count.teams,
+      };
+    })
+  );
+
+  const rankings = season.rankings.map((r, i) => ({
+    position: i + 1,
+    playerName: r.player.nickname || r.player.fullName,
+    pointsTotal: r.pointsTotal,
+    matchesPlayed: r.matchesPlayed,
+    wins: r.wins,
+    draws: r.draws,
+    losses: r.losses,
+    setsWon: r.setsWon,
+    setsLost: r.setsLost,
+    setsDiff: r.setsDiff,
+  }));
+
+  return serialize({
+    league: { id: league.id, name: league.name },
+    season: { id: season.id, name: season.name },
+    rankings,
+    recentMatches,
+    activeTournaments: activeTournamentsWithProgress,
+  });
 }

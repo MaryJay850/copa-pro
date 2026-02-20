@@ -16,10 +16,13 @@ export default function RootLayout({
       <body className="bg-surface-alt text-text min-h-screen antialiased">
         <header className="bg-surface border-b border-border sticky top-0 z-50">
           <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
-            <a href="/ligas" className="text-xl font-bold text-primary tracking-tight">
+            <a href="/" className="text-xl font-bold text-primary tracking-tight">
               CopaPro
             </a>
             <nav className="flex items-center gap-4 text-sm">
+              <a href="/" className="text-text-muted hover:text-text transition-colors">
+                Início
+              </a>
               <a href="/ligas" className="text-text-muted hover:text-text transition-colors">
                 Ligas
               </a>
