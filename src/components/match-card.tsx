@@ -48,9 +48,12 @@ export function MatchCard({ match }: MatchCardProps) {
     setSaving(true);
     setError(null);
     try {
-      await saveMatchScore(match.id, { set1A, set1B, set2A, set2B, set3A, set3B });
+      const result = await saveMatchScore(match.id, { set1A, set1B, set2A, set2B, set3A, set3B });
+      if (!result.success) {
+        setError(result.error);
+      }
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message || "Erro ao guardar resultado.");
     }
     setSaving(false);
   };
@@ -58,12 +61,16 @@ export function MatchCard({ match }: MatchCardProps) {
     setSaving(true);
     setError(null);
     try {
-      await resetMatch(match.id);
-      setSet1A(null); setSet1B(null);
-      setSet2A(null); setSet2B(null);
-      setSet3A(null); setSet3B(null);
+      const result = await resetMatch(match.id);
+      if (!result.success) {
+        setError(result.error);
+      } else {
+        setSet1A(null); setSet1B(null);
+        setSet2A(null); setSet2B(null);
+        setSet3A(null); setSet3B(null);
+      }
     } catch (e: any) {
-      setError(e.message);
+      setError(e.message || "Erro ao repor jogo.");
     }
     setSaving(false);
   };

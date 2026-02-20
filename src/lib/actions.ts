@@ -373,92 +373,102 @@ export async function saveMatchScore(
     set3A: number | null;
     set3B: number | null;
   }
-) {
-  const match = await prisma.match.findUnique({
-    where: { id: matchId },
-    include: {
-      tournament: { include: { season: true } },
-      teamA: true,
-      teamB: true,
-    },
-  });
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        tournament: { include: { season: true } },
+        teamA: true,
+        teamB: true,
+      },
+    });
 
-  if (!match) throw new Error("Jogo não encontrado.");
+    if (!match) return { success: false, error: "Jogo não encontrado." };
 
-  const allowDraws = match.tournament.season.allowDraws;
+    const allowDraws = match.tournament.season.allowDraws;
 
-  // Validate scores
-  const error = validateMatchScores(
-    scores.set1A, scores.set1B,
-    scores.set2A, scores.set2B,
-    scores.set3A, scores.set3B,
-    allowDraws
-  );
+    // Validate scores
+    const validationError = validateMatchScores(
+      scores.set1A, scores.set1B,
+      scores.set2A, scores.set2B,
+      scores.set3A, scores.set3B,
+      allowDraws
+    );
 
-  if (error) throw new Error(error);
+    if (validationError) return { success: false, error: validationError };
 
-  // Determine result
-  const result = determineResult(
-    scores.set1A!, scores.set1B!,
-    scores.set2A, scores.set2B,
-    scores.set3A, scores.set3B,
-    allowDraws
-  );
+    // Determine result
+    const result = determineResult(
+      scores.set1A!, scores.set1B!,
+      scores.set2A, scores.set2B,
+      scores.set3A, scores.set3B,
+      allowDraws
+    );
 
-  const winnerTeamId =
-    result.resultType === "WIN_A" ? match.teamAId :
-    result.resultType === "WIN_B" ? match.teamBId :
-    null;
+    const winnerTeamId =
+      result.resultType === "WIN_A" ? match.teamAId :
+      result.resultType === "WIN_B" ? match.teamBId :
+      null;
 
-  // Update match
-  await prisma.match.update({
-    where: { id: matchId },
-    data: {
-      ...scores,
-      status: "FINISHED",
-      resultType: result.resultType,
-      winnerTeamId,
-      playedAt: new Date(),
-    },
-  });
+    // Update match
+    await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        ...scores,
+        status: "FINISHED",
+        resultType: result.resultType,
+        winnerTeamId,
+        playedAt: new Date(),
+      },
+    });
 
-  // Check if tournament should move to RUNNING
-  await prisma.tournament.update({
-    where: { id: match.tournamentId },
-    data: { status: "RUNNING" },
-  });
+    // Check if tournament should move to RUNNING
+    await prisma.tournament.update({
+      where: { id: match.tournamentId },
+      data: { status: "RUNNING" },
+    });
 
-  // Recompute season ranking
-  await recomputeSeasonRanking(match.tournament.seasonId);
+    // Recompute season ranking
+    await recomputeSeasonRanking(match.tournament.seasonId);
 
-  revalidatePath(`/torneios/${match.tournamentId}`);
+    revalidatePath(`/torneios/${match.tournamentId}`);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: (e as Error).message || "Erro ao guardar resultado." };
+  }
 }
 
-export async function resetMatch(matchId: string) {
-  const match = await prisma.match.findUnique({
-    where: { id: matchId },
-    include: { tournament: true },
-  });
+export async function resetMatch(matchId: string): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { tournament: true },
+    });
 
-  if (!match) throw new Error("Jogo não encontrado.");
+    if (!match) return { success: false, error: "Jogo não encontrado." };
 
-  await prisma.match.update({
-    where: { id: matchId },
-    data: {
-      set1A: null, set1B: null,
-      set2A: null, set2B: null,
-      set3A: null, set3B: null,
-      status: "SCHEDULED",
-      resultType: "UNDECIDED",
-      winnerTeamId: null,
-      playedAt: null,
-    },
-  });
+    await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        set1A: null, set1B: null,
+        set2A: null, set2B: null,
+        set3A: null, set3B: null,
+        status: "SCHEDULED",
+        resultType: "UNDECIDED",
+        winnerTeamId: null,
+        playedAt: null,
+      },
+    });
 
-  // Recompute rankings
-  await recomputeSeasonRanking(match.tournament.seasonId);
+    // Recompute rankings
+    await recomputeSeasonRanking(match.tournament.seasonId);
 
-  revalidatePath(`/torneios/${match.tournamentId}`);
+    revalidatePath(`/torneios/${match.tournamentId}`);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: (e as Error).message || "Erro ao repor jogo." };
+  }
 }
 
 export async function updateTeamName(teamId: string, name: string) {
