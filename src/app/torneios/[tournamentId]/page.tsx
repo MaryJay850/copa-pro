@@ -139,7 +139,7 @@ export default async function TournamentPage({
               </CardHeader>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {round.matches.map((match) => (
-                  <MatchCard key={match.id} match={match} />
+                  <MatchCard key={match.id} match={JSON.parse(JSON.stringify(match))} />
                 ))}
               </div>
             </Card>
