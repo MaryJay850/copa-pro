@@ -89,6 +89,7 @@ export default async function TournamentPage({
         status={tournament.status}
         leagueId={tournament.leagueId}
         seasonId={tournament.seasonId}
+        hasResults={finishedMatches > 0}
       />
 
       {/* Teams overview */}

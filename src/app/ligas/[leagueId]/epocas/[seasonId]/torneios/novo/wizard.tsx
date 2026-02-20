@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { createTournament, generateSchedule, createPlayer, createPlayersFromList } from "@/lib/actions";
+import { createTournament, generateSchedule, createPlayer, createPlayersFromList, updateTournament } from "@/lib/actions";
 
 interface Player {
   id: string;
@@ -19,14 +19,29 @@ interface TeamPair {
   player2Id: string;
 }
 
+type TeamMode = "FIXED_TEAMS" | "RANDOM_TEAMS" | "MANUAL_TEAMS";
+
 export function TournamentWizard({
   leagueId,
   seasonId,
   existingPlayers,
+  editMode,
 }: {
   leagueId: string;
   seasonId: string;
   existingPlayers: Player[];
+  editMode?: {
+    tournamentId: string;
+    initialData: {
+      name: string;
+      courtsCount: number;
+      matchesPerPair: number;
+      teamMode: string;
+      randomSeed?: string;
+      teams: { name: string; player1Id: string; player2Id: string }[];
+      selectedPlayerIds: string[];
+    };
+  };
 }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -34,22 +49,32 @@ export function TournamentWizard({
   const [error, setError] = useState<string | null>(null);
 
   // Step 1
-  const [name, setName] = useState("");
-  const [courtsCount, setCourtsCount] = useState(2);
-  const [matchesPerPair, setMatchesPerPair] = useState(1);
-  const [teamMode, setTeamMode] = useState<"FIXED_TEAMS" | "RANDOM_TEAMS">("FIXED_TEAMS");
+  const [name, setName] = useState(editMode?.initialData.name ?? "");
+  const [courtsCount, setCourtsCount] = useState(editMode?.initialData.courtsCount ?? 2);
+  const [matchesPerPair, setMatchesPerPair] = useState(editMode?.initialData.matchesPerPair ?? 1);
+  const [teamMode, setTeamMode] = useState<TeamMode>(
+    (editMode?.initialData.teamMode as TeamMode) ?? "FIXED_TEAMS"
+  );
 
   // Step 2
   const [players, setPlayers] = useState<Player[]>(existingPlayers);
-  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(new Set());
+  const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(
+    new Set(editMode?.initialData.selectedPlayerIds ?? [])
+  );
   const [newPlayerName, setNewPlayerName] = useState("");
   const [bulkNames, setBulkNames] = useState("");
 
   // Step 3
-  const [teams, setTeams] = useState<TeamPair[]>([]);
-  const [randomSeed, setRandomSeed] = useState(() => Math.random().toString(36).substring(2, 8));
+  const [teams, setTeams] = useState<TeamPair[]>(editMode?.initialData.teams ?? []);
+  const [randomSeed, setRandomSeed] = useState(
+    editMode?.initialData.randomSeed ?? Math.random().toString(36).substring(2, 8)
+  );
 
   const selectedPlayers = players.filter((p) => selectedPlayerIds.has(p.id));
+
+  // Compute unassigned players for MANUAL_TEAMS mode
+  const assignedPlayerIds = new Set(teams.flatMap((t) => [t.player1Id, t.player2Id].filter(Boolean)));
+  const unassignedPlayers = selectedPlayers.filter((p) => !assignedPlayerIds.has(p.id));
 
   const togglePlayer = (id: string) => {
     const next = new Set(selectedPlayerIds);
@@ -98,7 +123,6 @@ export function TournamentWizard({
       return;
     }
 
-    // Use seedrandom-like shuffle locally for preview
     const shuffled = [...selectedPlayers];
     let seed = randomSeed;
     const random = () => {
@@ -143,6 +167,25 @@ export function TournamentWizard({
     setTeams(newTeams);
     setError(null);
   };
+
+  const initManualTeams = () => {
+    if (selectedPlayers.length < 4 || selectedPlayers.length % 2 !== 0) {
+      setError("Número par de jogadores necessário (mínimo 4).");
+      return;
+    }
+    const numTeams = selectedPlayers.length / 2;
+    const newTeams: TeamPair[] = [];
+    for (let i = 0; i < numTeams; i++) {
+      newTeams.push({
+        name: `Equipa ${i + 1}`,
+        player1Id: "",
+        player2Id: "",
+      });
+    }
+    setTeams(newTeams);
+    setError(null);
+  };
+
   const updateTeamPlayer = (teamIdx: number, slot: "player1Id" | "player2Id", playerId: string) => {
     setTeams((prev) => {
       const next = [...prev];
@@ -151,10 +194,14 @@ export function TournamentWizard({
     });
   };
 
-  const handleCreate = async () => {
+  const handleSubmit = async () => {
     // Validate no duplicate players across teams
     const usedIds = new Set<string>();
     for (const t of teams) {
+      if (!t.player1Id || !t.player2Id) {
+        setError("Todos os lugares das equipas devem ser preenchidos.");
+        return;
+      }
       if (usedIds.has(t.player1Id) || usedIds.has(t.player2Id)) {
         setError("Um jogador não pode estar em múltiplas equipas.");
         return;
@@ -170,21 +217,32 @@ export function TournamentWizard({
     setLoading(true);
     setError(null);
     try {
-      const tournament = await createTournament({
-        leagueId,
-        seasonId,
-        name,
-        courtsCount,
-        matchesPerPair,
-        teamMode,
-        randomSeed: teamMode === "RANDOM_TEAMS" ? randomSeed : undefined,
-        teams,
-      });
-
-      // Generate schedule
-      await generateSchedule(tournament.id);
-
-      router.push(`/torneios/${tournament.id}`);
+      if (editMode) {
+        await updateTournament({
+          tournamentId: editMode.tournamentId,
+          name,
+          courtsCount,
+          matchesPerPair,
+          teamMode,
+          randomSeed: teamMode === "RANDOM_TEAMS" ? randomSeed : undefined,
+          teams,
+        });
+        await generateSchedule(editMode.tournamentId);
+        router.push(`/torneios/${editMode.tournamentId}`);
+      } else {
+        const tournament = await createTournament({
+          leagueId,
+          seasonId,
+          name,
+          courtsCount,
+          matchesPerPair,
+          teamMode,
+          randomSeed: teamMode === "RANDOM_TEAMS" ? randomSeed : undefined,
+          teams,
+        });
+        await generateSchedule(tournament.id);
+        router.push(`/torneios/${tournament.id}`);
+      }
     } catch (e) {
       setError((e as Error).message);
       setLoading(false);
@@ -195,6 +253,35 @@ export function TournamentWizard({
     const p = players.find((p) => p.id === id);
     return p ? (p.nickname || p.fullName) : "?";
   };
+
+  const validateStep3 = () => {
+    if (teamMode === "MANUAL_TEAMS") {
+      const hasEmpty = teams.some((t) => !t.player1Id || !t.player2Id);
+      if (hasEmpty) {
+        setError("Todos os lugares das equipas devem ser preenchidos.");
+        return false;
+      }
+      const usedIds = new Set<string>();
+      for (const t of teams) {
+        if (usedIds.has(t.player1Id) || usedIds.has(t.player2Id) || t.player1Id === t.player2Id) {
+          setError("Cada jogador só pode estar numa equipa.");
+          return false;
+        }
+        usedIds.add(t.player1Id);
+        usedIds.add(t.player2Id);
+      }
+    }
+    return true;
+  };
+
+  const teamModeLabel = (mode: string) => {
+    switch (mode) {
+      case "RANDOM_TEAMS": return "Aleatórias";
+      case "MANUAL_TEAMS": return "Manuais";
+      default: return "Fixas";
+    }
+  };
+
   return (
     <div className="max-w-2xl space-y-6">
       {/* Steps indicator */}
@@ -266,7 +353,7 @@ export function TournamentWizard({
             </div>
             <div>
               <label className="block text-sm font-medium text-text mb-1">Modo de Equipas</label>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
                   <input
                     type="radio"
@@ -284,6 +371,15 @@ export function TournamentWizard({
                     className="text-primary focus:ring-primary"
                   />
                   Equipas Aleatórias
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    checked={teamMode === "MANUAL_TEAMS"}
+                    onChange={() => setTeamMode("MANUAL_TEAMS")}
+                    className="text-primary focus:ring-primary"
+                  />
+                  Equipas Manuais
                 </label>
               </div>
             </div>
@@ -364,6 +460,7 @@ export function TournamentWizard({
               if (selectedPlayerIds.size % 2 !== 0) { setError("Selecione um número par de jogadores."); return; }
               setError(null);
               if (teamMode === "RANDOM_TEAMS") generateRandomTeamsLocal();
+              else if (teamMode === "MANUAL_TEAMS") initManualTeams();
               else initFixedTeams();
               setStep(3);
             }}>
@@ -376,7 +473,7 @@ export function TournamentWizard({
       {step === 3 && (
         <Card>
           <h2 className="text-lg font-semibold mb-4">
-            Passo 3: {teamMode === "RANDOM_TEAMS" ? "Equipas Aleatórias" : "Formar Equipas"}
+            Passo 3: {teamMode === "RANDOM_TEAMS" ? "Equipas Aleatórias" : teamMode === "MANUAL_TEAMS" ? "Formar Equipas Manualmente" : "Formar Equipas"}
           </h2>
 
           {teamMode === "RANDOM_TEAMS" && (
@@ -390,6 +487,13 @@ export function TournamentWizard({
               <Button size="sm" variant="secondary" onClick={generateRandomTeamsLocal}>
                 Regenerar
               </Button>
+            </div>
+          )}
+
+          {teamMode === "MANUAL_TEAMS" && unassignedPlayers.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-2 rounded-lg mb-4">
+              <strong>Jogadores por atribuir ({unassignedPlayers.length}):</strong>{" "}
+              {unassignedPlayers.map((p) => p.nickname || p.fullName).join(", ")}
             </div>
           )}
 
@@ -413,6 +517,9 @@ export function TournamentWizard({
                     onChange={(e) => updateTeamPlayer(idx, "player1Id", e.target.value)}
                     className="flex-1 rounded border border-border bg-white px-2 py-1 text-sm focus:border-primary focus:outline-none"
                   >
+                    {teamMode === "MANUAL_TEAMS" && !team.player1Id && (
+                      <option value="">-- Selecionar --</option>
+                    )}
                     {selectedPlayers.map((p) => (
                       <option key={p.id} value={p.id}>{p.nickname || p.fullName}</option>
                     ))}
@@ -423,6 +530,9 @@ export function TournamentWizard({
                     onChange={(e) => updateTeamPlayer(idx, "player2Id", e.target.value)}
                     className="flex-1 rounded border border-border bg-white px-2 py-1 text-sm focus:border-primary focus:outline-none"
                   >
+                    {teamMode === "MANUAL_TEAMS" && !team.player2Id && (
+                      <option value="">-- Selecionar --</option>
+                    )}
                     {selectedPlayers.map((p) => (
                       <option key={p.id} value={p.id}>{p.nickname || p.fullName}</option>
                     ))}
@@ -434,7 +544,11 @@ export function TournamentWizard({
 
           <div className="flex gap-2 mt-4">
             <Button variant="ghost" onClick={() => setStep(2)}>Anterior</Button>
-            <Button onClick={() => { setError(null); setStep(4); }}>
+            <Button onClick={() => {
+              if (!validateStep3()) return;
+              setError(null);
+              setStep(4);
+            }}>
               Seguinte
             </Button>
           </div>
@@ -443,7 +557,9 @@ export function TournamentWizard({
       {/* Step 4: Review & Create */}
       {step === 4 && (
         <Card>
-          <h2 className="text-lg font-semibold mb-4">Passo 4: Confirmar e Criar</h2>
+          <h2 className="text-lg font-semibold mb-4">
+            Passo 4: {editMode ? "Confirmar Alterações" : "Confirmar e Criar"}
+          </h2>
 
           <div className="space-y-3 text-sm">
             <div className="flex justify-between py-2 border-b border-border">
@@ -460,7 +576,7 @@ export function TournamentWizard({
             </div>
             <div className="flex justify-between py-2 border-b border-border">
               <span className="text-text-muted">Modo</span>
-              <span className="font-medium">{teamMode === "RANDOM_TEAMS" ? "Aleatórias" : "Fixas"}</span>
+              <span className="font-medium">{teamModeLabel(teamMode)}</span>
             </div>
             <div className="py-2">
               <span className="text-text-muted block mb-2">Equipas ({teams.length})</span>
@@ -477,8 +593,10 @@ export function TournamentWizard({
 
           <div className="flex gap-2 mt-4">
             <Button variant="ghost" onClick={() => setStep(3)}>Anterior</Button>
-            <Button onClick={handleCreate} disabled={loading}>
-              {loading ? "A criar torneio..." : "Criar Torneio e Gerar Calendário"}
+            <Button onClick={handleSubmit} disabled={loading}>
+              {loading
+                ? (editMode ? "A guardar..." : "A criar torneio...")
+                : (editMode ? "Guardar e Regenerar Calendário" : "Criar Torneio e Gerar Calendário")}
             </Button>
           </div>
         </Card>

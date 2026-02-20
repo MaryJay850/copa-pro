@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   generateSchedule,
   forceRegenerateSchedule,
   finishTournament,
+  deleteTournament,
 } from "@/lib/actions";
 
 export function TournamentActions({
@@ -14,11 +16,13 @@ export function TournamentActions({
   status,
   leagueId,
   seasonId,
+  hasResults,
 }: {
   tournamentId: string;
   status: string;
   leagueId: string;
   seasonId: string;
+  hasResults: boolean;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -69,9 +73,28 @@ export function TournamentActions({
     setLoading(false);
   };
 
+  const handleDelete = async () => {
+    if (
+      !confirm(
+        "Tem a certeza que deseja eliminar este torneio? Esta ação é irreversível e todos os dados (equipas, calendário, resultados) serão perdidos."
+      )
+    )
+      return;
+    setLoading(true);
+    try {
+      await deleteTournament(tournamentId);
+      router.push(`/ligas/${leagueId}/epocas/${seasonId}`);
+    } catch (e: unknown) {
+      alert((e as Error).message);
+    }
+    setLoading(false);
+  };
+
   const handlePrint = () => {
     window.print();
   };
+
+  const canEdit = status === "DRAFT" || (status !== "FINISHED" && !hasResults);
 
   return (
     <div className="flex flex-wrap gap-2 print:hidden">
@@ -102,9 +125,23 @@ export function TournamentActions({
         </>
       )}
 
+      {canEdit && (
+        <Link href={`/torneios/${tournamentId}/editar`}>
+          <Button size="sm" variant="secondary">
+            Editar Configuração
+          </Button>
+        </Link>
+      )}
+
       <Button onClick={handlePrint} size="sm" variant="ghost">
         Imprimir / Exportar
       </Button>
+
+      {status !== "FINISHED" && (
+        <Button onClick={handleDelete} disabled={loading} size="sm" variant="danger">
+          Eliminar Torneio
+        </Button>
+      )}
 
       {showConfirm && (
         <div className="w-full bg-amber-50 border border-amber-200 rounded-lg p-4 mt-2">

@@ -560,3 +560,120 @@ export async function finishTournament(tournamentId: string) {
 
   revalidatePath(`/torneios/${tournamentId}`);
 }
+
+// ── Delete tournament ──
+
+export async function deleteTournament(tournamentId: string) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { seasonId: true, leagueId: true },
+  });
+
+  if (!tournament) throw new Error("Torneio não encontrado.");
+
+  // Cascade delete handles all child records (teams, courts, rounds, matches)
+  await prisma.tournament.delete({ where: { id: tournamentId } });
+
+  // Recompute season rankings since match data was removed
+  await recomputeSeasonRanking(tournament.seasonId);
+
+  revalidatePath(`/ligas`);
+  return { seasonId: tournament.seasonId, leagueId: tournament.leagueId };
+}
+
+// ── Edit tournament ──
+
+export async function getTournamentForEdit(tournamentId: string) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    include: {
+      league: true,
+      season: true,
+      teams: {
+        include: { player1: true, player2: true },
+      },
+      matches: { select: { status: true } },
+    },
+  });
+
+  if (!tournament) throw new Error("Torneio não encontrado.");
+
+  const hasResults = tournament.matches.some((m) => m.status === "FINISHED");
+  if (hasResults || tournament.status === "FINISHED") {
+    throw new Error("Não é possível editar este torneio (tem resultados ou está terminado).");
+  }
+
+  return tournament;
+}
+
+export async function updateTournament(data: {
+  tournamentId: string;
+  name: string;
+  courtsCount: number;
+  matchesPerPair: number;
+  teamMode: string;
+  randomSeed?: string;
+  teams: { name: string; player1Id: string; player2Id: string }[];
+}) {
+  const existing = await prisma.tournament.findUnique({
+    where: { id: data.tournamentId },
+    include: { matches: { select: { status: true } } },
+  });
+
+  if (!existing) throw new Error("Torneio não encontrado.");
+
+  const hasResults = existing.matches.some((m) => m.status === "FINISHED");
+  if (hasResults) {
+    throw new Error("Não é possível editar um torneio com resultados registados.");
+  }
+  if (existing.status === "FINISHED") {
+    throw new Error("Não é possível editar um torneio terminado.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // Clear existing schedule and teams
+    await tx.match.deleteMany({ where: { tournamentId: data.tournamentId } });
+    await tx.round.deleteMany({ where: { tournamentId: data.tournamentId } });
+    await tx.team.deleteMany({ where: { tournamentId: data.tournamentId } });
+    await tx.court.deleteMany({ where: { tournamentId: data.tournamentId } });
+
+    // Update tournament config
+    await tx.tournament.update({
+      where: { id: data.tournamentId },
+      data: {
+        name: data.name,
+        courtsCount: data.courtsCount,
+        matchesPerPair: data.matchesPerPair,
+        teamMode: data.teamMode,
+        randomSeed: data.randomSeed || null,
+        status: "DRAFT",
+      },
+    });
+
+    // Recreate courts
+    for (let i = 0; i < data.courtsCount; i++) {
+      await tx.court.create({
+        data: {
+          tournamentId: data.tournamentId,
+          name: `Campo ${i + 1}`,
+        },
+      });
+    }
+
+    // Recreate teams
+    for (const t of data.teams) {
+      await tx.team.create({
+        data: {
+          tournamentId: data.tournamentId,
+          name: t.name,
+          player1Id: t.player1Id,
+          player2Id: t.player2Id,
+          isRandomGenerated: data.teamMode === "RANDOM_TEAMS",
+        },
+      });
+    }
+  });
+
+  revalidatePath(`/torneios/${data.tournamentId}`);
+  return { tournamentId: data.tournamentId };
+}

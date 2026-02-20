@@ -104,7 +104,7 @@ export default async function SeasonPage({ params }: { params: Promise<{ leagueI
                     <div className="flex gap-4 mt-2 text-xs text-text-muted">
                       <span>{t._count.teams} equipas</span>
                       <span>{t._count.matches} jogos</span>
-                      <span>{t.teamMode === "RANDOM_TEAMS" ? "Equipas aleatórias" : "Equipas fixas"}</span>
+                      <span>{t.teamMode === "RANDOM_TEAMS" ? "Equipas aleatórias" : t.teamMode === "MANUAL_TEAMS" ? "Equipas manuais" : "Equipas fixas"}</span>
                     </div>
                   </Card>
                 </Link>
