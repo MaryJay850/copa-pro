@@ -195,18 +195,21 @@ export function TournamentWizard({
   };
 
   const handleSubmit = async () => {
-    const usedIds = new Set<string>();
-    for (const t of teams) {
-      if (!t.player1Id) { setError("Todos os lugares devem ser preenchidos."); return; }
-      if (teamSize === 2 && !t.player2Id) { setError("Todos os lugares devem ser preenchidos."); return; }
-      if (usedIds.has(t.player1Id) || (t.player2Id && usedIds.has(t.player2Id))) {
-        setError("Um jogador não pode estar em múltiplas equipas."); return;
+    // Only validate teams if there are any
+    if (teams.length > 0) {
+      const usedIds = new Set<string>();
+      for (const t of teams) {
+        if (!t.player1Id) { setError("Todos os lugares devem ser preenchidos."); return; }
+        if (teamSize === 2 && !t.player2Id) { setError("Todos os lugares devem ser preenchidos."); return; }
+        if (usedIds.has(t.player1Id) || (t.player2Id && usedIds.has(t.player2Id))) {
+          setError("Um jogador não pode estar em múltiplas equipas."); return;
+        }
+        if (teamSize === 2 && t.player1Id === t.player2Id) {
+          setError("Uma equipa não pode ter o mesmo jogador duas vezes."); return;
+        }
+        usedIds.add(t.player1Id);
+        if (t.player2Id) usedIds.add(t.player2Id);
       }
-      if (teamSize === 2 && t.player1Id === t.player2Id) {
-        setError("Uma equipa não pode ter o mesmo jogador duas vezes."); return;
-      }
-      usedIds.add(t.player1Id);
-      if (t.player2Id) usedIds.add(t.player2Id);
     }
 
     setLoading(true);
@@ -228,11 +231,11 @@ export function TournamentWizard({
 
       if (editMode) {
         await updateTournament({ tournamentId: editMode.tournamentId, ...payload });
-        await generateSchedule(editMode.tournamentId);
+        if (teams.length > 0) await generateSchedule(editMode.tournamentId);
         router.push(`/torneios/${editMode.tournamentId}`);
       } else {
         const tournament = await createTournament({ leagueId, seasonId, ...payload });
-        await generateSchedule(tournament.id);
+        if (teams.length > 0) await generateSchedule(tournament.id);
         router.push(`/torneios/${tournament.id}`);
       }
     } catch (e) {
@@ -267,6 +270,13 @@ export function TournamentWizard({
   };
 
   const handleStep2Next = () => {
+    // Allow 0 players — tournament created without teams
+    if (selectionOrder.length === 0) {
+      setTeams([]);
+      setError(null);
+      setStep(reviewStep);
+      return;
+    }
     const minPlayers = teamSize === 1 ? 2 : 4;
     if (selectionOrder.length < minPlayers) { setError(`Selecione pelo menos ${minPlayers} jogadores.`); return; }
     if (teamSize === 2 && titularIds.length % 2 !== 0) {
@@ -396,7 +406,7 @@ export function TournamentWizard({
           <h2 className="text-lg font-semibold mb-4">Passo 2: Jogadores</h2>
           <p className="text-sm text-text-muted mb-1">
             Selecione os jogadores ({selectionOrder.length} selecionados).
-            {teamSize === 1 ? " Mínimo 2." : " Número par de titulares (mínimo 4)."}
+            {selectionOrder.length > 0 && (teamSize === 1 ? " Mínimo 2." : " Número par de titulares (mínimo 4).")}
           </p>
           <p className="text-xs text-text-muted mb-3">
             Capacidade: <strong>{maxTitulars} titulares</strong>.
@@ -436,7 +446,14 @@ export function TournamentWizard({
 
           <div className="flex gap-2 mt-4">
             <Button variant="ghost" onClick={() => setStep(1)}>Anterior</Button>
-            <Button onClick={handleStep2Next}>Seguinte</Button>
+            {selectionOrder.length === 0 && (
+              <Button variant="secondary" onClick={() => { setTeams([]); setError(null); setStep(reviewStep); }}>
+                Criar sem jogadores
+              </Button>
+            )}
+            {selectionOrder.length > 0 && (
+              <Button onClick={handleStep2Next}>Seguinte</Button>
+            )}
           </div>
         </Card>
       )}
@@ -512,15 +529,23 @@ export function TournamentWizard({
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Sets</span><span className="font-medium">{numberOfSets === 1 ? "1 Set" : numberOfSets === 2 ? "2 Sets" : "Melhor de 3"}</span></div>
             {teamSize === 2 && <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Modo Equipas</span><span className="font-medium">{teamModeLabel(teamMode)}</span></div>}
             <div className="py-2">
-              <span className="text-text-muted block mb-2">{teamSize === 1 ? `Jogadores (${teams.length})` : `Equipas (${teams.length})`}</span>
-              <div className="space-y-1">
-                {teams.map((t, i) => (
-                  <div key={i} className="text-sm pl-2">
-                    <span className="font-medium">{t.name}:</span>{" "}
-                    {teamSize === 1 ? getPlayerName(t.player1Id) : `${getPlayerName(t.player1Id)} & ${getPlayerName(t.player2Id ?? "")}`}
+              {teams.length > 0 ? (
+                <>
+                  <span className="text-text-muted block mb-2">{teamSize === 1 ? `Jogadores (${teams.length})` : `Equipas (${teams.length})`}</span>
+                  <div className="space-y-1">
+                    {teams.map((t, i) => (
+                      <div key={i} className="text-sm pl-2">
+                        <span className="font-medium">{t.name}:</span>{" "}
+                        {teamSize === 1 ? getPlayerName(t.player1Id) : `${getPlayerName(t.player1Id)} & ${getPlayerName(t.player2Id ?? "")}`}
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </>
+              ) : (
+                <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-lg">
+                  Sem jogadores atribuídos. Poderá editar o torneio para adicionar jogadores mais tarde.
+                </div>
+              )}
             </div>
             {suplentePlayers.length > 0 && (
               <div className="py-2 border-t border-border">
@@ -532,9 +557,9 @@ export function TournamentWizard({
             )}
           </div>
           <div className="flex gap-2 mt-4">
-            <Button variant="ghost" onClick={() => setStep(teamSize === 1 ? 2 : 3)}>Anterior</Button>
+            <Button variant="ghost" onClick={() => setStep(teams.length === 0 ? 2 : (teamSize === 1 ? 2 : 3))}>Anterior</Button>
             <Button onClick={handleSubmit} disabled={loading}>
-              {loading ? (editMode ? "A guardar..." : "A criar torneio...") : (editMode ? "Guardar e Regenerar Calendário" : "Criar Torneio e Gerar Calendário")}
+              {loading ? (editMode ? "A guardar..." : "A criar torneio...") : (editMode ? (teams.length > 0 ? "Guardar e Regenerar Calendário" : "Guardar Alterações") : (teams.length > 0 ? "Criar Torneio e Gerar Calendário" : "Criar Torneio"))}
             </Button>
           </div>
         </Card>
