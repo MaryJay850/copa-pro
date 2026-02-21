@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { acceptLeagueInvite } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 
 export function InviteAccept({ token, leagueName }: { token: string; leagueName: string }) {
   const [loading, setLoading] = useState(false);
@@ -30,7 +31,7 @@ export function InviteAccept({ token, leagueName }: { token: string; leagueName:
         router.push(`/ligas/${result.leagueId}`);
       }, 1500);
     } catch (e) {
-      setError((e as Error).message || "Erro ao aceitar convite.");
+      setError(sanitizeError(e, "Erro ao aceitar convite."));
     }
     setLoading(false);
   };

@@ -792,7 +792,12 @@ export async function saveMatchScore(
     revalidatePath(`/torneios/${match.tournamentId}`);
     return { success: true };
   } catch (e) {
-    return { success: false, error: (e as Error).message || "Erro ao guardar resultado." };
+    const msg = (e as Error).message || "";
+    if (msg.includes("Não autenticado") || msg.includes("Sem permissão") || msg.includes("Não é gestor") || msg.includes("PLAN_")) {
+      const { sanitizeError } = await import("./error-utils");
+      return { success: false, error: sanitizeError(e) };
+    }
+    return { success: false, error: "Erro ao guardar o resultado. Tente novamente." };
   }
 }
 
@@ -827,7 +832,11 @@ export async function resetMatch(matchId: string): Promise<{ success: true } | {
     revalidatePath(`/torneios/${match.tournamentId}`);
     return { success: true };
   } catch (e) {
-    return { success: false, error: (e as Error).message || "Erro ao repor jogo." };
+    const msg = (e as Error).message || "";
+    if (msg.includes("Não autenticado") || msg.includes("Sem permissão") || msg.includes("Não é gestor")) {
+      return { success: false, error: msg };
+    }
+    return { success: false, error: "Erro ao repor o jogo. Tente novamente." };
   }
 }
 
@@ -3377,7 +3386,12 @@ export async function submitMatchResult(
     revalidatePath(`/torneios/${match.tournamentId}`);
     return { success: true };
   } catch (e) {
-    return { success: false, error: (e as Error).message || "Erro ao submeter resultado." };
+    const msg = (e as Error).message || "";
+    if (msg.includes("Não autenticado") || msg.includes("Sem jogador") || msg.includes("PLAN_")) {
+      const { sanitizeError } = await import("./error-utils");
+      return { success: false, error: sanitizeError(e) };
+    }
+    return { success: false, error: "Erro ao submeter o resultado. Tente novamente." };
   }
 }
 

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { createTournament, generateSchedule, updateTournament } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 
 interface Player {
   id: string;
@@ -239,7 +240,7 @@ export function TournamentWizard({
         router.push(`/torneios/${tournament.id}`);
       }
     } catch (e) {
-      setError((e as Error).message);
+      setError(sanitizeError(e, "Erro ao criar torneio."));
       setLoading(false);
     }
   };

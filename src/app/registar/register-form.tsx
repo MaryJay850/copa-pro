@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { registerUser } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 import Link from "next/link";
 
 const COUNTRY_CODES = [
@@ -47,7 +48,7 @@ export function RegisterForm({ callbackUrl }: { callbackUrl?: string }) {
         : "/login?registered=true";
       router.push(loginRedirect);
     } catch (e) {
-      setError((e as Error).message || "Erro ao criar conta.");
+      setError(sanitizeError(e, "Erro ao criar conta. Tente novamente."));
     }
     setLoading(false);
   };

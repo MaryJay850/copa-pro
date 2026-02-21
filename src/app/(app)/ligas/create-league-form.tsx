@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { createLeague } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -28,7 +29,7 @@ export function CreateLeagueForm() {
       toast.success("Liga criada com sucesso.");
       router.refresh();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(sanitizeError(e, "Erro ao criar liga."));
     }
     setLoading(false);
   };

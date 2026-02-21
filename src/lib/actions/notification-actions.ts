@@ -138,7 +138,7 @@ export async function markNotificationAsRead(notificationId: string) {
   });
 
   if (!notification || notification.userId !== user.id) {
-    throw new Error("Notification not found.");
+    throw new Error("Notificação não encontrada.");
   }
 
   await prisma.notification.update({

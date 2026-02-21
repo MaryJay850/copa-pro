@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { importPlayersFromCSV } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 
 export function CsvImport({ leagueId }: { leagueId: string }) {
   const [open, setOpen] = useState(false);
@@ -24,7 +25,7 @@ export function CsvImport({ leagueId }: { leagueId: string }) {
       setResult(res);
       router.refresh();
     } catch (err) {
-      setError((err as Error).message);
+      setError(sanitizeError(err, "Erro ao importar jogadores. Verifique o formato CSV."));
     }
     setLoading(false);
   };

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { updateLeague } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 
 export function EditLeagueForm({
   leagueId,
@@ -33,7 +34,7 @@ export function EditLeagueForm({
       setOpen(false);
       router.refresh();
     } catch (err) {
-      setError((err as Error).message);
+      setError(sanitizeError(err, "Erro ao guardar liga."));
     }
     setLoading(false);
   };

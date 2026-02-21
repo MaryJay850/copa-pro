@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { createCheckoutSession, createBillingPortalSession } from "@/lib/stripe-actions";
+import { sanitizeError } from "@/lib/error-utils";
 
 type Plan = "FREE" | "PRO" | "CLUB";
 
@@ -109,7 +110,7 @@ export function PlansPanel({
         const url = await createCheckoutSession(plan, interval);
         window.location.href = url;
       } catch (err) {
-        toast.error((err as Error).message);
+        toast.error(sanitizeError(err, "Erro ao processar o upgrade. Tente novamente."));
       }
     });
   };
@@ -120,7 +121,7 @@ export function PlansPanel({
         const url = await createBillingPortalSession();
         window.location.href = url;
       } catch (err) {
-        toast.error((err as Error).message);
+        toast.error(sanitizeError(err, "Erro ao aceder ao portal de pagamento."));
       }
     });
   };

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { createOrSyncWhatsAppGroup } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 
 interface WhatsAppGroupButtonProps {
   leagueId: string;
@@ -31,7 +32,7 @@ export function WhatsAppGroupButton({ leagueId, hasGroup }: WhatsAppGroupButtonP
         setResult(`Grupo sincronizado! ${detail}.`);
       }
     } catch (err) {
-      setError((err as Error).message || "Erro ao criar grupo WhatsApp.");
+      setError(sanitizeError(err, "Erro ao criar grupo WhatsApp."));
     } finally {
       setLoading(false);
     }

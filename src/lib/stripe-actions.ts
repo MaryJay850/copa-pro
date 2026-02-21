@@ -40,7 +40,8 @@ export async function createCheckoutSession(
   const priceKey = `${plan}_${interval === "month" ? "MONTHLY" : "YEARLY"}` as keyof ReturnType<typeof getStripePrices>;
   const priceId = prices[priceKey];
   if (!priceId) {
-    throw new Error(`Preço Stripe não configurado para ${plan} ${interval}. Configure STRIPE_PRICE_${priceKey} no .env`);
+    console.error(`[STRIPE] Preço não configurado: STRIPE_PRICE_${priceKey}`);
+    throw new Error("Erro ao processar o plano. Por favor contacte o suporte.");
   }
 
   const session = await getStripe().checkout.sessions.create({

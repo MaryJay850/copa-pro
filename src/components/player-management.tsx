@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { desistPlayer } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 
 interface Inscription {
   id: string;
@@ -46,7 +47,7 @@ export function PlayerManagement({
       }
       setConfirmId(null);
     } catch (e) {
-      setError((e as Error).message || "Erro ao processar desistência.");
+      setError(sanitizeError(e, "Erro ao processar desistência."));
     }
     setLoading(null);
   };

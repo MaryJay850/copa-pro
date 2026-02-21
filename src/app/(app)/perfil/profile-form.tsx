@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { updateUserProfile, updateUserPassword } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 
 type ProfileData = {
   id: string;
@@ -46,7 +47,7 @@ export function ProfileForm({ profile }: { profile: ProfileData }) {
       toast.success("Perfil atualizado com sucesso!");
       router.refresh();
     } catch (err) {
-      toast.error((err as Error).message || "Erro ao guardar perfil.");
+      toast.error(sanitizeError(err, "Erro ao guardar perfil."));
     }
     setSavingProfile(false);
   };
@@ -69,7 +70,7 @@ export function ProfileForm({ profile }: { profile: ProfileData }) {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      toast.error((err as Error).message || "Erro ao alterar palavra-passe.");
+      toast.error(sanitizeError(err, "Erro ao alterar palavra-passe."));
     }
     setSavingPassword(false);
   };

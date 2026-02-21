@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { getCourtTimeSlots, upsertCourtTimeSlots } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 
 const DAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -63,7 +64,7 @@ export function CourtTimeSlots({
       );
       toast.success("Horários atualizados!");
     } catch (e: unknown) {
-      toast.error((e as Error).message || "Erro ao guardar horários.");
+      toast.error(sanitizeError(e, "Erro ao guardar horários."));
     }
     setSaving(false);
   };

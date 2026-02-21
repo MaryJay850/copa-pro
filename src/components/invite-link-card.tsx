@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 import { createLeagueInvite, deactivateLeagueInvite } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,7 +44,7 @@ export function InviteLinkCard({
         toast.success("Convite criado e link copiado!");
         router.refresh();
       } catch (e) {
-        toast.error((e as Error).message || "Erro ao criar convite.");
+        toast.error(sanitizeError(e, "Erro ao criar convite."));
       }
     });
   };
@@ -62,7 +63,7 @@ export function InviteLinkCard({
         toast.success("Convite desativado.");
         router.refresh();
       } catch (e) {
-        toast.error((e as Error).message || "Erro ao desativar convite.");
+        toast.error(sanitizeError(e, "Erro ao desativar convite."));
       }
     });
   };

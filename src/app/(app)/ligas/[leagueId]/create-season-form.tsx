@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { createSeason } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -31,7 +32,7 @@ export function CreateSeasonForm({ leagueId }: { leagueId: string }) {
       toast.success("Época criada com sucesso.");
       router.refresh();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(sanitizeError(e, "Erro ao criar época."));
     }
     setLoading(false);
   };

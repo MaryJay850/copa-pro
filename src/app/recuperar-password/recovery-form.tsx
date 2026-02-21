@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { requestPasswordRecovery } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 
 export function RecoveryForm() {
   const [email, setEmail] = useState("");
@@ -19,7 +20,7 @@ export function RecoveryForm() {
       await requestPasswordRecovery(email);
       setSent(true);
     } catch (err) {
-      setError((err as Error).message || "Erro ao processar o pedido.");
+      setError(sanitizeError(err, "Erro ao processar o pedido."));
     }
     setLoading(false);
   };

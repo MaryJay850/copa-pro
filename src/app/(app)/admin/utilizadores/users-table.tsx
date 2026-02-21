@@ -12,6 +12,7 @@ import {
   updateUser,
 } from "@/lib/actions";
 import { adminSetUserPlan } from "@/lib/stripe-actions";
+import { sanitizeError } from "@/lib/error-utils";
 import { useRouter } from "next/navigation";
 
 type User = {
@@ -230,7 +231,7 @@ function EditUserForm({ user, onDone }: { user: User; onDone: () => void }) {
       });
       onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(sanitizeError(err));
     }
     setLoading(false);
   };
@@ -312,7 +313,7 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
       await createUserManually({ email, password, fullName, nickname: nickname || undefined, phone: phone || undefined, role });
       onDone();
     } catch (err) {
-      setError((err as Error).message);
+      setError(sanitizeError(err));
     }
     setLoading(false);
   };

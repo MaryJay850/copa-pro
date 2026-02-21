@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { changePassword } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 
 export function ChangePasswordForm() {
   const [newPassword, setNewPassword] = useState("");
@@ -36,7 +37,7 @@ export function ChangePasswordForm() {
       await signOut({ redirect: false });
       router.push("/login?passwordChanged=true");
     } catch (err) {
-      setError((err as Error).message || "Erro ao alterar palavra-passe.");
+      setError(sanitizeError(err, "Erro ao alterar palavra-passe."));
     }
     setLoading(false);
   };

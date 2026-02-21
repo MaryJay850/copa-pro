@@ -14,6 +14,7 @@ import {
   cloneTournament,
   reopenTournament,
 } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 
 export function TournamentActions({
   tournamentId,
@@ -45,7 +46,7 @@ export function TournamentActions({
       if (err.message === "CONFIRM_REGENERATE") {
         setShowConfirm(true);
       } else {
-        toast.error(err.message);
+        toast.error(sanitizeError(err));
       }
     }
     setLoading(false);
@@ -58,7 +59,7 @@ export function TournamentActions({
       setShowConfirm(false);
       router.refresh();
     } catch (e: unknown) {
-      toast.error((e as Error).message);
+      toast.error(sanitizeError(e));
     }
     setLoading(false);
   };
@@ -70,7 +71,7 @@ export function TournamentActions({
       setShowFinishModal(false);
       router.refresh();
     } catch (e: unknown) {
-      toast.error((e as Error).message);
+      toast.error(sanitizeError(e));
     }
     setLoading(false);
   };
@@ -82,7 +83,7 @@ export function TournamentActions({
       setShowReopenModal(false);
       router.refresh();
     } catch (e: unknown) {
-      toast.error((e as Error).message);
+      toast.error(sanitizeError(e));
     }
     setLoading(false);
   };
@@ -93,7 +94,7 @@ export function TournamentActions({
       const result = await cloneTournament(tournamentId);
       router.push(`/torneios/${result.id}`);
     } catch (e: unknown) {
-      toast.error((e as Error).message);
+      toast.error(sanitizeError(e));
     }
     setLoading(false);
   };
@@ -104,7 +105,7 @@ export function TournamentActions({
       await deleteTournament(tournamentId);
       router.push(`/ligas/${leagueId}/epocas/${seasonId}`);
     } catch (e: unknown) {
-      toast.error((e as Error).message);
+      toast.error(sanitizeError(e));
     }
     setLoading(false);
   };

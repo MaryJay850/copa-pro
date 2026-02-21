@@ -11,6 +11,7 @@ import {
   addPlayerToLeague,
   removePlayerFromLeague,
 } from "@/lib/actions";
+import { sanitizeError } from "@/lib/error-utils";
 
 type Member = {
   id: string;
@@ -66,7 +67,7 @@ export function MembersPanel({
         toast.success("Membro adicionado com sucesso.");
         router.refresh();
       } catch (err) {
-        toast.error((err as Error).message);
+        toast.error(sanitizeError(err, "Erro ao processar pedido."));
       }
     });
   };
@@ -79,7 +80,7 @@ export function MembersPanel({
         toast.success("Membro removido.");
         router.refresh();
       } catch (err) {
-        toast.error((err as Error).message);
+        toast.error(sanitizeError(err, "Erro ao remover membro."));
       }
     });
   };
