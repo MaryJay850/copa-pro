@@ -12,6 +12,7 @@ const API_URL = () => process.env.WHATSAPP_API_URL;
 const API_KEY = () => process.env.WHATSAPP_API_KEY;
 const INSTANCE = () => process.env.WHATSAPP_INSTANCE || "Bitclever";
 const DEFAULT_ADMIN_PHONE = "351932539702";
+const GROUP_AVATAR_URL = () => process.env.WHATSAPP_GROUP_AVATAR_URL;
 
 function isConfigured(): boolean {
   return !!(API_URL() && API_KEY());
@@ -56,11 +57,42 @@ async function apiCall(
 // ── Public API ──
 
 /**
+ * Update the group profile picture.
+ * Uses WHATSAPP_GROUP_AVATAR_URL env var or accepts an explicit imageUrl.
+ */
+export async function updateGroupPicture(
+  groupJid: string,
+  imageUrl?: string
+): Promise<void> {
+  if (!isConfigured() || !groupJid) return;
+
+  const url = imageUrl || GROUP_AVATAR_URL();
+  if (!url) {
+    console.warn("[WHATSAPP] Sem URL de imagem para avatar do grupo");
+    return;
+  }
+
+  try {
+    await apiCall(
+      `/group/updateGroupPicture/${INSTANCE()}?groupJid=${encodeURIComponent(groupJid)}`,
+      { image: url }
+    );
+    console.log(`[WHATSAPP] Avatar do grupo atualizado: ${groupJid}`);
+  } catch (error) {
+    console.error(
+      "[WHATSAPP] Erro ao atualizar avatar do grupo:",
+      (error as Error).message
+    );
+  }
+}
+
+/**
  * Create a WhatsApp group with proper settings:
  * - not_announcement: everyone can send messages
  * - locked: only admins can edit group settings
  * - Admins are promoted after creation
  * - Invite sending is restricted (approval required)
+ * - Group profile picture set from WHATSAPP_GROUP_AVATAR_URL
  *
  * Returns the group JID (e.g. "120363...@g.us") or null on failure.
  */
@@ -96,6 +128,9 @@ export async function createGroup(
 
     // Promote admin phones to group admins
     await promoteParticipants(groupJid, allPhones);
+
+    // Set group profile picture
+    await updateGroupPicture(groupJid);
 
     return groupJid;
   } catch (error) {

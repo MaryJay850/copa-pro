@@ -21,6 +21,7 @@ import {
   sendGroupMessage,
   promoteParticipants,
   normalizePhone,
+  updateGroupPicture,
 } from "./whatsapp";
 import {
   leagueCreatedMessage,
@@ -191,6 +192,8 @@ export async function createOrSyncWhatsAppGroup(leagueId: string) {
     if (adminPhones.length > 0) {
       await promoteParticipants(league.whatsappGroupId, adminPhones);
     }
+    // Update group profile picture (idempotent)
+    await updateGroupPicture(league.whatsappGroupId);
 
     revalidatePath(`/ligas/${leagueId}`);
     return { created: false, groupJid: league.whatsappGroupId, membersAdded: allPhones.length };
