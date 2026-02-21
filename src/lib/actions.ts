@@ -160,6 +160,8 @@ export async function createTournament(data: {
   randomSeed?: string;
   teams: { name: string; player1Id: string; player2Id: string }[];
 }) {
+  await requireLeagueManager(data.leagueId);
+
   const tournament = await prisma.tournament.create({
     data: {
       leagueId: data.leagueId,
@@ -209,6 +211,7 @@ export async function generateSchedule(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
+  await requireLeagueManager(tournament.leagueId);
 
   // Check if results exist
   const hasResults = tournament.matches.some((m) => m.status === "FINISHED");
@@ -274,17 +277,17 @@ export async function generateSchedule(tournamentId: string) {
 }
 
 export async function forceRegenerateSchedule(tournamentId: string) {
-  // Delete all results first
-  await prisma.match.deleteMany({ where: { tournamentId } });
-  await prisma.round.deleteMany({ where: { tournamentId } });
-
-  // Now regenerate
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
     include: { teams: true, courts: true },
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
+  await requireLeagueManager(tournament.leagueId);
+
+  // Delete all results first
+  await prisma.match.deleteMany({ where: { tournamentId } });
+  await prisma.round.deleteMany({ where: { tournamentId } });
 
   const teamRefs: TeamRef[] = tournament.teams.map((t, i) => ({
     id: t.id,
@@ -390,6 +393,7 @@ export async function saveMatchScore(
     });
 
     if (!match) return { success: false, error: "Jogo não encontrado." };
+    await requireLeagueManager(match.tournament.leagueId);
 
     const allowDraws = match.tournament.season.allowDraws;
     const numberOfSets = match.tournament.numberOfSets;
@@ -455,6 +459,7 @@ export async function resetMatch(matchId: string): Promise<{ success: true } | {
     });
 
     if (!match) return { success: false, error: "Jogo não encontrado." };
+    await requireLeagueManager(match.tournament.leagueId);
 
     await prisma.match.update({
       where: { id: matchId },
@@ -604,6 +609,7 @@ export async function finishTournament(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
+  await requireLeagueManager(tournament.leagueId);
 
   const allFinished = tournament.matches.every((m) => m.status === "FINISHED");
   if (!allFinished) {
@@ -627,6 +633,7 @@ export async function deleteTournament(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
+  await requireLeagueManager(tournament.leagueId);
 
   // Cascade delete handles all child records (teams, courts, rounds, matches)
   await prisma.tournament.delete({ where: { id: tournamentId } });
@@ -654,6 +661,7 @@ export async function getTournamentForEdit(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
+  await requireLeagueManager(tournament.leagueId);
 
   const hasResults = tournament.matches.some((m) => m.status === "FINISHED");
   if (hasResults || tournament.status === "FINISHED") {
@@ -679,6 +687,7 @@ export async function updateTournament(data: {
   });
 
   if (!existing) throw new Error("Torneio não encontrado.");
+  await requireLeagueManager(existing.leagueId);
 
   const hasResults = existing.matches.some((m) => m.status === "FINISHED");
   if (hasResults) {

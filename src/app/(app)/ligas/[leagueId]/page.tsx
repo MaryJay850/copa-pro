@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { getLeague } from "@/lib/actions";
+import { isLeagueManager } from "@/lib/auth-guards";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +16,8 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
 
   if (!league) notFound();
 
+  const canManage = await isLeagueManager(leagueId);
+
   return (
     <div className="space-y-6">
       <div>
@@ -24,16 +27,18 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
         </div>
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">{league.name}</h1>
-          <Link href={`/ligas/${leagueId}/membros`}>
-            <Button size="sm" variant="secondary">Gerir Membros</Button>
-          </Link>
+          {canManage && (
+            <Link href={`/ligas/${leagueId}/membros`}>
+              <Button size="sm" variant="secondary">Gerir Membros</Button>
+            </Link>
+          )}
         </div>
         {league.location && <p className="text-sm text-text-muted mt-1">{league.location}</p>}
       </div>
 
       <div>
         <h2 className="text-lg font-semibold mb-3">Épocas</h2>
-        <CreateSeasonForm leagueId={league.id} />
+        {canManage && <CreateSeasonForm leagueId={league.id} />}
       </div>
 
       {league.seasons.length === 0 ? (

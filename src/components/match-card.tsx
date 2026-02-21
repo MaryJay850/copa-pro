@@ -31,11 +31,12 @@ interface MatchCardProps {
     };
   };
   numberOfSets?: number;
+  canEdit?: boolean;
 }
 function playerLabel(p: { fullName: string; nickname: string | null }) {
   return p.nickname || p.fullName.split(" ")[0];
 }
-export function MatchCard({ match, numberOfSets = 3 }: MatchCardProps) {
+export function MatchCard({ match, numberOfSets = 3, canEdit = true }: MatchCardProps) {
   const [set1A, setSet1A] = useState(match.set1A);
   const [set1B, setSet1B] = useState(match.set1B);
   const [set2A, setSet2A] = useState(match.set2A);
@@ -115,27 +116,50 @@ export function MatchCard({ match, numberOfSets = 3 }: MatchCardProps) {
         </div>
       </div>
 
-      <div className="space-y-1.5 pt-2 border-t border-border">
-        <ScoreInput label="Set 1" valueA={set1A} valueB={set1B} onChangeA={setSet1A} onChangeB={setSet1B} disabled={saving} />
-        {numberOfSets >= 2 && (
-          <ScoreInput label="Set 2" valueA={set2A} valueB={set2B} onChangeA={setSet2A} onChangeB={setSet2B} disabled={saving} />
-        )}
-        {numberOfSets >= 3 && (
-          <ScoreInput label="Set 3" valueA={set3A} valueB={set3B} onChangeA={setSet3A} onChangeB={setSet3B} disabled={saving} />
-        )}
-      </div>
-      {error && <p className="text-xs text-danger">{error}</p>}
+      {canEdit ? (
+        <>
+          <div className="space-y-1.5 pt-2 border-t border-border">
+            <ScoreInput label="Set 1" valueA={set1A} valueB={set1B} onChangeA={setSet1A} onChangeB={setSet1B} disabled={saving} />
+            {numberOfSets >= 2 && (
+              <ScoreInput label="Set 2" valueA={set2A} valueB={set2B} onChangeA={setSet2A} onChangeB={setSet2B} disabled={saving} />
+            )}
+            {numberOfSets >= 3 && (
+              <ScoreInput label="Set 3" valueA={set3A} valueB={set3B} onChangeA={setSet3A} onChangeB={setSet3B} disabled={saving} />
+            )}
+          </div>
+          {error && <p className="text-xs text-danger">{error}</p>}
 
-      <div className="flex gap-2 pt-1">
-        <Button size="sm" onClick={handleSave} disabled={saving}>
-          {saving ? "A guardar..." : "Guardar"}
-        </Button>
-        {isFinished && (
-          <Button size="sm" variant="ghost" onClick={handleReset} disabled={saving}>
-            Repor
-          </Button>
-        )}
-      </div>
+          <div className="flex gap-2 pt-1">
+            <Button size="sm" onClick={handleSave} disabled={saving}>
+              {saving ? "A guardar..." : "Guardar"}
+            </Button>
+            {isFinished && (
+              <Button size="sm" variant="ghost" onClick={handleReset} disabled={saving}>
+                Repor
+              </Button>
+            )}
+          </div>
+        </>
+      ) : isFinished ? (
+        <div className="pt-2 border-t border-border space-y-1">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-text-muted text-xs">Set 1</span>
+            <span className="font-medium">{match.set1A} - {match.set1B}</span>
+          </div>
+          {numberOfSets >= 2 && match.set2A != null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-text-muted text-xs">Set 2</span>
+              <span className="font-medium">{match.set2A} - {match.set2B}</span>
+            </div>
+          )}
+          {numberOfSets >= 3 && match.set3A != null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-text-muted text-xs">Set 3</span>
+              <span className="font-medium">{match.set3A} - {match.set3B}</span>
+            </div>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -39,6 +39,22 @@ export async function requireLeagueManager(leagueId: string): Promise<AuthUser> 
   return user;
 }
 
+export async function isLeagueManager(leagueId: string): Promise<boolean> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) return false;
+    const user = session.user as AuthUser;
+    if (user.role === "ADMINISTRADOR") return true;
+
+    const manager = await prisma.leagueManager.findUnique({
+      where: { userId_leagueId: { userId: user.id, leagueId } },
+    });
+    return !!manager;
+  } catch {
+    return false;
+  }
+}
+
 export async function requireLeagueMember(leagueId: string): Promise<AuthUser> {
   const user = await requireAuth();
   if (user.role === "ADMINISTRADOR") return user;

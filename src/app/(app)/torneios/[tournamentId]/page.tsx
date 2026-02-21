@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { getTournament } from "@/lib/actions";
+import { isLeagueManager } from "@/lib/auth-guards";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { MatchCard } from "@/components/match-card";
@@ -29,6 +30,7 @@ export default async function TournamentPage({
 
   if (!tournament) notFound();
 
+  const canManage = await isLeagueManager(tournament.leagueId);
   const s = statusLabels[tournament.status] || statusLabels.DRAFT;
 
   const totalMatches = tournament.rounds.reduce(
@@ -86,14 +88,16 @@ export default async function TournamentPage({
         </div>
       </div>
 
-      {/* Actions bar */}
-      <TournamentActions
-        tournamentId={tournament.id}
-        status={tournament.status}
-        leagueId={tournament.leagueId}
-        seasonId={tournament.seasonId}
-        hasResults={finishedMatches > 0}
-      />
+      {/* Actions bar - only for admins and league managers */}
+      {canManage && (
+        <TournamentActions
+          tournamentId={tournament.id}
+          status={tournament.status}
+          leagueId={tournament.leagueId}
+          seasonId={tournament.seasonId}
+          hasResults={finishedMatches > 0}
+        />
+      )}
 
       {/* Teams overview */}
       <Card>
@@ -143,7 +147,7 @@ export default async function TournamentPage({
               </CardHeader>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {round.matches.map((match) => (
-                  <MatchCard key={match.id} match={match} numberOfSets={tournament.numberOfSets} />
+                  <MatchCard key={match.id} match={match} numberOfSets={tournament.numberOfSets} canEdit={canManage} />
                 ))}
               </div>
             </Card>

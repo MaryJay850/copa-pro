@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { getSeason } from "@/lib/actions";
+import { isLeagueManager } from "@/lib/auth-guards";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,8 @@ export default async function SeasonPage({ params }: { params: Promise<{ leagueI
   const season = await getSeason(seasonId);
 
   if (!season) notFound();
+
+  const canManage = await isLeagueManager(leagueId);
 
   const rankingRows = season.rankings.map((r, i) => ({
     position: i + 1,
@@ -80,9 +83,11 @@ export default async function SeasonPage({ params }: { params: Promise<{ leagueI
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Torneios</h2>
-          <Link href={`/ligas/${leagueId}/epocas/${seasonId}/torneios/novo`}>
-            <Button size="sm">+ Novo Torneio</Button>
-          </Link>
+          {canManage && (
+            <Link href={`/ligas/${leagueId}/epocas/${seasonId}/torneios/novo`}>
+              <Button size="sm">+ Novo Torneio</Button>
+            </Link>
+          )}
         </div>
 
         {season.tournaments.length === 0 ? (
