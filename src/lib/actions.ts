@@ -558,6 +558,26 @@ export async function recomputeSeasonRanking(seasonId: string) {
     playerMap.set(d.playerId, e);
   }
 
+  // Also include league members who haven't played yet (with 0 stats)
+  const leagueMemberships = await prisma.leagueMembership.findMany({
+    where: { leagueId: season.leagueId, status: "APPROVED" },
+    include: { user: { select: { playerId: true } } },
+  });
+
+  for (const membership of leagueMemberships) {
+    if (membership.user.playerId && !playerMap.has(membership.user.playerId)) {
+      playerMap.set(membership.user.playerId, {
+        pointsTotal: 0,
+        matchesPlayed: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        setsWon: 0,
+        setsLost: 0,
+      });
+    }
+  }
+
   // Delete old rankings and insert new ones (transactional)
   await prisma.$transaction(async (tx) => {
     await tx.seasonRankingEntry.deleteMany({ where: { seasonId } });
@@ -1060,8 +1080,12 @@ export async function handleMembershipRequest(
 export async function addPlayerToLeague(userId: string, leagueId: string) {
   await requireLeagueManager(leagueId);
 
-  const user = await prisma.user.findUnique({ where: { id: userId } });
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: { player: true },
+  });
   if (!user) throw new Error("Utilizador não encontrado.");
+  if (!user.player) throw new Error("Este utilizador não tem um jogador associado.");
 
   await prisma.leagueMembership.upsert({
     where: { userId_leagueId: { userId, leagueId } },
@@ -1069,7 +1093,38 @@ export async function addPlayerToLeague(userId: string, leagueId: string) {
     create: { userId, leagueId, status: "APPROVED" },
   });
 
+  // Create ranking entries with 0 values for all active seasons of this league
+  const activeSeasons = await prisma.season.findMany({
+    where: { leagueId, isActive: true },
+  });
+
+  for (const season of activeSeasons) {
+    await prisma.seasonRankingEntry.upsert({
+      where: {
+        seasonId_playerId: {
+          seasonId: season.id,
+          playerId: user.player.id,
+        },
+      },
+      update: {}, // If already exists (e.g. from playing), don't overwrite
+      create: {
+        seasonId: season.id,
+        playerId: user.player.id,
+        pointsTotal: 0,
+        matchesPlayed: 0,
+        wins: 0,
+        draws: 0,
+        losses: 0,
+        setsWon: 0,
+        setsLost: 0,
+        setsDiff: 0,
+      },
+    });
+  }
+
   revalidatePath(`/ligas/${leagueId}/membros`);
+  revalidatePath(`/ligas/${leagueId}`);
+  revalidatePath("/dashboard");
 }
 
 export async function removePlayerFromLeague(userId: string, leagueId: string) {
