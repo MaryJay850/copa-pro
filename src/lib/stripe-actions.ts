@@ -44,6 +44,8 @@ export async function createCheckoutSession(
     throw new Error("Erro ao processar o plano. Por favor contacte o suporte.");
   }
 
+  console.log(`[STRIPE CHECKOUT] plan=${plan}, interval=${interval}, priceKey=${priceKey}, priceId=${priceId}`);
+
   const session = await getStripe().checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
