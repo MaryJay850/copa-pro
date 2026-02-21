@@ -1,13 +1,17 @@
 export const dynamic = "force-dynamic";
 
-import { getAnalytics } from "@/lib/actions";
+import { getAnalytics, getAdvancedAnalytics } from "@/lib/actions";
 import { requireAdmin } from "@/lib/auth-guards";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { AnalyticsCharts } from "./analytics-charts";
 import Link from "next/link";
 
 export default async function AnalyticsPage() {
   await requireAdmin();
-  const data = await getAnalytics();
+  const [data, advancedData] = await Promise.all([
+    getAnalytics(),
+    getAdvancedAnalytics(),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -103,6 +107,12 @@ export default async function AnalyticsPage() {
           </div>
         </Card>
       )}
+
+      {/* Advanced Charts */}
+      <div>
+        <h2 className="text-lg font-bold mb-4">Graficos Detalhados</h2>
+        <AnalyticsCharts data={advancedData} />
+      </div>
     </div>
   );
 }

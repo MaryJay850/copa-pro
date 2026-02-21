@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { createLeague } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
@@ -24,9 +25,10 @@ export function CreateLeagueForm() {
     try {
       await createLeague(formData);
       setOpen(false);
+      toast.success("Liga criada com sucesso.");
       router.refresh();
     } catch (e) {
-      alert((e as Error).message);
+      toast.error((e as Error).message);
     }
     setLoading(false);
   };

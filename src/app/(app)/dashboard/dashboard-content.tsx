@@ -8,6 +8,8 @@ import { RankingTable } from "@/components/ranking-table";
 import { RecentResults } from "@/components/recent-results";
 import { AvailabilityCalendar } from "@/components/availability-calendar";
 import { EmptyState } from "@/components/ui/empty-state";
+import { OnboardingTour } from "@/components/onboarding-tour";
+import { LeagueAvailabilityView } from "@/components/league-availability-view";
 import Link from "next/link";
 
 type FilterOption = {
@@ -96,6 +98,7 @@ export function DashboardContent({
 
   return (
     <div className="space-y-8">
+      <OnboardingTour />
       {/* Filter bar */}
       <div className="flex flex-wrap gap-3 items-center bg-surface rounded-xl border border-border p-4">
         <span className="text-sm font-medium text-text-muted">Filtros:</span>
@@ -300,6 +303,13 @@ export function DashboardContent({
           <section>
             <AvailabilityCalendar />
           </section>
+
+          {/* League Availability */}
+          {data.league && (
+            <section>
+              <LeagueAvailabilityView leagueId={data.league.id} />
+            </section>
+          )}
         </>
       )}
     </div>

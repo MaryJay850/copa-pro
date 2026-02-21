@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -62,9 +63,10 @@ export function MembersPanel({
       try {
         await addPlayerToLeague(userId, leagueId);
         setSearchResults((prev) => prev.filter((u) => u.id !== userId));
+        toast.success("Membro adicionado com sucesso.");
         router.refresh();
       } catch (err) {
-        alert((err as Error).message);
+        toast.error((err as Error).message);
       }
     });
   };
@@ -74,9 +76,10 @@ export function MembersPanel({
     startTransition(async () => {
       try {
         await removePlayerFromLeague(userId, leagueId);
+        toast.success("Membro removido.");
         router.refresh();
       } catch (err) {
-        alert((err as Error).message);
+        toast.error((err as Error).message);
       }
     });
   };

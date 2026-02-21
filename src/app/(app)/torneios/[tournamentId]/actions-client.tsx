@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Modal } from "@/components/ui/modal";
 import {
   generateSchedule,
   forceRegenerateSchedule,
@@ -29,6 +31,9 @@ export function TournamentActions({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showReopenModal, setShowReopenModal] = useState(false);
+  const [showFinishModal, setShowFinishModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   const handleGenerate = async () => {
     setLoading(true);
@@ -40,7 +45,7 @@ export function TournamentActions({
       if (err.message === "CONFIRM_REGENERATE") {
         setShowConfirm(true);
       } else {
-        alert(err.message);
+        toast.error(err.message);
       }
     }
     setLoading(false);
@@ -53,36 +58,31 @@ export function TournamentActions({
       setShowConfirm(false);
       router.refresh();
     } catch (e: unknown) {
-      alert((e as Error).message);
+      toast.error((e as Error).message);
     }
     setLoading(false);
   };
 
   const handleFinish = async () => {
-    if (
-      !confirm(
-        "Tem a certeza que deseja encerrar este torneio? Todos os jogos devem estar completos."
-      )
-    )
-      return;
     setLoading(true);
     try {
       await finishTournament(tournamentId);
+      setShowFinishModal(false);
       router.refresh();
     } catch (e: unknown) {
-      alert((e as Error).message);
+      toast.error((e as Error).message);
     }
     setLoading(false);
   };
 
   const handleReopen = async () => {
-    if (!confirm("Reabrir o torneio? O estado voltará a 'A decorrer'.")) return;
     setLoading(true);
     try {
       await reopenTournament(tournamentId);
+      setShowReopenModal(false);
       router.refresh();
     } catch (e: unknown) {
-      alert((e as Error).message);
+      toast.error((e as Error).message);
     }
     setLoading(false);
   };
@@ -93,24 +93,18 @@ export function TournamentActions({
       const result = await cloneTournament(tournamentId);
       router.push(`/torneios/${result.id}`);
     } catch (e: unknown) {
-      alert((e as Error).message);
+      toast.error((e as Error).message);
     }
     setLoading(false);
   };
 
   const handleDelete = async () => {
-    if (
-      !confirm(
-        "Tem a certeza que deseja eliminar este torneio? Esta ação é irreversível e todos os dados (equipas, calendário, resultados) serão perdidos."
-      )
-    )
-      return;
     setLoading(true);
     try {
       await deleteTournament(tournamentId);
       router.push(`/ligas/${leagueId}/epocas/${seasonId}`);
     } catch (e: unknown) {
-      alert((e as Error).message);
+      toast.error((e as Error).message);
     }
     setLoading(false);
   };
@@ -140,7 +134,7 @@ export function TournamentActions({
             Regenerar Calendário
           </Button>
           <Button
-            onClick={handleFinish}
+            onClick={() => setShowFinishModal(true)}
             disabled={loading}
             size="sm"
             variant="secondary"
@@ -151,7 +145,7 @@ export function TournamentActions({
       )}
 
       {status === "FINISHED" && (
-        <Button onClick={handleReopen} disabled={loading} size="sm" variant="secondary">
+        <Button onClick={() => setShowReopenModal(true)} disabled={loading} size="sm" variant="secondary">
           Reabrir Torneio
         </Button>
       )}
@@ -173,7 +167,7 @@ export function TournamentActions({
       </Button>
 
       {status !== "FINISHED" && (
-        <Button onClick={handleDelete} disabled={loading} size="sm" variant="danger">
+        <Button onClick={() => setShowDeleteModal(true)} disabled={loading} size="sm" variant="danger">
           Eliminar Torneio
         </Button>
       )}
@@ -203,6 +197,78 @@ export function TournamentActions({
           </div>
         </div>
       )}
+
+      {/* Reopen Warning Modal */}
+      <Modal
+        open={showReopenModal}
+        onClose={() => setShowReopenModal(false)}
+        title="Reabrir Torneio?"
+        variant="warning"
+        actions={
+          <>
+            <Button size="sm" variant="ghost" onClick={() => setShowReopenModal(false)}>
+              Cancelar
+            </Button>
+            <Button size="sm" variant="danger" onClick={handleReopen} disabled={loading}>
+              {loading ? "A reabrir..." : "Confirmar Reabertura"}
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-2">
+          <p>Ao reabrir este torneio:</p>
+          <ul className="list-disc list-inside space-y-1 text-text">
+            <li>O estado voltará a &quot;A decorrer&quot;</li>
+            <li>Os rankings da época serão recalculados</li>
+            <li>Poderá editar resultados existentes</li>
+          </ul>
+          {hasResults && (
+            <p className="text-amber-600 font-medium mt-2">
+              ⚠️ Este torneio tem resultados registados que podem ser afetados.
+            </p>
+          )}
+        </div>
+      </Modal>
+
+      {/* Finish Warning Modal */}
+      <Modal
+        open={showFinishModal}
+        onClose={() => setShowFinishModal(false)}
+        title="Encerrar Torneio?"
+        variant="warning"
+        actions={
+          <>
+            <Button size="sm" variant="ghost" onClick={() => setShowFinishModal(false)}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={handleFinish} disabled={loading}>
+              {loading ? "A encerrar..." : "Confirmar Encerramento"}
+            </Button>
+          </>
+        }
+      >
+        <p>Tem a certeza que deseja encerrar este torneio? Todos os jogos devem estar completos.</p>
+      </Modal>
+
+      {/* Delete Danger Modal */}
+      <Modal
+        open={showDeleteModal}
+        onClose={() => setShowDeleteModal(false)}
+        title="Eliminar Torneio?"
+        variant="danger"
+        actions={
+          <>
+            <Button size="sm" variant="ghost" onClick={() => setShowDeleteModal(false)}>
+              Cancelar
+            </Button>
+            <Button size="sm" variant="danger" onClick={handleDelete} disabled={loading}>
+              {loading ? "A eliminar..." : "Eliminar Definitivamente"}
+            </Button>
+          </>
+        }
+      >
+        <p>Esta ação é irreversível. Todos os dados (equipas, calendário, resultados) serão perdidos permanentemente.</p>
+      </Modal>
     </div>
   );
 }

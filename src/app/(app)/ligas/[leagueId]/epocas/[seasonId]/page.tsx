@@ -6,6 +6,8 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RankingTable } from "@/components/ranking-table";
+import { ExportPDF } from "@/components/export-pdf";
+import { EditSeasonForm } from "@/components/edit-season-form";
 import { EmptyState } from "@/components/ui/empty-state";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -59,6 +61,17 @@ export default async function SeasonPage({ params }: { params: Promise<{ leagueI
         )}
       </div>
 
+      {canManage && (
+        <EditSeasonForm
+          seasonId={seasonId}
+          leagueId={leagueId}
+          currentName={season.name}
+          currentAllowDraws={season.allowDraws}
+          currentStartDate={season.startDate || null}
+          currentEndDate={season.endDate || null}
+        />
+      )}
+
       {/* Point System Info */}
       <Card className="bg-blue-50/50 border-blue-100">
         <CardHeader>
@@ -75,7 +88,10 @@ export default async function SeasonPage({ params }: { params: Promise<{ leagueI
       {/* Ranking */}
       <Card>
         <CardHeader>
-          <CardTitle>Ranking Individual</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>Ranking Individual</CardTitle>
+            <ExportPDF title={`Ranking - ${season.name}`} rankings={rankingRows} />
+          </div>
         </CardHeader>
         <RankingTable rows={rankingRows} />
       </Card>

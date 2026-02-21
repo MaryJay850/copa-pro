@@ -1,11 +1,12 @@
 export const dynamic = "force-dynamic";
 
-import { getTournament } from "@/lib/actions";
+import { getTournament, getPendingSubmissions } from "@/lib/actions";
 import { isLeagueManager } from "@/lib/auth-guards";
+import { auth } from "@/lib/auth";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { MatchCard } from "@/components/match-card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ScheduleView } from "./schedule-view";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { TournamentActions } from "./actions-client";
@@ -28,12 +29,35 @@ export default async function TournamentPage({
   params: Promise<{ tournamentId: string }>;
 }) {
   const { tournamentId } = await params;
-  const tournament = await getTournament(tournamentId);
+  const [tournament, session] = await Promise.all([
+    getTournament(tournamentId),
+    auth(),
+  ]);
 
   if (!tournament) notFound();
 
   const canManage = await isLeagueManager(tournament.leagueId);
   const s = statusLabels[tournament.status] || statusLabels.DRAFT;
+
+  // Get current user info for player result submission
+  const currentUserId = (session?.user as any)?.id ?? null;
+  const currentPlayerId = (session?.user as any)?.playerId ?? null;
+
+  // Fetch pending submissions for all scheduled matches
+  const allMatches = tournament.rounds.flatMap((r) => r.matches);
+  const scheduledMatchIds = allMatches
+    .filter((m) => m.status === "SCHEDULED")
+    .map((m) => m.id);
+
+  const pendingSubmissionsMap: Record<string, any> = {};
+  if (scheduledMatchIds.length > 0 && currentPlayerId) {
+    const submissions = await Promise.all(
+      scheduledMatchIds.map((id) => getPendingSubmissions(id).then((s) => [id, s] as const))
+    );
+    for (const [id, sub] of submissions) {
+      if (sub) pendingSubmissionsMap[id] = sub;
+    }
+  }
 
   const totalMatches = tournament.rounds.reduce(
     (acc, r) => acc + r.matches.length,
@@ -210,29 +234,15 @@ export default async function TournamentPage({
           description="Gere o calendário para começar a registar resultados."
         />
       ) : (
-        <div className="space-y-4" id="schedule">
-          {tournament.rounds.map((round) => (
-            <Card key={round.id}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Ronda {round.index}</CardTitle>
-                  <span className="text-xs text-text-muted">
-                    {
-                      round.matches.filter((m) => m.status === "FINISHED")
-                        .length
-                    }
-                    /{round.matches.length} jogos
-                  </span>
-                </div>
-              </CardHeader>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {round.matches.map((match) => (
-                  <MatchCard key={match.id} match={match} numberOfSets={tournament.numberOfSets} canEdit={canManage} />
-                ))}
-              </div>
-            </Card>
-          ))}
-        </div>
+        <ScheduleView
+          rounds={tournament.rounds}
+          numberOfSets={tournament.numberOfSets}
+          canManage={canManage}
+          startDate={tournament.startDate ? tournament.startDate.toString() : null}
+          currentPlayerId={currentPlayerId ?? undefined}
+          currentUserId={currentUserId ?? undefined}
+          pendingSubmissionsMap={pendingSubmissionsMap}
+        />
       )}
     </div>
   );

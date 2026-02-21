@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { createSeason } from "@/lib/actions";
 import { Button } from "@/components/ui/button";
@@ -27,9 +28,10 @@ export function CreateSeasonForm({ leagueId }: { leagueId: string }) {
       formData.set("allowDraws", String(allowDraws));
       await createSeason(formData);
       setOpen(false);
+      toast.success("Época criada com sucesso.");
       router.refresh();
     } catch (e) {
-      alert((e as Error).message);
+      toast.error((e as Error).message);
     }
     setLoading(false);
   };

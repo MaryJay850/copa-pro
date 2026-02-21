@@ -35,6 +35,24 @@ export default async function AdminLayout({
           >
             Ligas
           </Link>
+          <Link
+            href="/admin/analytics"
+            className="py-3 border-b-2 border-transparent text-text-muted hover:text-text hover:border-primary transition-colors"
+          >
+            Analytics
+          </Link>
+          <Link
+            href="/admin/auditoria"
+            className="py-3 border-b-2 border-transparent text-text-muted hover:text-text hover:border-primary transition-colors"
+          >
+            Auditoria
+          </Link>
+          <Link
+            href="/admin/configuracoes"
+            className="py-3 border-b-2 border-transparent text-text-muted hover:text-text hover:border-primary transition-colors"
+          >
+            Configurações
+          </Link>
         </div>
       </div>
       {children}

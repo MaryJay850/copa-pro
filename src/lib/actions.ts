@@ -6,6 +6,7 @@ import { computeMatchContribution, validateMatchScores, determineResult } from "
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { requireAuth, requireAdmin, requireLeagueManager } from "./auth-guards";
+import { logAudit } from "./actions/audit-actions";
 import { sendEmail } from "./email";
 import {
   welcomeEmail,
@@ -416,6 +417,8 @@ export async function createTournament(data: {
     }
   }
 
+  logAudit("CREATE_TOURNAMENT", "Tournament", tournament.id, { name: data.name }).catch(() => {});
+
   // ── WhatsApp: anunciar torneio no grupo da liga (fire-and-forget) ──
   (async () => {
     try {
@@ -756,6 +759,8 @@ export async function saveMatchScore(
       console.error("[ELO] Erro ao atualizar ratings:", (err as Error).message)
     );
 
+    logAudit("SAVE_MATCH", "Match", matchId, { scores }).catch(() => {});
+
     revalidatePath(`/torneios/${match.tournamentId}`);
     return { success: true };
   } catch (e) {
@@ -788,6 +793,8 @@ export async function resetMatch(matchId: string): Promise<{ success: true } | {
 
     // Recompute rankings
     await recomputeSeasonRanking(match.tournament.seasonId);
+
+    logAudit("RESET_MATCH", "Match", matchId).catch(() => {});
 
     revalidatePath(`/torneios/${match.tournamentId}`);
     return { success: true };
@@ -1151,6 +1158,8 @@ export async function finishTournament(tournamentId: string) {
     }
   })();
 
+  logAudit("FINISH_TOURNAMENT", "Tournament", tournamentId).catch(() => {});
+
   revalidatePath(`/torneios/${tournamentId}`);
 }
 
@@ -1164,6 +1173,8 @@ export async function deleteTournament(tournamentId: string) {
 
   if (!tournament) throw new Error("Torneio não encontrado.");
   await requireLeagueManager(tournament.leagueId);
+
+  logAudit("DELETE_TOURNAMENT", "Tournament", tournamentId).catch(() => {});
 
   // Cascade delete handles all child records (teams, courts, rounds, matches)
   await prisma.tournament.delete({ where: { id: tournamentId } });
@@ -1813,6 +1824,8 @@ export async function addPlayerToLeague(userId: string, leagueId: string) {
     }
   })();
 
+  logAudit("ADD_MEMBER", "League", leagueId).catch(() => {});
+
   revalidatePath(`/ligas/${leagueId}/membros`);
   revalidatePath(`/ligas/${leagueId}`);
   revalidatePath("/dashboard");
@@ -1839,6 +1852,8 @@ export async function removePlayerFromLeague(userId: string, leagueId: string) {
   await prisma.leagueMembership.deleteMany({
     where: { userId, leagueId },
   });
+
+  logAudit("REMOVE_MEMBER", "League", leagueId).catch(() => {});
 
   revalidatePath(`/ligas/${leagueId}/membros`);
 }
@@ -2163,6 +2178,8 @@ export async function updateUserRole(userId: string, role: "JOGADOR" | "GESTOR" 
     data: { role },
   });
 
+  logAudit("CHANGE_ROLE", "User", userId, { role }).catch(() => {});
+
   revalidatePath("/admin/utilizadores");
 }
 
@@ -2178,6 +2195,8 @@ export async function deleteUser(userId: string) {
     where: { id: userId },
     data: { playerId: null },
   });
+
+  logAudit("DELETE_USER", "User", userId).catch(() => {});
 
   await prisma.user.delete({ where: { id: userId } });
   revalidatePath("/admin/utilizadores");
@@ -2198,11 +2217,11 @@ export async function createUserManually(data: {
 
   const hashedPassword = await bcrypt.hash(data.password, 12);
 
-  await prisma.$transaction(async (tx) => {
+  const user = await prisma.$transaction(async (tx) => {
     const player = await tx.player.create({
       data: { fullName: data.fullName, nickname: data.nickname || null },
     });
-    await tx.user.create({
+    return tx.user.create({
       data: {
         email: data.email,
         phone: data.phone || "",
@@ -2212,6 +2231,8 @@ export async function createUserManually(data: {
       },
     });
   });
+
+  logAudit("CREATE_USER", "User", user.id, { email: data.email }).catch(() => {});
 
   revalidatePath("/admin/utilizadores");
 }
@@ -2363,6 +2384,8 @@ export async function updateUser(
     })();
   }
 
+  logAudit("UPDATE_USER", "User", userId, data).catch(() => {});
+
   revalidatePath("/admin/utilizadores");
 }
 
@@ -2408,6 +2431,8 @@ export async function assignLeagueManager(userId: string, leagueId: string) {
       console.error("[WHATSAPP] Erro ao promover gestor no grupo:", err);
     }
   })();
+
+  logAudit("ASSIGN_MANAGER", "League", leagueId).catch(() => {});
 
   revalidatePath("/admin/ligas");
   revalidatePath(`/ligas/${leagueId}`);
@@ -2622,6 +2647,8 @@ export async function reopenTournament(tournamentId: string) {
     data: { status: "RUNNING" },
   });
 
+  logAudit("REOPEN_TOURNAMENT", "Tournament", tournamentId).catch(() => {});
+
   revalidatePath(`/torneios/${tournamentId}`);
 }
 
@@ -2765,6 +2792,7 @@ export async function getPlayerProfile(playerId: string) {
   return serialize({
     fullName: player.fullName,
     nickname: player.nickname,
+    eloRating: player.eloRating ?? 1200,
     stats: {
       totalMatches: matches.length,
       wins,
@@ -3001,6 +3029,26 @@ export async function updateEloAfterMatch(matchId: string) {
   const changeA = calculateEloChange(avgRatingA, avgRatingB, scoreA);
   const changeB = calculateEloChange(avgRatingB, avgRatingA, scoreB);
 
+  // Create EloHistory entries before updating ratings
+  const historyEntries = [
+    ...playersA.map((p) => ({
+      playerId: p!.id,
+      matchId,
+      oldRating: p!.eloRating ?? 1200,
+      newRating: (p!.eloRating ?? 1200) + changeA,
+      change: changeA,
+    })),
+    ...playersB.map((p) => ({
+      playerId: p!.id,
+      matchId,
+      oldRating: p!.eloRating ?? 1200,
+      newRating: (p!.eloRating ?? 1200) + changeB,
+      change: changeB,
+    })),
+  ];
+
+  await prisma.eloHistory.createMany({ data: historyEntries });
+
   // Update all players
   const updates = [
     ...playersA.map((p) =>
@@ -3099,4 +3147,607 @@ export async function getLeagueAvailability(leagueId: string, date: string) {
         note: m.user.player!.availabilities[0]?.note ?? null,
       }))
   );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 2D: Elo History
+// ══════════════════════════════════════════════════════════════════════
+
+export async function getEloHistory(playerId: string) {
+  const history = await prisma.eloHistory.findMany({
+    where: { playerId },
+    orderBy: { createdAt: "asc" },
+    take: 50,
+  });
+  return serialize(history);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 2A: Player Match History
+// ══════════════════════════════════════════════════════════════════════
+
+export async function getPlayerMatchHistory(
+  playerId: string,
+  page: number = 1,
+  limit: number = 10
+) {
+  await requireAuth();
+
+  const skip = (page - 1) * limit;
+
+  const [matches, total] = await Promise.all([
+    prisma.match.findMany({
+      where: {
+        status: "FINISHED",
+        OR: [
+          { teamA: { OR: [{ player1Id: playerId }, { player2Id: playerId }] } },
+          { teamB: { OR: [{ player1Id: playerId }, { player2Id: playerId }] } },
+        ],
+      },
+      include: {
+        teamA: { include: { player1: true, player2: true } },
+        teamB: { include: { player1: true, player2: true } },
+        tournament: { select: { id: true, name: true, season: { select: { name: true } } } },
+        court: { select: { name: true } },
+      },
+      orderBy: { playedAt: "desc" },
+      skip,
+      take: limit,
+    }),
+    prisma.match.count({
+      where: {
+        status: "FINISHED",
+        OR: [
+          { teamA: { OR: [{ player1Id: playerId }, { player2Id: playerId }] } },
+          { teamB: { OR: [{ player1Id: playerId }, { player2Id: playerId }] } },
+        ],
+      },
+    }),
+  ]);
+
+  const formatted = matches.map((m) => {
+    const isTeamA =
+      m.teamA.player1Id === playerId || m.teamA.player2Id === playerId;
+    const myTeam = isTeamA ? m.teamA : m.teamB;
+    const oppTeam = isTeamA ? m.teamB : m.teamA;
+    const won = isTeamA
+      ? m.resultType === "WIN_A"
+      : m.resultType === "WIN_B";
+    const lost = isTeamA
+      ? m.resultType === "WIN_B"
+      : m.resultType === "WIN_A";
+
+    return {
+      id: m.id,
+      date: m.playedAt,
+      tournament: m.tournament.name,
+      season: m.tournament.season.name,
+      court: m.court?.name || null,
+      partner: myTeam.player2
+        ? myTeam.player1Id === playerId
+          ? myTeam.player2.nickname || myTeam.player2.fullName
+          : myTeam.player1.nickname || myTeam.player1.fullName
+        : null,
+      opponents: [
+        oppTeam.player1.nickname || oppTeam.player1.fullName,
+        oppTeam.player2
+          ? oppTeam.player2.nickname || oppTeam.player2.fullName
+          : null,
+      ].filter(Boolean),
+      scores: [
+        m.set1A !== null ? `${m.set1A}-${m.set1B}` : null,
+        m.set2A !== null ? `${m.set2A}-${m.set2B}` : null,
+        m.set3A !== null ? `${m.set3A}-${m.set3B}` : null,
+      ].filter(Boolean),
+      result: won ? "WIN" : lost ? "LOSS" : "DRAW",
+    };
+  });
+
+  return serialize({ matches: formatted, total, page, totalPages: Math.ceil(total / limit) });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 2B: Player Result Submission
+// ══════════════════════════════════════════════════════════════════════
+
+export async function submitMatchResult(
+  matchId: string,
+  scores: {
+    set1A: number | null;
+    set1B: number | null;
+    set2A: number | null;
+    set2B: number | null;
+    set3A: number | null;
+    set3B: number | null;
+  }
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const session = await requireAuth();
+    if (!session.playerId) return { success: false, error: "Sem jogador associado." };
+
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        tournament: { include: { season: true } },
+        teamA: true,
+        teamB: true,
+      },
+    });
+
+    if (!match) return { success: false, error: "Jogo não encontrado." };
+    if (match.status === "FINISHED") return { success: false, error: "Este jogo já tem resultado." };
+
+    // Check if player is part of this match
+    const isInTeamA =
+      match.teamA.player1Id === session.playerId ||
+      match.teamA.player2Id === session.playerId;
+    const isInTeamB =
+      match.teamB.player1Id === session.playerId ||
+      match.teamB.player2Id === session.playerId;
+
+    if (!isInTeamA && !isInTeamB)
+      return { success: false, error: "Não fazes parte deste jogo." };
+
+    // Check for existing pending submission
+    const existing = await prisma.matchResultSubmission.findFirst({
+      where: { matchId, status: "PENDING" },
+    });
+
+    if (existing) {
+      if (existing.submittedBy === session.id)
+        return { success: false, error: "Já submeteste um resultado para este jogo." };
+
+      // This is a confirmation by the other team — check scores match
+      const scoresMatch =
+        existing.set1A === scores.set1A &&
+        existing.set1B === scores.set1B &&
+        existing.set2A === scores.set2A &&
+        existing.set2B === scores.set2B &&
+        existing.set3A === scores.set3A &&
+        existing.set3B === scores.set3B;
+
+      if (scoresMatch) {
+        // Auto-confirm: both teams agree
+        await prisma.matchResultSubmission.update({
+          where: { id: existing.id },
+          data: { status: "CONFIRMED", confirmedBy: session.id },
+        });
+        // Apply the score using the internal helper
+        const saveResult = await saveMatchScoreInternal(matchId, scores, match);
+        if (!saveResult.success) return saveResult;
+
+        revalidatePath(`/torneios/${match.tournamentId}`);
+        return { success: true };
+      } else {
+        // Scores don't match — reject old, create new
+        await prisma.matchResultSubmission.update({
+          where: { id: existing.id },
+          data: { status: "REJECTED" },
+        });
+      }
+    }
+
+    // Create new submission
+    await prisma.matchResultSubmission.create({
+      data: {
+        matchId,
+        submittedBy: session.id,
+        ...scores,
+        status: "PENDING",
+      },
+    });
+
+    revalidatePath(`/torneios/${match.tournamentId}`);
+    return { success: true };
+  } catch (e) {
+    return { success: false, error: (e as Error).message || "Erro ao submeter resultado." };
+  }
+}
+
+export async function confirmMatchResult(submissionId: string) {
+  const session = await requireAuth();
+  if (!session.playerId) throw new Error("Sem jogador associado.");
+
+  const submission = await prisma.matchResultSubmission.findUnique({
+    where: { id: submissionId },
+    include: {
+      match: {
+        include: {
+          teamA: true,
+          teamB: true,
+          tournament: { select: { id: true, numberOfSets: true, seasonId: true, season: { select: { allowDraws: true } } } },
+        },
+      },
+    },
+  });
+  if (!submission) throw new Error("Submissão não encontrada.");
+  if (submission.status !== "PENDING") throw new Error("Esta submissão já foi processada.");
+
+  // Check confirmer is in the OPPOSITE team from submitter
+  const submitterUser = await prisma.user.findUnique({ where: { id: submission.submittedBy }, select: { playerId: true } });
+  if (!submitterUser?.playerId) throw new Error("Submitter inválido.");
+
+  const match = submission.match;
+  const submitterInTeamA = match.teamA.player1Id === submitterUser.playerId || match.teamA.player2Id === submitterUser.playerId;
+  const confirmerTeam = submitterInTeamA ? match.teamB : match.teamA;
+
+  const isConfirmerInOppositeTeam = confirmerTeam.player1Id === session.playerId || confirmerTeam.player2Id === session.playerId;
+  if (!isConfirmerInOppositeTeam) throw new Error("Só um jogador da equipa adversária pode confirmar.");
+
+  // Update submission
+  await prisma.matchResultSubmission.update({
+    where: { id: submissionId },
+    data: { confirmedBy: session.id, status: "CONFIRMED" },
+  });
+
+  // Now actually save the match score
+  const scores = {
+    set1A: submission.set1A, set1B: submission.set1B,
+    set2A: submission.set2A, set2B: submission.set2B,
+    set3A: submission.set3A, set3B: submission.set3B,
+  };
+
+  const result = determineResult(
+    scores.set1A!, scores.set1B!,
+    scores.set2A, scores.set2B,
+    scores.set3A, scores.set3B,
+    match.tournament.season.allowDraws,
+    match.tournament.numberOfSets
+  );
+
+  const winnerTeamId = result.resultType === "WIN_A" ? match.teamAId
+    : result.resultType === "WIN_B" ? match.teamBId
+    : null;
+
+  await prisma.match.update({
+    where: { id: match.id },
+    data: {
+      ...scores,
+      status: "FINISHED",
+      resultType: result.resultType,
+      winnerTeamId,
+      playedAt: new Date(),
+    },
+  });
+
+  // Recompute ranking
+  await recomputeSeasonRanking(match.tournament.seasonId);
+
+  // Fire-and-forget Elo update
+  updateEloAfterMatch(match.id).catch(() => {});
+
+  // Notify submitter
+  await prisma.notification.create({
+    data: {
+      userId: submission.submittedBy,
+      title: "Resultado confirmado",
+      message: "O resultado que submeteste foi confirmado pelo adversário.",
+      type: "RESULT",
+      href: `/torneios/${match.tournamentId}`,
+    },
+  }).catch(() => {});
+
+  revalidatePath(`/torneios/${match.tournamentId}`);
+  return { success: true };
+}
+
+export async function rejectMatchResult(submissionId: string) {
+  const session = await requireAuth();
+  if (!session.playerId) throw new Error("Sem jogador associado.");
+
+  const submission = await prisma.matchResultSubmission.findUnique({
+    where: { id: submissionId },
+    include: { match: { include: { teamA: true, teamB: true, tournament: { select: { id: true } } } } },
+  });
+  if (!submission) throw new Error("Submissão não encontrada.");
+  if (submission.status !== "PENDING") throw new Error("Esta submissão já foi processada.");
+
+  await prisma.matchResultSubmission.update({
+    where: { id: submissionId },
+    data: { status: "REJECTED" },
+  });
+
+  // Notify submitter
+  await prisma.notification.create({
+    data: {
+      userId: submission.submittedBy,
+      title: "Resultado rejeitado",
+      message: "O resultado que submeteste foi rejeitado pelo adversário. Submete novamente.",
+      type: "RESULT",
+      href: `/torneios/${submission.match.tournamentId}`,
+    },
+  }).catch(() => {});
+
+  revalidatePath(`/torneios/${submission.match.tournamentId}`);
+  return { success: true };
+}
+
+export async function getPendingSubmission(matchId: string) {
+  await requireAuth();
+  const submission = await prisma.matchResultSubmission.findFirst({
+    where: { matchId, status: "PENDING" },
+    include: { submitter: { select: { email: true, player: { select: { fullName: true } } } } },
+  });
+  return serialize(submission);
+}
+
+// Also keep the original name as an alias for backwards compatibility
+export { getPendingSubmission as getPendingSubmissions };
+
+// Internal helper — applies scores without requireLeagueManager check
+async function saveMatchScoreInternal(
+  matchId: string,
+  scores: {
+    set1A: number | null;
+    set1B: number | null;
+    set2A: number | null;
+    set2B: number | null;
+    set3A: number | null;
+    set3B: number | null;
+  },
+  match: any
+): Promise<{ success: true } | { success: false; error: string }> {
+  const allowDraws = match.tournament.season.allowDraws;
+  const numberOfSets = match.tournament.numberOfSets;
+
+  const validationError = validateMatchScores(
+    scores.set1A, scores.set1B,
+    scores.set2A, scores.set2B,
+    scores.set3A, scores.set3B,
+    allowDraws,
+    numberOfSets
+  );
+  if (validationError) return { success: false, error: validationError };
+
+  const result = determineResult(
+    scores.set1A!, scores.set1B!,
+    scores.set2A, scores.set2B,
+    scores.set3A, scores.set3B,
+    allowDraws,
+    numberOfSets
+  );
+
+  const winnerTeamId =
+    result.resultType === "WIN_A" ? match.teamAId :
+    result.resultType === "WIN_B" ? match.teamBId :
+    null;
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: {
+      ...scores,
+      status: "FINISHED",
+      resultType: result.resultType,
+      winnerTeamId,
+      playedAt: new Date(),
+    },
+  });
+
+  await prisma.tournament.update({
+    where: { id: match.tournamentId },
+    data: { status: "RUNNING" },
+  });
+
+  await recomputeSeasonRanking(match.tournament.seasonId);
+
+  updateEloAfterMatch(matchId).catch((err) =>
+    console.error("[ELO] Erro ao atualizar ratings:", (err as Error).message)
+  );
+
+  logAudit("PLAYER_SUBMIT_MATCH", "Match", matchId, { scores }).catch(() => {});
+
+  return { success: true };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 3C: Custom WhatsApp Messages
+// ══════════════════════════════════════════════════════════════════════
+
+export async function sendCustomGroupMessage(leagueId: string, message: string) {
+  await requireLeagueManager(leagueId);
+
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { whatsappGroupId: true },
+  });
+
+  if (!league?.whatsappGroupId) {
+    throw new Error("Nenhum grupo WhatsApp configurado.");
+  }
+
+  await sendGroupMessage(league.whatsappGroupId, message);
+
+  logAudit("SEND_WHATSAPP", "League", leagueId, { messageLength: message.length }).catch(() => {});
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 3E: Season Settings + Clone
+// ══════════════════════════════════════════════════════════════════════
+
+export async function updateSeasonSettings(
+  seasonId: string,
+  data: { name?: string; allowDraws?: boolean; startDate?: string | null; endDate?: string | null }
+) {
+  const season = await prisma.season.findUnique({
+    where: { id: seasonId },
+    select: { leagueId: true },
+  });
+  if (!season) throw new Error("Época não encontrada.");
+  await requireLeagueManager(season.leagueId);
+
+  await prisma.season.update({
+    where: { id: seasonId },
+    data: {
+      ...(data.name !== undefined && { name: data.name.trim() }),
+      ...(data.allowDraws !== undefined && { allowDraws: data.allowDraws }),
+      ...(data.startDate !== undefined && { startDate: data.startDate ? new Date(data.startDate) : null }),
+      ...(data.endDate !== undefined && { endDate: data.endDate ? new Date(data.endDate) : null }),
+    },
+  });
+
+  logAudit("UPDATE_SEASON", "Season", seasonId, data).catch(() => {});
+  revalidatePath(`/ligas/${season.leagueId}/epocas/${seasonId}`);
+}
+
+export async function cloneSeason(seasonId: string) {
+  const season = await prisma.season.findUnique({
+    where: { id: seasonId },
+    select: { leagueId: true, name: true, allowDraws: true },
+  });
+  if (!season) throw new Error("Época não encontrada.");
+  await requireLeagueManager(season.leagueId);
+
+  const newSeason = await prisma.season.create({
+    data: {
+      leagueId: season.leagueId,
+      name: `${season.name} (cópia)`,
+      allowDraws: season.allowDraws,
+    },
+  });
+
+  logAudit("CLONE_SEASON", "Season", newSeason.id, { fromSeasonId: seasonId }).catch(() => {});
+  revalidatePath(`/ligas/${season.leagueId}`);
+  return serialize(newSeason);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 3G: Court Time Slots
+// ══════════════════════════════════════════════════════════════════════
+
+export async function getCourtTimeSlots(courtId: string) {
+  const slots = await prisma.courtTimeSlot.findMany({
+    where: { courtId },
+    orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }],
+  });
+  return serialize(slots);
+}
+
+export async function upsertCourtTimeSlots(
+  courtId: string,
+  leagueId: string,
+  slots: { dayOfWeek: number; startTime: string; endTime: string }[]
+) {
+  await requireLeagueManager(leagueId);
+
+  // Delete all existing slots for this court
+  await prisma.courtTimeSlot.deleteMany({ where: { courtId } });
+
+  // Create new ones
+  if (slots.length > 0) {
+    await prisma.courtTimeSlot.createMany({
+      data: slots.map((s) => ({
+        courtId,
+        dayOfWeek: s.dayOfWeek,
+        startTime: s.startTime,
+        endTime: s.endTime,
+      })),
+    });
+  }
+
+  logAudit("UPDATE_COURT_SLOTS", "Court", courtId, { slotCount: slots.length }).catch(() => {});
+  revalidatePath(`/ligas/${leagueId}`);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 4A: System Settings
+// ══════════════════════════════════════════════════════════════════════
+
+export async function getSystemSettings() {
+  await requireAdmin();
+  const settings = await prisma.systemSetting.findMany({
+    orderBy: { key: "asc" },
+  });
+  return serialize(settings);
+}
+
+export async function updateSystemSetting(key: string, value: string) {
+  await requireAdmin();
+
+  await prisma.systemSetting.upsert({
+    where: { key },
+    update: { value },
+    create: { key, value, label: key, type: "number" },
+  });
+
+  logAudit("UPDATE_SETTING", "SystemSetting", key, { value }).catch(() => {});
+  return { success: true };
+}
+
+export async function getSettingValue(key: string, fallback: string): Promise<string> {
+  const setting = await prisma.systemSetting.findUnique({ where: { key } });
+  return setting?.value ?? fallback;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 4B: Advanced Analytics
+// ══════════════════════════════════════════════════════════════════════
+
+export async function getAdvancedAnalytics() {
+  await requireAdmin();
+
+  // Users registered per month (last 12 months)
+  const twelveMonthsAgo = new Date();
+  twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+
+  const usersRaw = await prisma.user.findMany({
+    where: { createdAt: { gte: twelveMonthsAgo } },
+    select: { createdAt: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  const usersByMonth: Record<string, number> = {};
+  for (const u of usersRaw) {
+    const key = new Date(u.createdAt).toLocaleDateString("pt-PT", { month: "short", year: "2-digit" });
+    usersByMonth[key] = (usersByMonth[key] || 0) + 1;
+  }
+
+  // Matches per week (last 12 weeks)
+  const twelveWeeksAgo = new Date();
+  twelveWeeksAgo.setDate(twelveWeeksAgo.getDate() - 84);
+
+  const matchesRaw = await prisma.match.findMany({
+    where: { status: "FINISHED", playedAt: { gte: twelveWeeksAgo } },
+    select: { playedAt: true },
+    orderBy: { playedAt: "asc" },
+  });
+
+  const matchesByWeek: Record<string, number> = {};
+  for (const m of matchesRaw) {
+    if (!m.playedAt) continue;
+    const d = new Date(m.playedAt);
+    const weekStart = new Date(d);
+    weekStart.setDate(d.getDate() - d.getDay());
+    const key = weekStart.toLocaleDateString("pt-PT", { day: "2-digit", month: "2-digit" });
+    matchesByWeek[key] = (matchesByWeek[key] || 0) + 1;
+  }
+
+  // Elo distribution
+  const players = await prisma.player.findMany({
+    select: { eloRating: true },
+  });
+
+  const eloBuckets: Record<string, number> = {};
+  for (const p of players) {
+    const rating = p.eloRating ?? 1200;
+    const bucket = Math.floor(rating / 100) * 100;
+    const label = `${bucket}-${bucket + 99}`;
+    eloBuckets[label] = (eloBuckets[label] || 0) + 1;
+  }
+
+  // Top Elo players
+  const topElo = await prisma.player.findMany({
+    orderBy: { eloRating: "desc" },
+    take: 10,
+    select: { fullName: true, nickname: true, eloRating: true },
+  });
+
+  return serialize({
+    usersByMonth: Object.entries(usersByMonth).map(([month, count]) => ({ month, count })),
+    matchesByWeek: Object.entries(matchesByWeek).map(([week, count]) => ({ week, count })),
+    eloDistribution: Object.entries(eloBuckets).sort().map(([range, count]) => ({ range, count })),
+    topElo: topElo.map((p) => ({
+      name: p.nickname || p.fullName,
+      elo: p.eloRating ?? 1200,
+    })),
+  });
 }

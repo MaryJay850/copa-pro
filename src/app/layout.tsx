@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { SessionProvider } from "next-auth/react";
 import { ServiceWorkerRegister } from "@/components/sw-register";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -37,6 +38,7 @@ export default function RootLayout({
         <SessionProvider>
           {children}
           <ServiceWorkerRegister />
+          <Toaster richColors position="top-right" />
         </SessionProvider>
       </body>
     </html>

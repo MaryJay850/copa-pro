@@ -9,7 +9,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InviteLinkCard } from "@/components/invite-link-card";
 import { CreateSeasonForm } from "./create-season-form";
 import { WhatsAppGroupButton } from "./whatsapp-group-button";
+import { WhatsAppMessageSender } from "@/components/whatsapp-message-sender";
 import { EditLeagueForm } from "./edit-league-form";
+import { ActivityLog } from "@/components/activity-log";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
@@ -56,6 +58,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
               )}
             </div>
           </div>
+          <WhatsAppMessageSender leagueId={leagueId} whatsappGroupId={league.whatsappGroupId} />
           <div>
             <h2 className="text-sm font-semibold text-text-muted mb-2">Convidar Jogadores</h2>
             <InviteLinkCard leagueId={leagueId} invites={invites} />
@@ -91,6 +94,10 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
             </Link>
           ))}
         </div>
+      )}
+
+      {canManage && (
+        <ActivityLog leagueId={leagueId} />
       )}
     </div>
   );

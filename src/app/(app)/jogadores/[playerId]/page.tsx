@@ -3,6 +3,8 @@ export const dynamic = "force-dynamic";
 import { getPlayerProfile } from "@/lib/actions";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { EloChart } from "@/components/elo-chart";
+import { MatchHistorySection } from "@/components/match-history";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
@@ -37,7 +39,7 @@ export default async function PlayerProfilePage({
         </Card>
         <Card className="text-center">
           <p className="text-2xl font-bold text-emerald-600">{profile.stats.wins}</p>
-          <p className="text-xs text-text-muted">Vitórias</p>
+          <p className="text-xs text-text-muted">Vitorias</p>
         </Card>
         <Card className="text-center">
           <p className="text-2xl font-bold text-red-500">{profile.stats.losses}</p>
@@ -47,7 +49,7 @@ export default async function PlayerProfilePage({
           <p className="text-2xl font-bold text-accent">
             {profile.stats.totalMatches > 0
               ? `${Math.round((profile.stats.wins / profile.stats.totalMatches) * 100)}%`
-              : "—"}
+              : "\u2014"}
           </p>
           <p className="text-xs text-text-muted">Win Rate</p>
         </Card>
@@ -56,7 +58,7 @@ export default async function PlayerProfilePage({
       {/* Sets Stats */}
       <Card>
         <CardHeader>
-          <CardTitle>Estatísticas de Sets</CardTitle>
+          <CardTitle>Estatisticas de Sets</CardTitle>
         </CardHeader>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
@@ -72,7 +74,7 @@ export default async function PlayerProfilePage({
               {profile.stats.setsWon - profile.stats.setsLost > 0 ? "+" : ""}
               {profile.stats.setsWon - profile.stats.setsLost}
             </p>
-            <p className="text-xs text-text-muted">Diferença</p>
+            <p className="text-xs text-text-muted">Diferenca</p>
           </div>
         </div>
       </Card>
@@ -94,6 +96,17 @@ export default async function PlayerProfilePage({
         </Card>
       )}
 
+      {/* Elo Evolution */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Evolucao Elo</CardTitle>
+        </CardHeader>
+        <EloChart playerId={playerId} currentRating={profile.eloRating} />
+      </Card>
+
+      {/* Match History */}
+      <MatchHistorySection playerId={playerId} />
+
       {/* Head-to-Head */}
       {profile.headToHead.length > 0 && (
         <Card>
@@ -104,7 +117,7 @@ export default async function PlayerProfilePage({
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-xs text-text-muted uppercase tracking-wide">
-                  <th className="pb-2 pr-3">Adversário</th>
+                  <th className="pb-2 pr-3">Adversario</th>
                   <th className="pb-2 pr-3 text-center">Jogos</th>
                   <th className="pb-2 pr-3 text-center">V</th>
                   <th className="pb-2 pr-3 text-center">D</th>
@@ -120,7 +133,7 @@ export default async function PlayerProfilePage({
                     <td className="py-2 pr-3 text-center text-red-500">{h.losses}</td>
                     <td className="py-2 text-center">
                       <Badge variant={h.wins > h.losses ? "success" : h.wins < h.losses ? "default" : "warning"}>
-                        {h.played > 0 ? `${Math.round((h.wins / h.played) * 100)}%` : "—"}
+                        {h.played > 0 ? `${Math.round((h.wins / h.played) * 100)}%` : "\u2014"}
                       </Badge>
                     </td>
                   </tr>

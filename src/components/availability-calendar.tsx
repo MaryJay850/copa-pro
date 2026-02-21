@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { setPlayerAvailability } from "@/lib/actions";
@@ -51,8 +52,9 @@ export function AvailabilityCalendar() {
       }));
       await setPlayerAvailability(dates);
       setSaved(true);
+      toast.success("Disponibilidade guardada com sucesso.");
     } catch {
-      alert("Erro ao guardar disponibilidade.");
+      toast.error("Erro ao guardar disponibilidade.");
     }
     setLoading(false);
   };

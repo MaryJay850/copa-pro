@@ -1,5 +1,6 @@
 import { AuthNav } from "@/components/auth-nav";
 import { DarkModeToggle } from "@/components/dark-mode-toggle";
+import { NotificationBell } from "@/components/notification-bell";
 
 export default function AppLayout({
   children,
@@ -20,6 +21,10 @@ export default function AppLayout({
             <a href="/ligas" className="text-text-muted hover:text-text transition-colors">
               Ligas
             </a>
+            <a href="/gestor" className="text-text-muted hover:text-text transition-colors">
+              Gestao
+            </a>
+            <NotificationBell />
             <DarkModeToggle />
             <AuthNav />
           </nav>
