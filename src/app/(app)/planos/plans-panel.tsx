@@ -1,12 +1,17 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useTransition, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { createCheckoutSession, createBillingPortalSession } from "@/lib/stripe-actions";
+import {
+  createCheckoutSession,
+  createBillingPortalSession,
+  cancelSubscription,
+  type SubscriptionInfo,
+} from "@/lib/stripe-actions";
 import { sanitizeError } from "@/lib/error-utils";
 
 type Plan = "FREE" | "PRO" | "CLUB";
@@ -78,36 +83,48 @@ const PLANS = [
   },
 ];
 
+const planOrder: Plan[] = ["FREE", "PRO", "CLUB"];
+
 export function PlansPanel({
   currentPlan,
+  subscriptionInfo,
   userEmail,
+  showSuccess,
+  showCancelled,
 }: {
   currentPlan: Plan;
+  subscriptionInfo: SubscriptionInfo;
   userEmail: string;
+  showSuccess?: boolean;
+  showCancelled?: boolean;
 }) {
-  const [interval, setInterval] = useState<"month" | "year">("month");
+  const [interval, setInterval] = useState<"month" | "year">(
+    subscriptionInfo.interval ?? "month"
+  );
   const [isPending, startTransition] = useTransition();
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   // Show success/cancel toast from Stripe redirect
-  const success = searchParams.get("success");
-  const cancelled = searchParams.get("cancelled");
+  useEffect(() => {
+    if (showSuccess) {
+      toast.success("Subscrição ativada com sucesso! 🎉");
+      router.replace("/planos");
+    }
+    if (showCancelled) {
+      toast.info("Checkout cancelado.");
+      router.replace("/planos");
+    }
+  }, [showSuccess, showCancelled, router]);
 
-  if (success === "true") {
-    toast.success("Subscrição ativada com sucesso! 🎉");
-    // Clean URL
-    router.replace("/planos");
-  }
-  if (cancelled === "true") {
-    toast.info("Checkout cancelado.");
-    router.replace("/planos");
-  }
+  const currentIndex = planOrder.indexOf(currentPlan);
+  const subInterval = subscriptionInfo.interval;
+  const hasActiveSub = subscriptionInfo.hasActiveSubscription;
 
-  const handleUpgrade = (plan: "PRO" | "CLUB") => {
+  const handleUpgrade = (plan: "PRO" | "CLUB", selectedInterval: "month" | "year") => {
     startTransition(async () => {
       try {
-        const url = await createCheckoutSession(plan, interval);
+        const url = await createCheckoutSession(plan, selectedInterval);
         window.location.href = url;
       } catch (err) {
         toast.error(sanitizeError(err, "Erro ao processar o upgrade. Tente novamente."));
@@ -126,25 +143,174 @@ export function PlansPanel({
     });
   };
 
-  const planOrder: Plan[] = ["FREE", "PRO", "CLUB"];
-  const currentIndex = planOrder.indexOf(currentPlan);
+  const handleCancelSubscription = () => {
+    startTransition(async () => {
+      try {
+        await cancelSubscription();
+        toast.success("Subscrição cancelada. O seu plano foi alterado para Free.");
+        setShowCancelConfirm(false);
+        router.refresh();
+      } catch (err) {
+        toast.error(sanitizeError(err, "Erro ao cancelar subscrição."));
+      }
+    });
+  };
+
+  /**
+   * Determines what button to show for each plan card.
+   *
+   * Rules:
+   * - FREE user → can subscribe to any paid plan (any interval)
+   * - Paid user, same plan + same interval → "Plano Atual" (disabled)
+   * - Paid user, same plan + monthly → yearly shows "Mudar para Anual"
+   * - Paid user, same plan + yearly → monthly is managed via billing portal
+   * - Paid user, higher plan → "Upgrade para X"
+   * - Paid user, lower paid plan → "Gerir Subscrição" (billing portal)
+   * - Paid user, FREE card → "Cancelar Subscrição"
+   */
+  function getButtonConfig(planId: Plan, displayInterval: "month" | "year") {
+    const planIndex = planOrder.indexOf(planId);
+
+    // FREE card
+    if (planId === "FREE") {
+      if (currentPlan === "FREE") {
+        return { label: "Plano Atual", disabled: true, variant: "secondary" as const, action: () => {} };
+      }
+      // Has paid plan → show cancel
+      return {
+        label: "Cancelar Subscrição",
+        disabled: false,
+        variant: "destructive" as const,
+        action: () => setShowCancelConfirm(true),
+      };
+    }
+
+    // Paid plan card — user is FREE
+    if (currentPlan === "FREE") {
+      return {
+        label: `Subscrever ${PLANS.find(p => p.id === planId)?.name}`,
+        disabled: false,
+        variant: "default" as const,
+        action: () => handleUpgrade(planId as "PRO" | "CLUB", displayInterval),
+      };
+    }
+
+    // User has an active paid plan
+    if (planId === currentPlan) {
+      // Same plan
+      if (subInterval === displayInterval) {
+        // Exact same plan + interval
+        return { label: "Plano Atual", disabled: true, variant: "secondary" as const, action: () => {} };
+      }
+      // Same plan, different interval
+      if (displayInterval === "year" && subInterval === "month") {
+        return {
+          label: "Mudar para Anual (poupe 33%)",
+          disabled: false,
+          variant: "default" as const,
+          action: () => handleUpgrade(planId as "PRO" | "CLUB", "year"),
+        };
+      }
+      if (displayInterval === "month" && subInterval === "year") {
+        // Anual → Mensal = downgrade de billing cycle
+        return {
+          label: "Gerir Subscrição",
+          disabled: false,
+          variant: "secondary" as const,
+          action: handleManageBilling,
+        };
+      }
+    }
+
+    // Different plan — upgrade
+    if (planIndex > currentIndex) {
+      return {
+        label: `Upgrade para ${PLANS.find(p => p.id === planId)?.name}`,
+        disabled: false,
+        variant: "default" as const,
+        action: () => handleUpgrade(planId as "PRO" | "CLUB", displayInterval),
+      };
+    }
+
+    // Downgrade to lower paid plan → manage via billing portal
+    return {
+      label: "Gerir Subscrição",
+      disabled: false,
+      variant: "secondary" as const,
+      action: handleManageBilling,
+    };
+  }
+
+  // Format date for display
+  const formatDate = (isoDate: string | null) => {
+    if (!isoDate) return null;
+    return new Date(isoDate).toLocaleDateString("pt-PT", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
 
   return (
     <div className="space-y-6">
-      {/* Current plan badge */}
-      <Card className="p-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-text-muted">Plano atual:</span>
-          <Badge variant="success" className="text-sm">
-            {PLANS.find((p) => p.id === currentPlan)?.name ?? currentPlan}
-          </Badge>
+      {/* Current subscription info */}
+      <Card className="p-4 space-y-3">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-text-muted">Plano atual:</span>
+            <Badge variant="success" className="text-sm">
+              {PLANS.find((p) => p.id === currentPlan)?.name ?? currentPlan}
+              {hasActiveSub && subInterval && (
+                <span className="ml-1 opacity-75">
+                  ({subInterval === "year" ? "Anual" : "Mensal"})
+                </span>
+              )}
+            </Badge>
+          </div>
+          {hasActiveSub && (
+            <Button variant="secondary" size="sm" onClick={handleManageBilling} disabled={isPending}>
+              Gerir Subscrição
+            </Button>
+          )}
         </div>
-        {currentPlan !== "FREE" && (
-          <Button variant="secondary" size="sm" onClick={handleManageBilling} disabled={isPending}>
-            Gerir Subscrição
-          </Button>
+        {hasActiveSub && subscriptionInfo.currentPeriodEnd && (
+          <p className="text-xs text-text-muted">
+            {subscriptionInfo.cancelAtPeriodEnd
+              ? `Subscrição termina a ${formatDate(subscriptionInfo.currentPeriodEnd)}`
+              : `Próxima renovação: ${formatDate(subscriptionInfo.currentPeriodEnd)}`}
+          </p>
         )}
       </Card>
+
+      {/* Cancel confirmation */}
+      {showCancelConfirm && (
+        <Card className="p-4 border-red-300 bg-red-50 dark:bg-red-950/20 space-y-3">
+          <p className="text-sm font-medium text-red-700 dark:text-red-400">
+            Tem a certeza que deseja cancelar a subscrição?
+          </p>
+          <p className="text-xs text-red-600 dark:text-red-400/80">
+            O seu plano será alterado imediatamente para Free e perderá acesso às funcionalidades premium.
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={handleCancelSubscription}
+              disabled={isPending}
+            >
+              {isPending ? "A cancelar..." : "Sim, Cancelar Subscrição"}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setShowCancelConfirm(false)}
+              disabled={isPending}
+            >
+              Não, manter plano
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Interval toggle */}
       <div className="flex items-center justify-center gap-2">
@@ -173,17 +339,17 @@ export function PlansPanel({
       {/* Plan cards */}
       <div className="grid lg:grid-cols-3 gap-6">
         {PLANS.map((plan) => {
-          const isCurrentPlan = plan.id === currentPlan;
-          const planIndex = planOrder.indexOf(plan.id);
-          const isDowngrade = planIndex < currentIndex;
-          const isUpgrade = planIndex > currentIndex;
+          const isCurrentExact =
+            plan.id === currentPlan &&
+            (plan.id === "FREE" || subInterval === interval);
+          const btnConfig = getButtonConfig(plan.id, interval);
 
           return (
             <Card
               key={plan.id}
               className={`p-6 flex flex-col ${
                 plan.popular ? "ring-2 ring-primary shadow-lg" : ""
-              } ${isCurrentPlan ? "bg-primary/5" : ""}`}
+              } ${isCurrentExact ? "bg-primary/5" : ""}`}
             >
               {plan.popular && (
                 <div className="flex justify-center -mt-9 mb-3">
@@ -231,30 +397,25 @@ export function PlansPanel({
                         />
                       </svg>
                     )}
-                    <span className={i === 0 && plan.id !== "FREE" ? "font-semibold text-primary" : ""}>
+                    <span
+                      className={
+                        i === 0 && plan.id !== "FREE" ? "font-semibold text-primary" : ""
+                      }
+                    >
                       {feature}
                     </span>
                   </li>
                 ))}
               </ul>
 
-              {isCurrentPlan ? (
-                <Button variant="secondary" disabled className="w-full">
-                  Plano Atual
-                </Button>
-              ) : isUpgrade ? (
-                <Button
-                  onClick={() => handleUpgrade(plan.id as "PRO" | "CLUB")}
-                  disabled={isPending}
-                  className="w-full"
-                >
-                  {isPending ? "A processar..." : `Upgrade para ${plan.name}`}
-                </Button>
-              ) : isDowngrade ? (
-                <Button variant="secondary" onClick={handleManageBilling} disabled={isPending} className="w-full">
-                  Gerir Subscrição
-                </Button>
-              ) : null}
+              <Button
+                variant={btnConfig.variant}
+                onClick={btnConfig.action}
+                disabled={btnConfig.disabled || isPending}
+                className="w-full"
+              >
+                {isPending && !btnConfig.disabled ? "A processar..." : btnConfig.label}
+              </Button>
             </Card>
           );
         })}

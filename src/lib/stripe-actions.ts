@@ -5,6 +5,58 @@ import { prisma } from "./db";
 import { requireAuth } from "./auth-guards";
 import type { SubscriptionPlan } from "../../generated/prisma/enums";
 
+// ── Types ──
+
+export type SubscriptionInfo = {
+  plan: SubscriptionPlan;
+  interval: "month" | "year" | null;
+  status: string | null;
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+  hasActiveSubscription: boolean;
+};
+
+/**
+ * Get the user's current subscription info from Stripe.
+ */
+export async function getSubscriptionInfo(): Promise<SubscriptionInfo> {
+  const user = await requireAuth();
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { plan: true, stripeSubscriptionId: true, stripeCustomerId: true },
+  });
+
+  const base: SubscriptionInfo = {
+    plan: dbUser?.plan ?? "FREE",
+    interval: null,
+    status: null,
+    currentPeriodEnd: null,
+    cancelAtPeriodEnd: false,
+    hasActiveSubscription: false,
+  };
+
+  if (!dbUser?.stripeSubscriptionId) return base;
+
+  try {
+    const sub = await getStripe().subscriptions.retrieve(dbUser.stripeSubscriptionId) as any;
+    const isActive = ["active", "trialing"].includes(sub.status);
+    const periodEnd = sub.current_period_end as number | undefined;
+    return {
+      ...base,
+      interval: (sub.items?.data?.[0]?.price?.recurring?.interval as "month" | "year") ?? null,
+      status: sub.status,
+      currentPeriodEnd: periodEnd
+        ? new Date(periodEnd * 1000).toISOString()
+        : null,
+      cancelAtPeriodEnd: !!sub.cancel_at_period_end,
+      hasActiveSubscription: isActive,
+    };
+  } catch (err) {
+    console.error("[STRIPE] Erro ao obter subscrição:", err);
+    return base;
+  }
+}
+
 /**
  * Create a Stripe Checkout session for plan upgrade.
  */
@@ -18,9 +70,22 @@ export async function createCheckoutSession(
   // Get or create Stripe customer
   let dbUser = await prisma.user.findUnique({
     where: { id: user.id },
-    select: { stripeCustomerId: true, email: true, plan: true },
+    select: { stripeCustomerId: true, email: true, plan: true, stripeSubscriptionId: true },
   });
   if (!dbUser) throw new Error("Utilizador não encontrado.");
+
+  // If user has an active subscription, cancel it first (Stripe doesn't allow multiple subscriptions easily)
+  if (dbUser.stripeSubscriptionId) {
+    try {
+      await getStripe().subscriptions.cancel(dbUser.stripeSubscriptionId);
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { stripeSubscriptionId: null },
+      });
+    } catch (err) {
+      console.warn("[STRIPE] Erro ao cancelar subscrição anterior:", err);
+    }
+  }
 
   let customerId = dbUser.stripeCustomerId;
   if (!customerId) {
@@ -84,6 +149,95 @@ export async function createBillingPortalSession(): Promise<string> {
   });
 
   return session.url;
+}
+
+/**
+ * Sync the user's plan from Stripe — fallback when webhook doesn't fire.
+ * Called when user returns from checkout with ?success=true.
+ */
+export async function syncPlanFromStripe(): Promise<SubscriptionPlan> {
+  const user = await requireAuth();
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { stripeCustomerId: true, plan: true, stripeSubscriptionId: true },
+  });
+
+  if (!dbUser?.stripeCustomerId) return dbUser?.plan ?? "FREE";
+
+  try {
+    const stripe = getStripe();
+
+    // List active subscriptions for this customer
+    const subs = await stripe.subscriptions.list({
+      customer: dbUser.stripeCustomerId,
+      status: "active",
+      limit: 5,
+    });
+
+    if (subs.data.length === 0) {
+      // No active subscriptions — set FREE
+      if (dbUser.plan !== "FREE") {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { plan: "FREE", stripeSubscriptionId: null, planExpiresAt: null },
+        });
+      }
+      return "FREE";
+    }
+
+    // Take the most recent active subscription
+    const sub = subs.data[0] as any;
+    const plan = (sub.metadata?.plan as SubscriptionPlan) ?? dbUser.plan;
+    const periodEnd = new Date((sub.current_period_end as number) * 1000);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        plan,
+        stripeSubscriptionId: sub.id,
+        planExpiresAt: periodEnd,
+      },
+    });
+
+    console.log(`[STRIPE SYNC] user=${user.id}, plan=${plan}, subId=${sub.id}`);
+    return plan;
+  } catch (err) {
+    console.error("[STRIPE SYNC] Erro:", err);
+    return dbUser.plan;
+  }
+}
+
+/**
+ * Cancel the user's Stripe subscription (downgrade to FREE).
+ * Cancels immediately.
+ */
+export async function cancelSubscription(): Promise<void> {
+  const user = await requireAuth();
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { stripeSubscriptionId: true },
+  });
+
+  if (!dbUser?.stripeSubscriptionId) {
+    throw new Error("Sem subscrição ativa para cancelar.");
+  }
+
+  try {
+    await getStripe().subscriptions.cancel(dbUser.stripeSubscriptionId);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { plan: "FREE", stripeSubscriptionId: null, planExpiresAt: null },
+    });
+
+    // Log audit
+    try {
+      const { logAudit } = await import("./actions/audit-actions");
+      await logAudit("CANCEL_SUBSCRIPTION", "User", user.id, "Subscrição cancelada pelo utilizador");
+    } catch { /* ignore */ }
+  } catch (err) {
+    console.error("[STRIPE] Erro ao cancelar subscrição:", err);
+    throw new Error("Erro ao cancelar subscrição. Tente novamente ou contacte o suporte.");
+  }
 }
 
 /**
