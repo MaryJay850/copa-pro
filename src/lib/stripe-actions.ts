@@ -1,6 +1,6 @@
 "use server";
 
-import { stripe, STRIPE_PRICES } from "./stripe";
+import { getStripe, STRIPE_PRICES } from "./stripe";
 import { prisma } from "./db";
 import { requireAuth } from "./auth-guards";
 import type { SubscriptionPlan } from "../../generated/prisma/enums";
@@ -24,7 +24,7 @@ export async function createCheckoutSession(
 
   let customerId = dbUser.stripeCustomerId;
   if (!customerId) {
-    const customer = await stripe.customers.create({
+    const customer = await getStripe().customers.create({
       email: dbUser.email,
       metadata: { userId: user.id },
     });
@@ -42,7 +42,7 @@ export async function createCheckoutSession(
     throw new Error(`Preço Stripe não configurado para ${plan} ${interval}. Configure STRIPE_PRICE_${priceKey} no .env`);
   }
 
-  const session = await stripe.checkout.sessions.create({
+  const session = await getStripe().checkout.sessions.create({
     customer: customerId,
     mode: "subscription",
     payment_method_types: ["card"],
@@ -74,7 +74,7 @@ export async function createBillingPortalSession(): Promise<string> {
     throw new Error("Sem subscrição ativa. Não é possível aceder ao portal.");
   }
 
-  const session = await stripe.billingPortal.sessions.create({
+  const session = await getStripe().billingPortal.sessions.create({
     customer: dbUser.stripeCustomerId,
     return_url: `${appUrl}/planos`,
   });
@@ -89,7 +89,7 @@ export async function handleStripeWebhook(body: string, signature: string): Prom
   const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   if (!webhookSecret) throw new Error("STRIPE_WEBHOOK_SECRET não definido.");
 
-  const event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+  const event = getStripe().webhooks.constructEvent(body, signature, webhookSecret);
 
   switch (event.type) {
     case "checkout.session.completed": {
