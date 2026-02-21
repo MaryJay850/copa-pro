@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { getTournamentForEdit, getPlayers } from "@/lib/actions";
+import { getTournamentForEdit, getLeagueMembersAsPlayers } from "@/lib/actions";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { TournamentWizard } from "@/app/(app)/ligas/[leagueId]/epocas/[seasonId]/torneios/novo/wizard";
@@ -21,7 +21,7 @@ export default async function EditTournamentPage({
 
   if (!tournament) notFound();
 
-  const allPlayers = await getPlayers();
+  const allPlayers = await getLeagueMembersAsPlayers(tournament.leagueId);
 
   // Build the selectedPlayerIds from the existing teams
   const selectedPlayerIds = tournament.teams.flatMap((t) => [

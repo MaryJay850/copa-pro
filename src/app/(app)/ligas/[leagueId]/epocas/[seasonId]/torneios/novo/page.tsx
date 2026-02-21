@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 
-import { getPlayers, getSeason } from "@/lib/actions";
+import { getLeagueMembersAsPlayers, getSeason } from "@/lib/actions";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { TournamentWizard } from "./wizard";
@@ -8,7 +8,7 @@ import { TournamentWizard } from "./wizard";
 export default async function NewTournamentPage({ params }: { params: Promise<{ leagueId: string; seasonId: string }> }) {
   const { leagueId, seasonId } = await params;
   const season = await getSeason(seasonId);
-  const players = await getPlayers();
+  const players = await getLeagueMembersAsPlayers(leagueId);
 
   if (!season) notFound();
 

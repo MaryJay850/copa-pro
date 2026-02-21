@@ -1242,6 +1242,20 @@ export async function getLeaguePlayers(leagueId: string) {
   return serialize(players);
 }
 
+export async function getLeagueMembersAsPlayers(leagueId: string) {
+  const memberships = await prisma.leagueMembership.findMany({
+    where: { leagueId, status: "APPROVED" },
+    include: { user: { include: { player: true } } },
+  });
+
+  const players = memberships
+    .filter((m) => m.user.player)
+    .map((m) => m.user.player!)
+    .sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+  return serialize(players);
+}
+
 // ────────────────────────────────────────
 // Admin Actions
 // ────────────────────────────────────────

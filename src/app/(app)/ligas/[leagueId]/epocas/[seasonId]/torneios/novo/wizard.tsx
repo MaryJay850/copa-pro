@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { createTournament, generateSchedule, createPlayer, createPlayersFromList, updateTournament } from "@/lib/actions";
+import { createTournament, generateSchedule, updateTournament } from "@/lib/actions";
 
 interface Player {
   id: string;
@@ -59,12 +59,10 @@ export function TournamentWizard({
   );
 
   // Step 2
-  const [players, setPlayers] = useState<Player[]>(existingPlayers);
+  const [players] = useState<Player[]>(existingPlayers);
   const [selectedPlayerIds, setSelectedPlayerIds] = useState<Set<string>>(
     new Set(editMode?.initialData.selectedPlayerIds ?? [])
   );
-  const [newPlayerName, setNewPlayerName] = useState("");
-  const [bulkNames, setBulkNames] = useState("");
 
   // Step 3
   const [teams, setTeams] = useState<TeamPair[]>(editMode?.initialData.teams ?? []);
@@ -83,40 +81,6 @@ export function TournamentWizard({
     if (next.has(id)) next.delete(id);
     else next.add(id);
     setSelectedPlayerIds(next);
-  };
-
-  const handleAddPlayer = async () => {
-    if (!newPlayerName.trim()) return;
-    setLoading(true);
-    try {
-      const formData = new FormData();
-      formData.set("fullName", newPlayerName.trim());
-      const player = await createPlayer(formData);
-      setPlayers((prev) => [...prev, player]);
-      setSelectedPlayerIds((prev) => new Set([...prev, player.id]));
-      setNewPlayerName("");
-    } catch (e) {
-      setError((e as Error).message);
-    }
-    setLoading(false);
-  };
-  const handleBulkAdd = async () => {
-    if (!bulkNames.trim()) return;
-    setLoading(true);
-    try {
-      const names = bulkNames.split("\n").map((n) => n.trim()).filter(Boolean);
-      const newPlayers = await createPlayersFromList(names);
-      setPlayers((prev) => [...prev, ...newPlayers]);
-      setSelectedPlayerIds((prev) => {
-        const next = new Set(prev);
-        newPlayers.forEach((p) => next.add(p.id));
-        return next;
-      });
-      setBulkNames("");
-    } catch (e) {
-      setError((e as Error).message);
-    }
-    setLoading(false);
   };
 
   const generateRandomTeamsLocal = () => {
@@ -430,40 +394,19 @@ export function TournamentWizard({
         <Card>
           <h2 className="text-lg font-semibold mb-4">Passo 2: Jogadores</h2>
           <p className="text-sm text-text-muted mb-3">
-            Selecione os jogadores para este torneio ({selectedPlayerIds.size} selecionados).
+            Selecione os membros da liga para este torneio ({selectedPlayerIds.size} selecionados).
             Precisa de um número par (mínimo 4).
           </p>
 
-          {/* Quick add */}
-          <div className="flex gap-2 mb-3">
-            <Input
-              value={newPlayerName}
-              onChange={(e) => setNewPlayerName(e.target.value)}
-              placeholder="Nome do jogador"
-              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddPlayer())}
-            />
-            <Button onClick={handleAddPlayer} disabled={loading} size="sm">
-              Adicionar
-            </Button>
-          </div>
-
-          {/* Bulk add */}
-          <details className="mb-4">
-            <summary className="text-sm text-primary cursor-pointer hover:underline">
-              Colar lista de jogadores
-            </summary>
-            <div className="mt-2 space-y-2">
-              <textarea
-                value={bulkNames}
-                onChange={(e) => setBulkNames(e.target.value)}
-                placeholder={"João Silva\nMiguel Costa\nAndré Santos"}
-                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm h-24 resize-none focus:border-primary focus:outline-none"
-              />
-              <Button size="sm" variant="secondary" onClick={handleBulkAdd} disabled={loading}>
-                Adicionar Todos
-              </Button>
+          {players.length === 0 && (
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-lg mb-3">
+              Nenhum membro na liga. Adicione membros na página de{" "}
+              <a href={`/ligas/${leagueId}/membros`} className="underline font-medium">
+                Gestão de Membros
+              </a>{" "}
+              antes de criar um torneio.
             </div>
-          </details>
+          )}
 
           {/* Player list */}
           <div className="space-y-1 max-h-64 overflow-y-auto border border-border rounded-lg p-2">
@@ -485,7 +428,7 @@ export function TournamentWizard({
               </label>
             ))}
             {players.length === 0 && (
-              <p className="text-sm text-text-muted py-2 text-center">Sem jogadores. Adicione acima.</p>
+              <p className="text-sm text-text-muted py-2 text-center">Sem membros na liga.</p>
             )}
           </div>
 
