@@ -208,10 +208,11 @@ export async function syncPlanFromStripe(): Promise<SubscriptionPlan> {
 }
 
 /**
- * Cancel the user's Stripe subscription (downgrade to FREE).
- * Cancels immediately.
+ * Cancel the user's Stripe subscription (downgrade to FREE at end of period).
+ * Uses cancel_at_period_end so the user keeps access until the billing cycle ends.
+ * The webhook `customer.subscription.deleted` will set plan to FREE when it actually expires.
  */
-export async function cancelSubscription(): Promise<void> {
+export async function cancelSubscription(): Promise<{ endsAt: string }> {
   const user = await requireAuth();
   const dbUser = await prisma.user.findUnique({
     where: { id: user.id },
@@ -223,20 +224,70 @@ export async function cancelSubscription(): Promise<void> {
   }
 
   try {
-    await getStripe().subscriptions.cancel(dbUser.stripeSubscriptionId);
+    // Mark subscription to cancel at end of current billing period
+    const sub = await getStripe().subscriptions.update(dbUser.stripeSubscriptionId, {
+      cancel_at_period_end: true,
+    }) as any;
+
+    const periodEnd = new Date((sub.current_period_end as number) * 1000);
+
+    // Update planExpiresAt so the app knows when it ends
     await prisma.user.update({
       where: { id: user.id },
-      data: { plan: "FREE", stripeSubscriptionId: null, planExpiresAt: null },
+      data: { planExpiresAt: periodEnd },
     });
 
     // Log audit
     try {
       const { logAudit } = await import("./actions/audit-actions");
-      await logAudit("CANCEL_SUBSCRIPTION", "User", user.id, "Subscrição cancelada pelo utilizador");
+      await logAudit(
+        "CANCEL_SUBSCRIPTION",
+        "User",
+        user.id,
+        `Subscrição cancelada — acesso até ${periodEnd.toISOString().split("T")[0]}`
+      );
     } catch { /* ignore */ }
+
+    return { endsAt: periodEnd.toISOString() };
   } catch (err) {
     console.error("[STRIPE] Erro ao cancelar subscrição:", err);
     throw new Error("Erro ao cancelar subscrição. Tente novamente ou contacte o suporte.");
+  }
+}
+
+/**
+ * Reactivate a subscription that was scheduled to cancel at period end.
+ */
+export async function reactivateSubscription(): Promise<void> {
+  const user = await requireAuth();
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    select: { stripeSubscriptionId: true },
+  });
+
+  if (!dbUser?.stripeSubscriptionId) {
+    throw new Error("Sem subscrição para reativar.");
+  }
+
+  try {
+    await getStripe().subscriptions.update(dbUser.stripeSubscriptionId, {
+      cancel_at_period_end: false,
+    });
+
+    // Remove the expiry date since it's no longer cancelling
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { planExpiresAt: null },
+    });
+
+    // Log audit
+    try {
+      const { logAudit } = await import("./actions/audit-actions");
+      await logAudit("REACTIVATE_SUBSCRIPTION", "User", user.id, "Subscrição reativada");
+    } catch { /* ignore */ }
+  } catch (err) {
+    console.error("[STRIPE] Erro ao reativar subscrição:", err);
+    throw new Error("Erro ao reativar subscrição. Tente novamente ou contacte o suporte.");
   }
 }
 

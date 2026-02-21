@@ -10,6 +10,7 @@ import {
   createCheckoutSession,
   createBillingPortalSession,
   cancelSubscription,
+  reactivateSubscription,
   type SubscriptionInfo,
 } from "@/lib/stripe-actions";
 import { sanitizeError } from "@/lib/error-utils";
@@ -120,6 +121,7 @@ export function PlansPanel({
   const currentIndex = planOrder.indexOf(currentPlan);
   const subInterval = subscriptionInfo.interval;
   const hasActiveSub = subscriptionInfo.hasActiveSubscription;
+  const isCancelPending = hasActiveSub && subscriptionInfo.cancelAtPeriodEnd;
 
   const handleUpgrade = (plan: "PRO" | "CLUB", selectedInterval: "month" | "year") => {
     startTransition(async () => {
@@ -146,12 +148,29 @@ export function PlansPanel({
   const handleCancelSubscription = () => {
     startTransition(async () => {
       try {
-        await cancelSubscription();
-        toast.success("Subscrição cancelada. O seu plano foi alterado para Free.");
+        const { endsAt } = await cancelSubscription();
+        const endDate = new Date(endsAt).toLocaleDateString("pt-PT", {
+          day: "numeric",
+          month: "long",
+          year: "numeric",
+        });
+        toast.success(`Subscrição cancelada. Manterá acesso ao plano até ${endDate}.`);
         setShowCancelConfirm(false);
         router.refresh();
       } catch (err) {
         toast.error(sanitizeError(err, "Erro ao cancelar subscrição."));
+      }
+    });
+  };
+
+  const handleReactivate = () => {
+    startTransition(async () => {
+      try {
+        await reactivateSubscription();
+        toast.success("Subscrição reativada com sucesso!");
+        router.refresh();
+      } catch (err) {
+        toast.error(sanitizeError(err, "Erro ao reativar subscrição."));
       }
     });
   };
@@ -175,6 +194,15 @@ export function PlansPanel({
     if (planId === "FREE") {
       if (currentPlan === "FREE") {
         return { label: "Plano Atual", disabled: true, variant: "secondary" as const, action: () => {} };
+      }
+      // Already scheduled to cancel → show that
+      if (isCancelPending) {
+        return {
+          label: `Free a partir de ${formatDate(subscriptionInfo.currentPeriodEnd) ?? "..."}`,
+          disabled: true,
+          variant: "secondary" as const,
+          action: () => {},
+        };
       }
       // Has paid plan → show cancel
       return {
@@ -266,30 +294,51 @@ export function PlansPanel({
                 </span>
               )}
             </Badge>
+            {isCancelPending && (
+              <Badge variant="warning" className="text-xs">
+                Cancela em {formatDate(subscriptionInfo.currentPeriodEnd)}
+              </Badge>
+            )}
           </div>
-          {hasActiveSub && (
-            <Button variant="secondary" size="sm" onClick={handleManageBilling} disabled={isPending}>
-              Gerir Subscrição
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {isCancelPending && (
+              <Button variant="default" size="sm" onClick={handleReactivate} disabled={isPending}>
+                Reativar Subscrição
+              </Button>
+            )}
+            {hasActiveSub && (
+              <Button variant="secondary" size="sm" onClick={handleManageBilling} disabled={isPending}>
+                Gerir Subscrição
+              </Button>
+            )}
+          </div>
         </div>
-        {hasActiveSub && subscriptionInfo.currentPeriodEnd && (
+        {hasActiveSub && subscriptionInfo.currentPeriodEnd && !isCancelPending && (
           <p className="text-xs text-text-muted">
-            {subscriptionInfo.cancelAtPeriodEnd
-              ? `Subscrição termina a ${formatDate(subscriptionInfo.currentPeriodEnd)}`
-              : `Próxima renovação: ${formatDate(subscriptionInfo.currentPeriodEnd)}`}
+            Próxima renovação: {formatDate(subscriptionInfo.currentPeriodEnd)}
+          </p>
+        )}
+        {isCancelPending && (
+          <p className="text-xs text-amber-600 dark:text-amber-400">
+            A subscrição foi cancelada mas mantém acesso ao plano {PLANS.find((p) => p.id === currentPlan)?.name} até {formatDate(subscriptionInfo.currentPeriodEnd)}.
+            Após essa data, será automaticamente alterado para o plano Free.
           </p>
         )}
       </Card>
 
       {/* Cancel confirmation */}
       {showCancelConfirm && (
-        <Card className="p-4 border-red-300 bg-red-50 dark:bg-red-950/20 space-y-3">
-          <p className="text-sm font-medium text-red-700 dark:text-red-400">
+        <Card className="p-4 border-amber-300 bg-amber-50 dark:bg-amber-950/20 space-y-3">
+          <p className="text-sm font-medium text-amber-700 dark:text-amber-400">
             Tem a certeza que deseja cancelar a subscrição?
           </p>
-          <p className="text-xs text-red-600 dark:text-red-400/80">
-            O seu plano será alterado imediatamente para Free e perderá acesso às funcionalidades premium.
+          <p className="text-xs text-amber-600 dark:text-amber-400/80">
+            Manterá o acesso ao plano {PLANS.find((p) => p.id === currentPlan)?.name} até ao
+            fim do período de faturação atual
+            {subscriptionInfo.currentPeriodEnd && (
+              <> ({formatDate(subscriptionInfo.currentPeriodEnd)})</>
+            )}.
+            Após essa data, o plano será automaticamente alterado para Free.
           </p>
           <div className="flex gap-2">
             <Button
@@ -298,7 +347,7 @@ export function PlansPanel({
               onClick={handleCancelSubscription}
               disabled={isPending}
             >
-              {isPending ? "A cancelar..." : "Sim, Cancelar Subscrição"}
+              {isPending ? "A cancelar..." : "Sim, Cancelar no Fim do Período"}
             </Button>
             <Button
               variant="secondary"
