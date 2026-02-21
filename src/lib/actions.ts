@@ -6,6 +6,8 @@ import { computeMatchContribution, validateMatchScores, determineResult } from "
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { requireAuth, requireAdmin, requireLeagueManager } from "./auth-guards";
+import { auth } from "./auth";
+import { requireFeature, checkLimit } from "./plan-guards";
 import { logAudit } from "./actions/audit-actions";
 import { sendEmail } from "./email";
 import {
@@ -55,6 +57,13 @@ export async function createLeague(formData: FormData) {
   const location = (formData.get("location") as string) || null;
 
   if (!name?.trim()) throw new Error("Nome da liga é obrigatório.");
+
+  // Plan check: league limit
+  const session = await auth();
+  if (session?.user?.id) {
+    const existingLeagues = await prisma.leagueManager.count({ where: { userId: session.user.id } });
+    await checkLimit("maxLeagues", existingLeagues, session.user.id);
+  }
 
   const league = await prisma.league.create({
     data: { name: name.trim(), location: location?.trim() || null },
@@ -126,6 +135,9 @@ export async function deleteLeague(id: string) {
  */
 export async function createOrSyncWhatsAppGroup(leagueId: string) {
   await requireLeagueManager(leagueId);
+
+  // Plan check: WhatsApp integration
+  await requireFeature("WHATSAPP_INTEGRATION");
 
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
@@ -337,6 +349,22 @@ export async function createTournament(data: {
   allPlayerIds?: string[];
 }) {
   await requireLeagueManager(data.leagueId);
+
+  // Plan check: tournament limit per season
+  {
+    const existingTournaments = await prisma.tournament.count({ where: { seasonId: data.seasonId } });
+    await checkLimit("maxTournamentsPerSeason", existingTournaments);
+  }
+
+  // Plan check: double round robin requires Pro+
+  if (data.matchesPerPair && data.matchesPerPair > 1) {
+    await requireFeature("DOUBLE_ROUND_ROBIN");
+  }
+
+  // Plan check: random teams requires Pro+
+  if (data.teamMode === "RANDOM_TEAMS") {
+    await requireFeature("RANDOM_TEAMS_SEED");
+  }
 
   const teamSize = data.teamSize ?? 2;
   const maxTitulars = data.courtsCount * 2 * teamSize;
@@ -2561,6 +2589,9 @@ export async function getLandingPageData() {
 // ══════════════════════════════════════════════════════════════════════
 
 export async function cloneTournament(tournamentId: string) {
+  // Plan check: clone tournament
+  await requireFeature("CLONE_TOURNAMENT");
+
   const source = await prisma.tournament.findUnique({
     where: { id: tournamentId },
     include: {
@@ -2842,6 +2873,9 @@ export async function getPendingRequestsCount() {
 
 export async function importPlayersFromCSV(leagueId: string, csvText: string) {
   await requireLeagueManager(leagueId);
+
+  // Plan check: CSV import
+  await requireFeature("CSV_IMPORT");
 
   const lines = csvText.split(/\r?\n/).filter((l) => l.trim());
   if (lines.length === 0) throw new Error("Ficheiro CSV vazio.");
@@ -3262,6 +3296,9 @@ export async function submitMatchResult(
   }
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
+    // Plan check: player result submission
+    await requireFeature("PLAYER_RESULT_SUBMISSION");
+
     const session = await requireAuth();
     if (!session.playerId) return { success: false, error: "Sem jogador associado." };
 
@@ -3590,6 +3627,9 @@ export async function updateSeasonSettings(
 }
 
 export async function cloneSeason(seasonId: string) {
+  // Plan check: clone season
+  await requireFeature("CLONE_SEASON");
+
   const season = await prisma.season.findUnique({
     where: { id: seasonId },
     select: { leagueId: true, name: true, allowDraws: true },

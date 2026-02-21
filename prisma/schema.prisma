@@ -28,6 +28,12 @@ enum InscriptionStatus {
   PROMOVIDO
 }
 
+enum SubscriptionPlan {
+  FREE
+  PRO
+  CLUB
+}
+
 // ── Auth Models ──
 
 model User {
@@ -45,6 +51,12 @@ model User {
   player   Player? @relation(fields: [playerId], references: [id])
 
   adminNote         String?
+
+  // ── Subscription ──
+  plan                  SubscriptionPlan @default(FREE)
+  planExpiresAt         DateTime?
+  stripeCustomerId      String?          @unique
+  stripeSubscriptionId  String?          @unique
 
   managedLeagues    LeagueManager[]
   leagueMemberships LeagueMembership[]

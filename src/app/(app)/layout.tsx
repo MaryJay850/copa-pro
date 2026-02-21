@@ -24,6 +24,9 @@ export default function AppLayout({
             <a href="/gestor" className="text-text-muted hover:text-text transition-colors">
               Gestao
             </a>
+            <a href="/planos" className="text-text-muted hover:text-text transition-colors">
+              Planos
+            </a>
             <NotificationBell />
             <DarkModeToggle />
             <AuthNav />

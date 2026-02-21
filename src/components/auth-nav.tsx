@@ -113,7 +113,12 @@ export function AuthNav() {
             {/* User info header */}
             <div className="px-3 py-2 border-b border-border">
               <p className="text-sm font-medium truncate">{displayName}</p>
-              <p className="text-xs text-text-muted truncate">{session.user?.email}</p>
+              <div className="flex items-center gap-1.5 mt-0.5">
+                <p className="text-xs text-text-muted truncate">{session.user?.email}</p>
+                <span className="text-xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 font-medium shrink-0">
+                  {(session.user as any)?.plan === "CLUB" ? "Club" : (session.user as any)?.plan === "PRO" ? "Pro" : "Free"}
+                </span>
+              </div>
             </div>
 
             {/* Menu items */}

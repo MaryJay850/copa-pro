@@ -11,7 +11,7 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes — always accessible
-  const publicPaths = ["/", "/login", "/registar", "/api/auth", "/recuperar-password", "/alterar-password", "/convite"];
+  const publicPaths = ["/", "/login", "/registar", "/api/auth", "/recuperar-password", "/alterar-password", "/convite", "/api/stripe/webhook"];
   const isPublic = publicPaths.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
   );

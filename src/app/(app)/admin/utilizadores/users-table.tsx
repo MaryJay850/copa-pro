@@ -11,6 +11,7 @@ import {
   linkPlayerToUser,
   updateUser,
 } from "@/lib/actions";
+import { adminSetUserPlan } from "@/lib/stripe-actions";
 import { useRouter } from "next/navigation";
 
 type User = {
@@ -18,6 +19,7 @@ type User = {
   email: string;
   phone: string;
   role: string;
+  plan: string;
   playerId: string | null;
   createdAt: string;
   player: { fullName: string; nickname: string | null } | null;
@@ -57,6 +59,13 @@ export function UsersTable({
   const handleRoleChange = (userId: string, role: string) => {
     startTransition(async () => {
       await updateUserRole(userId, role as "JOGADOR" | "GESTOR" | "ADMINISTRADOR");
+      router.refresh();
+    });
+  };
+
+  const handlePlanChange = (userId: string, plan: string) => {
+    startTransition(async () => {
+      await adminSetUserPlan(userId, plan as "FREE" | "PRO" | "CLUB");
       router.refresh();
     });
   };
@@ -106,6 +115,9 @@ export function UsersTable({
                   <Badge variant={ROLE_VARIANTS[user.role] ?? "info"}>
                     {ROLE_LABELS[user.role] ?? user.role}
                   </Badge>
+                  <Badge variant={user.plan === "CLUB" ? "success" : user.plan === "PRO" ? "warning" : "info"}>
+                    {user.plan === "CLUB" ? "Club" : user.plan === "PRO" ? "Pro" : "Free"}
+                  </Badge>
                 </div>
                 <p className="text-xs text-text-muted">{user.email}</p>
                 {user.phone && (
@@ -151,6 +163,16 @@ export function UsersTable({
                 >
                   {editingUserId === user.id ? "Cancelar" : "Editar"}
                 </Button>
+                <select
+                  className="text-xs rounded border border-border px-2 py-1"
+                  value={user.plan}
+                  onChange={(e) => handlePlanChange(user.id, e.target.value)}
+                  disabled={isPending}
+                >
+                  <option value="FREE">Free</option>
+                  <option value="PRO">Pro</option>
+                  <option value="CLUB">Club</option>
+                </select>
                 <select
                   className="text-xs rounded border border-border px-2 py-1"
                   value={user.role}

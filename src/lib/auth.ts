@@ -11,6 +11,7 @@ declare module "next-auth" {
     playerName: string | null;
     phone: string;
     mustChangePassword: boolean;
+    plan: string;
   }
 }
 
@@ -22,6 +23,7 @@ declare module "@auth/core/jwt" {
     playerName: string | null;
     phone: string;
     mustChangePassword: boolean;
+    plan: string;
   }
 }
 
@@ -60,6 +62,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           playerName: user.player?.fullName ?? null,
           phone: user.phone,
           mustChangePassword: user.mustChangePassword,
+          plan: user.plan,
         };
       },
     }),
@@ -73,6 +76,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.playerName = (user as { playerName: string | null }).playerName;
         token.phone = (user as { phone: string }).phone;
         token.mustChangePassword = (user as { mustChangePassword: boolean }).mustChangePassword;
+        token.plan = (user as { plan: string }).plan;
       } else {
         // Re-fetch from DB (ensures admin changes and profile updates propagate)
         const dbUser = await prisma.user.findUnique({
@@ -82,6 +86,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             playerId: true,
             phone: true,
             mustChangePassword: true,
+            plan: true,
             player: { select: { fullName: true } },
           },
         });
@@ -91,6 +96,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           token.playerName = dbUser.player?.fullName ?? null;
           token.phone = dbUser.phone;
           token.mustChangePassword = dbUser.mustChangePassword;
+          token.plan = dbUser.plan;
         }
       }
       return token;
@@ -102,6 +108,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       (session.user as any).playerName = token.playerName;
       (session.user as any).phone = token.phone;
       (session.user as any).mustChangePassword = token.mustChangePassword;
+      (session.user as any).plan = token.plan;
       return session;
     },
   },
