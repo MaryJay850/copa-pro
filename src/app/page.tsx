@@ -3,6 +3,8 @@ import { ProblemSection } from "@/components/landing/problem-section";
 import { SolutionSection } from "@/components/landing/solution-section";
 import { HowItWorksSection } from "@/components/landing/how-it-works-section";
 import { ScoringSection } from "@/components/landing/scoring-section";
+import { FeaturesSection } from "@/components/landing/features-section";
+import { PricingSection } from "@/components/landing/pricing-section";
 import { AudienceSection } from "@/components/landing/audience-section";
 import { CtaSection } from "@/components/landing/cta-section";
 import { Footer } from "@/components/landing/footer";
@@ -32,11 +34,11 @@ export default async function LandingPage() {
             <a href="#solucao" className="hover:text-slate-900 transition-colors">
               Solução
             </a>
-            <a href="#como-funciona" className="hover:text-slate-900 transition-colors">
-              Como funciona
+            <a href="#funcionalidades" className="hover:text-slate-900 transition-colors">
+              Funcionalidades
             </a>
-            <a href="#pontuacao" className="hover:text-slate-900 transition-colors">
-              Pontuação
+            <a href="#planos" className="hover:text-slate-900 transition-colors">
+              Planos
             </a>
           </nav>
           <div className="flex items-center gap-3">
@@ -74,6 +76,12 @@ export default async function LandingPage() {
         </div>
         <div id="pontuacao">
           <ScoringSection />
+        </div>
+        <div id="funcionalidades">
+          <FeaturesSection />
+        </div>
+        <div id="planos">
+          <PricingSection />
         </div>
         <AudienceSection />
         <CtaSection />
