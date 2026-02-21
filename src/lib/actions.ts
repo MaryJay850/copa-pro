@@ -115,6 +115,88 @@ export async function deleteLeague(id: string) {
   revalidatePath("/ligas");
 }
 
+/**
+ * Create (or re-sync) WhatsApp group for a league.
+ * - If no group exists, creates one and adds all approved members
+ * - If a group already exists, adds any missing members
+ * - Admins (ADMINISTRADOR) and league managers are promoted to group admins
+ */
+export async function createOrSyncWhatsAppGroup(leagueId: string) {
+  await requireLeagueManager(leagueId);
+
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    include: {
+      memberships: {
+        where: { status: "APPROVED" },
+        include: { user: { select: { id: true, phone: true, role: true } } },
+      },
+      managers: {
+        include: { user: { select: { id: true, phone: true } } },
+      },
+    },
+  });
+
+  if (!league) throw new Error("Liga não encontrada.");
+
+  // Collect all member phones
+  const memberPhones = league.memberships
+    .map((m) => m.user.phone)
+    .filter(Boolean)
+    .map(normalizePhone)
+    .filter((p) => p.length > 0);
+
+  // Collect admin phones (platform admins + league managers)
+  const platformAdmins = await prisma.user.findMany({
+    where: { role: "ADMINISTRADOR" },
+    select: { phone: true },
+  });
+  const adminPhoneSet = new Set<string>();
+  for (const a of platformAdmins) {
+    if (a.phone) adminPhoneSet.add(normalizePhone(a.phone));
+  }
+  for (const m of league.managers) {
+    if (m.user.phone) adminPhoneSet.add(normalizePhone(m.user.phone));
+  }
+  const adminPhones = [...adminPhoneSet].filter((p) => p.length > 0);
+
+  if (!league.whatsappGroupId) {
+    // ── Create new group ──
+    const groupJid = await createGroup(league.name, adminPhones);
+    if (!groupJid) throw new Error("Falha ao criar grupo WhatsApp. Verifica a configuração da EvolutionAPI.");
+
+    await prisma.league.update({
+      where: { id: leagueId },
+      data: { whatsappGroupId: groupJid },
+    });
+
+    // Add all approved members (who are not already admins)
+    const nonAdminPhones = memberPhones.filter((p) => !adminPhoneSet.has(p));
+    if (nonAdminPhones.length > 0) {
+      await addParticipants(groupJid, nonAdminPhones);
+    }
+
+    // Send welcome message
+    await sendGroupMessage(groupJid, leagueCreatedMessage(league.name));
+
+    revalidatePath(`/ligas/${leagueId}`);
+    return { created: true, groupJid, membersAdded: memberPhones.length };
+  } else {
+    // ── Sync existing group — add missing members ──
+    const allPhones = [...new Set([...memberPhones, ...adminPhones])];
+    if (allPhones.length > 0) {
+      await addParticipants(league.whatsappGroupId, allPhones);
+    }
+    // Re-promote admins (idempotent)
+    if (adminPhones.length > 0) {
+      await promoteParticipants(league.whatsappGroupId, adminPhones);
+    }
+
+    revalidatePath(`/ligas/${leagueId}`);
+    return { created: false, groupJid: league.whatsappGroupId, membersAdded: allPhones.length };
+  }
+}
+
 // ── Season actions ──
 
 export async function createSeason(formData: FormData) {

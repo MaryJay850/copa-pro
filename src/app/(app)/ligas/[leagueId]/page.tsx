@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InviteLinkCard } from "@/components/invite-link-card";
 import { CreateSeasonForm } from "./create-season-form";
+import { WhatsAppGroupButton } from "./whatsapp-group-button";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
@@ -39,9 +40,22 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
       </div>
 
       {canManage && (
-        <div>
-          <h2 className="text-sm font-semibold text-text-muted mb-2">Convidar Jogadores</h2>
-          <InviteLinkCard leagueId={leagueId} invites={invites} />
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-text-muted mb-2">Grupo WhatsApp</h2>
+            <div className="flex items-center gap-3">
+              <WhatsAppGroupButton leagueId={leagueId} hasGroup={!!league.whatsappGroupId} />
+              {league.whatsappGroupId && (
+                <span className="text-xs text-text-muted">
+                  ID: <code className="bg-surface-hover px-1 rounded">{league.whatsappGroupId}</code>
+                </span>
+              )}
+            </div>
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-text-muted mb-2">Convidar Jogadores</h2>
+            <InviteLinkCard leagueId={leagueId} invites={invites} />
+          </div>
         </div>
       )}
 
