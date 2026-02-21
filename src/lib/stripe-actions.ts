@@ -1,6 +1,6 @@
 "use server";
 
-import { getStripe, STRIPE_PRICES } from "./stripe";
+import { getStripe, getStripePrices } from "./stripe";
 import { prisma } from "./db";
 import { requireAuth } from "./auth-guards";
 import type { SubscriptionPlan } from "../../generated/prisma/enums";
@@ -36,8 +36,9 @@ export async function createCheckoutSession(
   }
 
   // Resolve price ID
-  const priceKey = `${plan}_${interval === "month" ? "MONTHLY" : "YEARLY"}` as keyof typeof STRIPE_PRICES;
-  const priceId = STRIPE_PRICES[priceKey];
+  const prices = getStripePrices();
+  const priceKey = `${plan}_${interval === "month" ? "MONTHLY" : "YEARLY"}` as keyof ReturnType<typeof getStripePrices>;
+  const priceId = prices[priceKey];
   if (!priceId) {
     throw new Error(`Preço Stripe não configurado para ${plan} ${interval}. Configure STRIPE_PRICE_${priceKey} no .env`);
   }
