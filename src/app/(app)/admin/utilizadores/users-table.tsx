@@ -9,6 +9,7 @@ import {
   deleteUser,
   createUserManually,
   linkPlayerToUser,
+  updateUser,
 } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 
@@ -49,6 +50,7 @@ export function UsersTable({
   unlinkedPlayers: UnlinkedPlayer[];
 }) {
   const [showCreate, setShowCreate] = useState(false);
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
@@ -94,73 +96,179 @@ export function UsersTable({
 
       <div className="space-y-3">
         {users.map((user) => (
-          <Card key={user.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-4">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-semibold text-sm truncate">
-                  {user.player?.fullName ?? user.email}
-                </span>
-                <Badge variant={ROLE_VARIANTS[user.role] ?? "info"}>
-                  {ROLE_LABELS[user.role] ?? user.role}
-                </Badge>
+          <div key={user.id}>
+            <Card className="flex flex-col sm:flex-row sm:items-center gap-3 p-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="font-semibold text-sm truncate">
+                    {user.player?.fullName ?? user.email}
+                  </span>
+                  <Badge variant={ROLE_VARIANTS[user.role] ?? "info"}>
+                    {ROLE_LABELS[user.role] ?? user.role}
+                  </Badge>
+                </div>
+                <p className="text-xs text-text-muted">{user.email}</p>
+                {user.phone && (
+                  <p className="text-xs text-text-muted">{user.phone}</p>
+                )}
+                {user.player?.nickname && (
+                  <p className="text-xs text-text-muted">Alcunha: {user.player.nickname}</p>
+                )}
+                {!user.playerId && (
+                  <p className="text-xs text-amber-600 font-medium mt-1">⚠ Sem jogador associado</p>
+                )}
+                {user.managedLeagues.length > 0 && (
+                  <p className="text-xs text-text-muted mt-1">
+                    Gestor de: {user.managedLeagues.map((ml) => ml.league.name).join(", ")}
+                  </p>
+                )}
               </div>
-              <p className="text-xs text-text-muted">{user.email}</p>
-              {user.phone && (
-                <p className="text-xs text-text-muted">{user.phone}</p>
-              )}
-              {user.player?.nickname && (
-                <p className="text-xs text-text-muted">Alcunha: {user.player.nickname}</p>
-              )}
-              {!user.playerId && (
-                <p className="text-xs text-amber-600 font-medium mt-1">⚠ Sem jogador associado</p>
-              )}
-              {user.managedLeagues.length > 0 && (
-                <p className="text-xs text-text-muted mt-1">
-                  Gestor de: {user.managedLeagues.map((ml) => ml.league.name).join(", ")}
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {!user.playerId && unlinkedPlayers.length > 0 && (
-                <select
-                  className="text-xs rounded border border-border px-2 py-1"
-                  defaultValue=""
-                  onChange={(e) => {
-                    if (e.target.value) handleLink(user.id, e.target.value);
-                  }}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {!user.playerId && unlinkedPlayers.length > 0 && (
+                  <select
+                    className="text-xs rounded border border-border px-2 py-1"
+                    defaultValue=""
+                    onChange={(e) => {
+                      if (e.target.value) handleLink(user.id, e.target.value);
+                    }}
+                    disabled={isPending}
+                  >
+                    <option value="">Associar jogador...</option>
+                    {unlinkedPlayers.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.fullName}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() =>
+                    setEditingUserId(editingUserId === user.id ? null : user.id)
+                  }
                   disabled={isPending}
                 >
-                  <option value="">Associar jogador...</option>
-                  {unlinkedPlayers.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.fullName}
-                    </option>
-                  ))}
+                  {editingUserId === user.id ? "Cancelar" : "Editar"}
+                </Button>
+                <select
+                  className="text-xs rounded border border-border px-2 py-1"
+                  value={user.role}
+                  onChange={(e) => handleRoleChange(user.id, e.target.value)}
+                  disabled={isPending}
+                >
+                  <option value="JOGADOR">Jogador</option>
+                  <option value="GESTOR">Gestor</option>
+                  <option value="ADMINISTRADOR">Admin</option>
                 </select>
-              )}
-              <select
-                className="text-xs rounded border border-border px-2 py-1"
-                value={user.role}
-                onChange={(e) => handleRoleChange(user.id, e.target.value)}
-                disabled={isPending}
-              >
-                <option value="JOGADOR">Jogador</option>
-                <option value="GESTOR">Gestor</option>
-                <option value="ADMINISTRADOR">Admin</option>
-              </select>
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={() => handleDelete(user.id, user.email)}
-                disabled={isPending}
-              >
-                Eliminar
-              </Button>
-            </div>
-          </Card>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => handleDelete(user.id, user.email)}
+                  disabled={isPending}
+                >
+                  Eliminar
+                </Button>
+              </div>
+            </Card>
+            {editingUserId === user.id && (
+              <EditUserForm
+                user={user}
+                onDone={() => {
+                  setEditingUserId(null);
+                  router.refresh();
+                }}
+              />
+            )}
+          </div>
         ))}
       </div>
     </div>
+  );
+}
+
+function EditUserForm({ user, onDone }: { user: User; onDone: () => void }) {
+  const [email, setEmail] = useState(user.email);
+  const [phone, setPhone] = useState(user.phone);
+  const [fullName, setFullName] = useState(user.player?.fullName ?? "");
+  const [nickname, setNickname] = useState(user.player?.nickname ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      await updateUser(user.id, {
+        email,
+        phone,
+        fullName: user.player ? fullName : undefined,
+        nickname: user.player ? nickname : undefined,
+      });
+      onDone();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+    setLoading(false);
+  };
+
+  const hasChanges =
+    email !== user.email ||
+    phone !== user.phone ||
+    (user.player && fullName !== user.player.fullName) ||
+    (user.player && nickname !== (user.player.nickname ?? ""));
+
+  return (
+    <Card className="p-4 mt-1 border-primary/30">
+      <form onSubmit={handleSubmit} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {user.player && (
+          <>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Nome completo *"
+              required
+              className="rounded-lg border border-border px-3 py-2 text-sm"
+            />
+            <input
+              type="text"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value)}
+              placeholder="Alcunha"
+              className="rounded-lg border border-border px-3 py-2 text-sm"
+            />
+          </>
+        )}
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="Email *"
+          required
+          className="rounded-lg border border-border px-3 py-2 text-sm"
+        />
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="Telemóvel (ex: +351 932539702)"
+          className="rounded-lg border border-border px-3 py-2 text-sm"
+        />
+        <div className="flex items-center gap-2">
+          <Button type="submit" disabled={loading || !hasChanges} size="sm">
+            {loading ? "A guardar..." : "Guardar"}
+          </Button>
+          {error && <p className="text-xs text-red-600">{error}</p>}
+        </div>
+      </form>
+      {phone !== user.phone && user.phone && phone && (
+        <p className="text-xs text-amber-600 mt-2">
+          A alteração do telemóvel irá atualizar os grupos WhatsApp automaticamente.
+        </p>
+      )}
+    </Card>
   );
 }
 

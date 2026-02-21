@@ -2201,6 +2201,134 @@ export async function linkPlayerToUser(userId: string, playerId: string) {
   revalidatePath("/admin/utilizadores");
 }
 
+export async function updateUser(
+  userId: string,
+  data: {
+    email: string;
+    phone: string;
+    fullName?: string;
+    nickname?: string;
+  }
+) {
+  await requireAdmin();
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      player: true,
+      leagueMemberships: {
+        where: { status: "APPROVED" },
+        include: { league: { select: { id: true, whatsappGroupId: true } } },
+      },
+      managedLeagues: {
+        include: { league: { select: { id: true, whatsappGroupId: true } } },
+      },
+    },
+  });
+  if (!user) throw new Error("Utilizador não encontrado.");
+
+  const trimmedEmail = data.email.trim().toLowerCase();
+  const newPhone = data.phone.trim();
+
+  // Validate email uniqueness (only if changed)
+  if (trimmedEmail !== user.email) {
+    const existing = await prisma.user.findUnique({ where: { email: trimmedEmail } });
+    if (existing) throw new Error("Este email já está registado.");
+  }
+
+  // Validate phone format (if non-empty)
+  if (newPhone) {
+    const phoneRegex = /^\+\d{1,3}\s\d{6,15}$/;
+    if (!phoneRegex.test(newPhone)) {
+      throw new Error("Número de telemóvel inválido. Formato esperado: +351 932539702");
+    }
+  }
+
+  const oldPhone = user.phone;
+  const phoneChanged = newPhone !== oldPhone;
+
+  // Update user record
+  await prisma.user.update({
+    where: { id: userId },
+    data: { email: trimmedEmail, phone: newPhone },
+  });
+
+  // Update player record (if user has a linked player)
+  if (user.player && data.fullName !== undefined) {
+    await prisma.player.update({
+      where: { id: user.player.id },
+      data: {
+        fullName: data.fullName.trim(),
+        nickname: data.nickname?.trim() || null,
+      },
+    });
+  }
+
+  // Sync WhatsApp groups when phone changes (fire-and-forget)
+  if (phoneChanged) {
+    (async () => {
+      try {
+        // Collect all WhatsApp groups user belongs to
+        const memberGroupJids = user.leagueMemberships
+          .map((m) => m.league.whatsappGroupId)
+          .filter(Boolean) as string[];
+        const managerGroupJids = user.managedLeagues
+          .map((m) => m.league.whatsappGroupId)
+          .filter(Boolean) as string[];
+
+        // All unique groups
+        let allGroupJids = [...new Set([...memberGroupJids, ...managerGroupJids])];
+
+        // If user is ADMINISTRADOR, they are admin of ALL groups
+        let adminGroupJids = new Set(managerGroupJids);
+        if (user.role === "ADMINISTRADOR") {
+          const allLeagues = await prisma.league.findMany({
+            where: { whatsappGroupId: { not: null } },
+            select: { whatsappGroupId: true },
+          });
+          const allJids = allLeagues.map((l) => l.whatsappGroupId!);
+          allGroupJids = [...new Set([...allGroupJids, ...allJids])];
+          allJids.forEach((jid) => adminGroupJids.add(jid));
+        }
+
+        if (allGroupJids.length === 0) return;
+
+        // Remove old phone from all groups
+        if (oldPhone) {
+          const normalizedOld = normalizePhone(oldPhone);
+          if (normalizedOld) {
+            for (const jid of allGroupJids) {
+              await removeParticipants(jid, [normalizedOld]);
+            }
+          }
+        }
+
+        // Add new phone to all groups
+        if (newPhone) {
+          const normalizedNew = normalizePhone(newPhone);
+          if (normalizedNew) {
+            for (const jid of allGroupJids) {
+              await addParticipants(jid, [normalizedNew]);
+            }
+            // Re-promote in groups where user is manager/admin
+            for (const jid of adminGroupJids) {
+              await promoteParticipants(jid, [normalizedNew]);
+            }
+          }
+        }
+
+        console.log(
+          `[WHATSAPP] Telemóvel atualizado: ${oldPhone || "(vazio)"} → ${newPhone || "(vazio)"} em ${allGroupJids.length} grupo(s)`
+        );
+      } catch (err) {
+        console.error("[WHATSAPP] Erro ao sincronizar grupos após alteração de telemóvel:", (err as Error).message);
+      }
+    })();
+  }
+
+  revalidatePath("/admin/utilizadores");
+}
+
 export async function getUnlinkedPlayers() {
   await requireAdmin();
 
