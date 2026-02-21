@@ -15,6 +15,7 @@ import { useRouter } from "next/navigation";
 type User = {
   id: string;
   email: string;
+  phone: string;
   role: string;
   playerId: string | null;
   createdAt: string;
@@ -104,6 +105,9 @@ export function UsersTable({
                 </Badge>
               </div>
               <p className="text-xs text-text-muted">{user.email}</p>
+              {user.phone && (
+                <p className="text-xs text-text-muted">{user.phone}</p>
+              )}
               {user.player?.nickname && (
                 <p className="text-xs text-text-muted">Alcunha: {user.player.nickname}</p>
               )}
@@ -165,6 +169,7 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
   const [nickname, setNickname] = useState("");
+  const [phone, setPhone] = useState("");
   const [role, setRole] = useState<"JOGADOR" | "GESTOR" | "ADMINISTRADOR">("JOGADOR");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -174,7 +179,7 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
     setLoading(true);
     setError(null);
     try {
-      await createUserManually({ email, password, fullName, nickname: nickname || undefined, role });
+      await createUserManually({ email, password, fullName, nickname: nickname || undefined, phone: phone || undefined, role });
       onDone();
     } catch (err) {
       setError((err as Error).message);
@@ -215,6 +220,13 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
           placeholder="Palavra-passe *"
           required
           minLength={6}
+          className="rounded-lg border border-border px-3 py-2 text-sm"
+        />
+        <input
+          type="tel"
+          value={phone}
+          onChange={(e) => setPhone(e.target.value)}
+          placeholder="Telemóvel (ex: +351 932539702)"
           className="rounded-lg border border-border px-3 py-2 text-sm"
         />
         <select

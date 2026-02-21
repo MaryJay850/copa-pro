@@ -79,8 +79,8 @@ if [ -n "$ADMIN_EMAIL" ]; then
 
           await client.query('INSERT INTO players (id, \"fullName\", \"createdAt\") VALUES (\$1, \$2, NOW())', [playerId, adminName]);
           await client.query(
-            'INSERT INTO users (id, email, \"hashedPassword\", role, \"playerId\", \"createdAt\", \"updatedAt\") VALUES (\$1, \$2, \$3, \$4, \$5, NOW(), NOW())',
-            [userId, process.env.ADMIN_EMAIL, hashed, 'ADMINISTRADOR', playerId]
+            'INSERT INTO users (id, email, phone, \"hashedPassword\", role, \"playerId\", \"createdAt\", \"updatedAt\") VALUES (\$1, \$2, \$3, \$4, \$5, \$6, NOW(), NOW())',
+            [userId, process.env.ADMIN_EMAIL, process.env.ADMIN_PHONE || '', hashed, 'ADMINISTRADOR', playerId]
           );
           console.log('==> Administrador criado com sucesso');
         } else {

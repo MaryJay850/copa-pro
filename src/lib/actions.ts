@@ -39,6 +39,7 @@ export async function createLeague(formData: FormData) {
 
 export async function getLeagues() {
   const result = await prisma.league.findMany({
+    where: { isActive: true },
     orderBy: { createdAt: "desc" },
     include: { _count: { select: { seasons: true } } },
   });
@@ -719,9 +720,9 @@ export async function updateTournament(data: {
 // ── Homepage data ──
 
 export async function getHomepageData() {
-  // Find first league with an active season
+  // Find first active league with an active season
   const league = await prisma.league.findFirst({
-    where: { seasons: { some: { isActive: true } } },
+    where: { isActive: true, seasons: { some: { isActive: true } } },
     include: {
       seasons: {
         where: { isActive: true },
@@ -816,6 +817,7 @@ export async function getHomepageData() {
 
 export async function getDashboardFilters() {
   const leagues = await prisma.league.findMany({
+    where: { isActive: true },
     include: {
       seasons: {
         orderBy: { createdAt: "desc" },
@@ -858,6 +860,7 @@ export async function getDashboardData(filters: {
   const league = await prisma.league.findFirst({
     where: {
       ...leagueWhere,
+      isActive: true,
       seasons: { some: {} },
     },
     include: {
@@ -970,12 +973,18 @@ export async function registerUser(formData: FormData) {
   const password = formData.get("password") as string;
   const fullName = (formData.get("fullName") as string)?.trim();
   const nickname = (formData.get("nickname") as string)?.trim() || null;
+  const phone = (formData.get("phone") as string)?.trim();
 
-  if (!email || !password || !fullName) {
+  if (!email || !password || !fullName || !phone) {
     throw new Error("Todos os campos obrigatórios devem ser preenchidos.");
   }
   if (password.length < 6) {
     throw new Error("A palavra-passe deve ter pelo menos 6 caracteres.");
+  }
+
+  const phoneRegex = /^\+\d{1,3}\s\d{6,15}$/;
+  if (!phoneRegex.test(phone)) {
+    throw new Error("Número de telemóvel inválido. Formato esperado: +351 932539702");
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -992,6 +1001,7 @@ export async function registerUser(formData: FormData) {
     await tx.user.create({
       data: {
         email,
+        phone,
         hashedPassword,
         playerId: player.id,
         role: "JOGADOR",
@@ -1181,6 +1191,27 @@ export async function getLeaguePlayers(leagueId: string) {
 // Admin Actions
 // ────────────────────────────────────────
 
+export async function toggleLeagueActive(leagueId: string) {
+  await requireAdmin();
+
+  const league = await prisma.league.findUnique({
+    where: { id: leagueId },
+    select: { isActive: true },
+  });
+
+  if (!league) throw new Error("Liga não encontrada.");
+
+  await prisma.league.update({
+    where: { id: leagueId },
+    data: { isActive: !league.isActive },
+  });
+
+  revalidatePath("/admin/ligas");
+  revalidatePath("/ligas");
+  revalidatePath("/dashboard");
+  revalidatePath("/");
+}
+
 export async function getUsers() {
   await requireAdmin();
 
@@ -1229,6 +1260,7 @@ export async function createUserManually(data: {
   password: string;
   fullName: string;
   nickname?: string;
+  phone?: string;
   role: "JOGADOR" | "GESTOR" | "ADMINISTRADOR";
 }) {
   await requireAdmin();
@@ -1245,6 +1277,7 @@ export async function createUserManually(data: {
     await tx.user.create({
       data: {
         email: data.email,
+        phone: data.phone || "",
         hashedPassword,
         role: data.role,
         playerId: player.id,
@@ -1334,9 +1367,10 @@ export async function getLeagueManagers(leagueId: string) {
 // ────────────────────────────────────────
 
 export async function getLandingPageData() {
-  // Find the first league with an active season that has rankings
+  // Find the first active league with a season that has rankings
   const league = await prisma.league.findFirst({
     where: {
+      isActive: true,
       seasons: {
         some: {
           rankings: { some: {} },
