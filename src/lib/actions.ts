@@ -751,6 +751,11 @@ export async function saveMatchScore(
     // Recompute season ranking
     await recomputeSeasonRanking(match.tournament.seasonId);
 
+    // Update Elo ratings (fire-and-forget)
+    updateEloAfterMatch(matchId).catch((err) =>
+      console.error("[ELO] Erro ao atualizar ratings:", (err as Error).message)
+    );
+
     revalidatePath(`/torneios/${match.tournamentId}`);
     return { success: true };
   } catch (e) {
@@ -2524,4 +2529,574 @@ export async function getLandingPageData() {
     rankings,
     recentMatches,
   });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 1: Clone Tournament
+// ══════════════════════════════════════════════════════════════════════
+
+export async function cloneTournament(tournamentId: string) {
+  const source = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    include: {
+      teams: { include: { player1: true, player2: true } },
+      courts: { orderBy: { name: "asc" } },
+      inscriptions: { orderBy: { orderIndex: "asc" }, include: { player: true } },
+    },
+  });
+
+  if (!source) throw new Error("Torneio não encontrado.");
+  await requireLeagueManager(source.leagueId);
+
+  const clone = await prisma.tournament.create({
+    data: {
+      leagueId: source.leagueId,
+      seasonId: source.seasonId,
+      name: `${source.name} (cópia)`,
+      startDate: null,
+      courtsCount: source.courtsCount,
+      matchesPerPair: source.matchesPerPair,
+      numberOfSets: source.numberOfSets,
+      teamSize: source.teamSize,
+      teamMode: source.teamMode,
+      randomSeed: null,
+      status: "DRAFT",
+    },
+  });
+
+  // Clone courts
+  for (const court of source.courts) {
+    await prisma.court.create({
+      data: { tournamentId: clone.id, name: court.name },
+    });
+  }
+
+  // Clone teams
+  for (const team of source.teams) {
+    await prisma.team.create({
+      data: {
+        tournamentId: clone.id,
+        name: team.name,
+        player1Id: team.player1Id,
+        player2Id: team.player2Id,
+        isRandomGenerated: team.isRandomGenerated,
+      },
+    });
+  }
+
+  // Clone inscriptions
+  for (const insc of source.inscriptions) {
+    await prisma.tournamentInscription.create({
+      data: {
+        tournamentId: clone.id,
+        playerId: insc.playerId,
+        orderIndex: insc.orderIndex,
+        status: insc.status === "DESISTIU" ? "TITULAR" : insc.status === "PROMOVIDO" ? "TITULAR" : insc.status,
+      },
+    });
+  }
+
+  revalidatePath(`/ligas/${source.leagueId}/epocas/${source.seasonId}`);
+  return { id: clone.id, seasonId: source.seasonId, leagueId: source.leagueId };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 4: Reopen (undo finish) Tournament
+// ══════════════════════════════════════════════════════════════════════
+
+export async function reopenTournament(tournamentId: string) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { status: true, leagueId: true, seasonId: true },
+  });
+
+  if (!tournament) throw new Error("Torneio não encontrado.");
+  await requireLeagueManager(tournament.leagueId);
+
+  if (tournament.status !== "FINISHED") {
+    throw new Error("Apenas torneios terminados podem ser reabertos.");
+  }
+
+  await prisma.tournament.update({
+    where: { id: tournamentId },
+    data: { status: "RUNNING" },
+  });
+
+  revalidatePath(`/torneios/${tournamentId}`);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 6: Update League (name/location)
+// ══════════════════════════════════════════════════════════════════════
+
+export async function updateLeague(leagueId: string, data: { name: string; location?: string }) {
+  await requireLeagueManager(leagueId);
+
+  if (!data.name?.trim()) throw new Error("Nome da liga é obrigatório.");
+
+  await prisma.league.update({
+    where: { id: leagueId },
+    data: { name: data.name.trim(), location: data.location?.trim() || null },
+  });
+
+  revalidatePath(`/ligas/${leagueId}`);
+  revalidatePath("/ligas");
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 2: Head-to-Head Stats + Feature 12: Player Profile
+// ══════════════════════════════════════════════════════════════════════
+
+export async function getPlayerProfile(playerId: string) {
+  await requireAuth();
+
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+    include: {
+      user: { select: { email: true, role: true } },
+      rankings: {
+        include: { season: { select: { name: true, league: { select: { name: true } } } } },
+        orderBy: { pointsTotal: "desc" },
+      },
+      inscriptions: {
+        include: {
+          tournament: {
+            select: { id: true, name: true, status: true, startDate: true, season: { select: { name: true } }, league: { select: { name: true } } },
+          },
+        },
+        orderBy: { tournament: { startDate: "desc" } },
+      },
+    },
+  });
+
+  if (!player) throw new Error("Jogador não encontrado.");
+
+  // Head-to-head stats: find all matches this player participated in
+  const matches = await prisma.match.findMany({
+    where: {
+      status: "FINISHED",
+      OR: [
+        { teamA: { OR: [{ player1Id: playerId }, { player2Id: playerId }] } },
+        { teamB: { OR: [{ player1Id: playerId }, { player2Id: playerId }] } },
+      ],
+    },
+    include: {
+      teamA: { include: { player1: true, player2: true } },
+      teamB: { include: { player1: true, player2: true } },
+    },
+  });
+
+  // Build head-to-head map
+  const h2h = new Map<string, { name: string; wins: number; losses: number; draws: number }>();
+
+  for (const m of matches) {
+    const isTeamA =
+      m.teamA.player1Id === playerId || m.teamA.player2Id === playerId;
+    const opponentTeam = isTeamA ? m.teamB : m.teamA;
+
+    // Get opponent player(s)
+    const opponents = [opponentTeam.player1];
+    if (opponentTeam.player2) opponents.push(opponentTeam.player2);
+
+    for (const opp of opponents) {
+      if (!h2h.has(opp.id)) {
+        h2h.set(opp.id, { name: opp.nickname || opp.fullName, wins: 0, losses: 0, draws: 0 });
+      }
+      const record = h2h.get(opp.id)!;
+      if (isTeamA) {
+        if (m.resultType === "WIN_A") record.wins++;
+        else if (m.resultType === "WIN_B") record.losses++;
+        else if (m.resultType === "DRAW") record.draws++;
+      } else {
+        if (m.resultType === "WIN_B") record.wins++;
+        else if (m.resultType === "WIN_A") record.losses++;
+        else if (m.resultType === "DRAW") record.draws++;
+      }
+    }
+  }
+
+  const headToHead = [...h2h.entries()]
+    .map(([, data]) => ({
+      opponentName: data.name,
+      played: data.wins + data.losses + data.draws,
+      wins: data.wins,
+      losses: data.losses,
+    }))
+    .sort((a, b) => b.played - a.played);
+
+  // Compute stats
+  const wins = matches.filter((m) => {
+    const isTeamA = m.teamA.player1Id === playerId || m.teamA.player2Id === playerId;
+    return isTeamA ? m.resultType === "WIN_A" : m.resultType === "WIN_B";
+  }).length;
+  const losses = matches.filter((m) => {
+    const isTeamA = m.teamA.player1Id === playerId || m.teamA.player2Id === playerId;
+    return isTeamA ? m.resultType === "WIN_B" : m.resultType === "WIN_A";
+  }).length;
+
+  let setsWon = 0;
+  let setsLost = 0;
+  for (const m of matches) {
+    const isTeamA = m.teamA.player1Id === playerId || m.teamA.player2Id === playerId;
+    const sets = [
+      [m.set1A, m.set1B],
+      [m.set2A, m.set2B],
+      [m.set3A, m.set3B],
+    ].filter(([a, b]) => a !== null && b !== null) as [number, number][];
+    for (const [a, b] of sets) {
+      if (isTeamA) {
+        if (a > b) setsWon++;
+        else if (b > a) setsLost++;
+      } else {
+        if (b > a) setsWon++;
+        else if (a > b) setsLost++;
+      }
+    }
+  }
+
+  // Get leagues
+  const memberships = player.user
+    ? await prisma.leagueMembership.findMany({
+        where: { userId: (await prisma.user.findFirst({ where: { playerId } }))?.id ?? "", status: "APPROVED" },
+        include: { league: { select: { id: true, name: true, location: true } } },
+      })
+    : [];
+
+  return serialize({
+    fullName: player.fullName,
+    nickname: player.nickname,
+    stats: {
+      totalMatches: matches.length,
+      wins,
+      losses,
+      draws: matches.length - wins - losses,
+      setsWon,
+      setsLost,
+    },
+    leagues: memberships.map((m) => m.league),
+    headToHead,
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 5: Pending Requests Count (for nav badge)
+// ══════════════════════════════════════════════════════════════════════
+
+export async function getPendingRequestsCount() {
+  const user = await requireAuth();
+
+  // For admins: count all pending requests
+  if (user.role === "ADMINISTRADOR") {
+    const count = await prisma.leagueMembership.count({ where: { status: "PENDING" } });
+    return count;
+  }
+
+  // For managers: count pending requests for leagues they manage
+  const managedLeagues = await prisma.leagueManager.findMany({
+    where: { userId: user.id },
+    select: { leagueId: true },
+  });
+
+  if (managedLeagues.length === 0) return 0;
+
+  const count = await prisma.leagueMembership.count({
+    where: {
+      status: "PENDING",
+      leagueId: { in: managedLeagues.map((m) => m.leagueId) },
+    },
+  });
+  return count;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 11: Bulk Import Players from CSV
+// ══════════════════════════════════════════════════════════════════════
+
+export async function importPlayersFromCSV(leagueId: string, csvText: string) {
+  await requireLeagueManager(leagueId);
+
+  const lines = csvText.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length === 0) throw new Error("Ficheiro CSV vazio.");
+
+  // Check if first line is a header
+  const firstLine = lines[0].toLowerCase();
+  const hasHeader = firstLine.includes("nome") || firstLine.includes("name") || firstLine.includes("email");
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+
+  if (dataLines.length === 0) throw new Error("Sem dados para importar.");
+
+  let created = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+
+  for (let i = 0; i < dataLines.length; i++) {
+    const parts = dataLines[i].split(/[,;\t]/).map((p) => p.trim().replace(/^["']|["']$/g, ""));
+    const fullName = parts[0];
+    const nickname = parts[1] || null;
+    const phone = parts[2] || null;
+    const email = parts[3] || null;
+
+    if (!fullName) {
+      errors.push(`Linha ${i + 1}: nome em falta`);
+      skipped++;
+      continue;
+    }
+
+    try {
+      // Create player
+      const player = await prisma.player.create({
+        data: { fullName, nickname },
+      });
+
+      // Create user account if email provided
+      if (email) {
+        const existing = await prisma.user.findUnique({ where: { email } });
+        if (!existing) {
+          const tempPass = await bcrypt.hash(Math.random().toString(36).slice(2), 12);
+          await prisma.user.create({
+            data: {
+              email,
+              phone: phone || "",
+              hashedPassword: tempPass,
+              mustChangePassword: true,
+              role: "JOGADOR",
+              playerId: player.id,
+            },
+          });
+        } else if (!existing.playerId) {
+          await prisma.user.update({
+            where: { id: existing.id },
+            data: { playerId: player.id },
+          });
+        }
+      }
+
+      // Add membership to league (auto-approved)
+      const userId = email
+        ? (await prisma.user.findUnique({ where: { email } }))?.id
+        : null;
+      if (userId) {
+        await prisma.leagueMembership.upsert({
+          where: { userId_leagueId: { userId, leagueId } },
+          update: { status: "APPROVED" },
+          create: { userId, leagueId, status: "APPROVED" },
+        });
+      }
+
+      created++;
+    } catch (err) {
+      errors.push(`Linha ${i + 1} (${fullName}): ${(err as Error).message}`);
+      skipped++;
+    }
+  }
+
+  revalidatePath(`/ligas/${leagueId}/membros`);
+  return { imported: created, skipped, errors, total: dataLines.length };
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 10: Auto-balance Teams by Ranking
+// ══════════════════════════════════════════════════════════════════════
+
+export async function getPlayersWithRanking(seasonId: string) {
+  await requireAuth();
+
+  const rankings = await prisma.seasonRankingEntry.findMany({
+    where: { seasonId },
+    include: { player: { select: { id: true, fullName: true, nickname: true } } },
+    orderBy: { pointsTotal: "desc" },
+  });
+
+  return serialize(
+    rankings.map((r) => ({
+      playerId: r.player.id,
+      name: r.player.nickname || r.player.fullName,
+      points: r.pointsTotal,
+      matchesPlayed: r.matchesPlayed,
+    }))
+  );
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 17: Analytics
+// ══════════════════════════════════════════════════════════════════════
+
+export async function getAnalytics() {
+  await requireAdmin();
+
+  const [users, players, leagues, tournaments] = await Promise.all([
+    prisma.user.count(),
+    prisma.player.count(),
+    prisma.league.count({ where: { isActive: true } }),
+    prisma.tournament.count(),
+  ]);
+
+  // Tournaments by status
+  const tournamentsByStatus = await prisma.tournament.groupBy({
+    by: ["status"],
+    _count: true,
+  });
+
+  // Top leagues by member count
+  const topLeagues = await prisma.league.findMany({
+    where: { isActive: true },
+    include: { _count: { select: { memberships: { where: { status: "APPROVED" } } } } },
+    orderBy: { memberships: { _count: "desc" } },
+    take: 5,
+  });
+
+  // Recent activity (last 10 tournaments)
+  const recentActivity = await prisma.tournament.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 10,
+    select: { id: true, name: true, createdAt: true, league: { select: { name: true } } },
+  });
+
+  return serialize({
+    totals: { users, players, leagues, tournaments },
+    tournamentsByStatus: tournamentsByStatus.map((s) => ({ status: s.status, _count: s._count })),
+    topLeagues: topLeagues.map((l) => ({
+      id: l.id,
+      name: l.name,
+      location: l.location,
+      _count: { memberships: l._count.memberships },
+    })),
+    recentActivity,
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 15: Elo Rating System
+// ══════════════════════════════════════════════════════════════════════
+
+const ELO_K = 32;
+
+function calculateEloChange(ratingA: number, ratingB: number, scoreA: number): number {
+  const expected = 1 / (1 + Math.pow(10, (ratingB - ratingA) / 400));
+  return Math.round(ELO_K * (scoreA - expected));
+}
+
+export async function updateEloAfterMatch(matchId: string) {
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    include: {
+      teamA: { include: { player1: true, player2: true } },
+      teamB: { include: { player1: true, player2: true } },
+    },
+  });
+
+  if (!match || match.status !== "FINISHED" || !match.winnerTeamId) return;
+
+  const isWinA = match.winnerTeamId === match.teamAId;
+  const scoreA = isWinA ? 1 : 0;
+  const scoreB = isWinA ? 0 : 1;
+
+  // Get all players from both teams
+  const playersA = [match.teamA.player1, match.teamA.player2].filter(Boolean);
+  const playersB = [match.teamB.player1, match.teamB.player2].filter(Boolean);
+
+  const avgRatingA = playersA.reduce((s, p) => s + (p?.eloRating ?? 1200), 0) / playersA.length;
+  const avgRatingB = playersB.reduce((s, p) => s + (p?.eloRating ?? 1200), 0) / playersB.length;
+
+  const changeA = calculateEloChange(avgRatingA, avgRatingB, scoreA);
+  const changeB = calculateEloChange(avgRatingB, avgRatingA, scoreB);
+
+  // Update all players
+  const updates = [
+    ...playersA.map((p) =>
+      prisma.player.update({
+        where: { id: p!.id },
+        data: { eloRating: { increment: changeA } },
+      })
+    ),
+    ...playersB.map((p) =>
+      prisma.player.update({
+        where: { id: p!.id },
+        data: { eloRating: { increment: changeB } },
+      })
+    ),
+  ];
+
+  await Promise.all(updates);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Feature 16: Player Availability
+// ══════════════════════════════════════════════════════════════════════
+
+export async function setPlayerAvailability(
+  dates: { date: string; available: boolean; note?: string }[]
+) {
+  const session = await requireAuth();
+
+  if (!session.playerId) throw new Error("Sem jogador associado.");
+  const playerId = session.playerId;
+
+  for (const entry of dates) {
+    await prisma.playerAvailability.upsert({
+      where: {
+        playerId_date: { playerId, date: new Date(entry.date) },
+      },
+      update: { available: entry.available, note: entry.note || null },
+      create: {
+        playerId,
+        date: new Date(entry.date),
+        available: entry.available,
+        note: entry.note || null,
+      },
+    });
+  }
+
+  revalidatePath("/dashboard");
+}
+
+export async function getPlayerAvailability(playerId: string, month: number, year: number) {
+  await requireAuth();
+
+  const start = new Date(year, month, 1);
+  const end = new Date(year, month + 1, 0);
+
+  const entries = await prisma.playerAvailability.findMany({
+    where: {
+      playerId,
+      date: { gte: start, lte: end },
+    },
+    orderBy: { date: "asc" },
+  });
+
+  return serialize(entries);
+}
+
+export async function getLeagueAvailability(leagueId: string, date: string) {
+  await requireAuth();
+
+  const targetDate = new Date(date);
+
+  const members = await prisma.leagueMembership.findMany({
+    where: { leagueId, status: "APPROVED" },
+    include: {
+      user: {
+        include: {
+          player: {
+            include: {
+              availabilities: {
+                where: { date: targetDate },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+
+  return serialize(
+    members
+      .filter((m) => m.user.player)
+      .map((m) => ({
+        playerId: m.user.player!.id,
+        playerName: m.user.player!.nickname || m.user.player!.fullName,
+        available: m.user.player!.availabilities[0]?.available ?? null,
+        note: m.user.player!.availabilities[0]?.note ?? null,
+      }))
+  );
 }

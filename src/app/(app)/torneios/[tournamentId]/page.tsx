@@ -10,6 +10,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { TournamentActions } from "./actions-client";
 import { PlayerManagement } from "@/components/player-management";
+import { ExportCalendar } from "@/components/export-calendar";
 
 const statusLabels: Record<
   string,
@@ -103,6 +104,22 @@ export default async function TournamentPage({
           leagueId={tournament.leagueId}
           seasonId={tournament.seasonId}
           hasResults={finishedMatches > 0}
+        />
+      )}
+
+      {/* Export Calendar */}
+      {tournament.rounds.length > 0 && (
+        <ExportCalendar
+          tournamentName={tournament.name}
+          startDate={tournament.startDate ? tournament.startDate.toString() : null}
+          matches={tournament.rounds.flatMap((r) =>
+            r.matches.map((m) => ({
+              team1Name: m.teamA.name,
+              team2Name: m.teamB.name,
+              courtName: m.court?.name,
+              roundIndex: r.index,
+            }))
+          )}
         />
       )}
 

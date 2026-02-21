@@ -1,4 +1,5 @@
 import { AuthNav } from "@/components/auth-nav";
+import { DarkModeToggle } from "@/components/dark-mode-toggle";
 
 export default function AppLayout({
   children,
@@ -19,6 +20,7 @@ export default function AppLayout({
             <a href="/ligas" className="text-text-muted hover:text-text transition-colors">
               Ligas
             </a>
+            <DarkModeToggle />
             <AuthNav />
           </nav>
         </div>

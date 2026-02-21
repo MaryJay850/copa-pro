@@ -149,13 +149,15 @@ model Player {
   fullName  String
   nickname  String?
   level     String?
+  eloRating Float    @default(1200)
   createdAt DateTime @default(now())
 
-  user           User?
-  teamsAsPlayer1 Team[]                  @relation("Player1")
-  teamsAsPlayer2 Team[]                  @relation("Player2")
-  rankings       SeasonRankingEntry[]
-  inscriptions   TournamentInscription[]
+  user             User?
+  teamsAsPlayer1   Team[]                  @relation("Player1")
+  teamsAsPlayer2   Team[]                  @relation("Player2")
+  rankings         SeasonRankingEntry[]
+  inscriptions     TournamentInscription[]
+  availabilities   PlayerAvailability[]
 
   @@map("players")
 }
@@ -234,6 +236,8 @@ model Match {
   roundId      String
   courtId      String?
   slotIndex    Int      @default(0)
+  bracketPhase String?
+  bracketIndex Int?
 
   teamAId String
   teamBId String
@@ -295,4 +299,20 @@ model SeasonRankingEntry {
 
   @@unique([seasonId, playerId])
   @@map("season_ranking_entries")
+}
+
+// ── Availability ──
+
+model PlayerAvailability {
+  id        String   @id @default(cuid())
+  playerId  String
+  date      DateTime @db.Date
+  available Boolean  @default(true)
+  note      String?
+  createdAt DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, date])
+  @@map("player_availabilities")
 }

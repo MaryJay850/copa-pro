@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InviteLinkCard } from "@/components/invite-link-card";
 import { CreateSeasonForm } from "./create-season-form";
 import { WhatsAppGroupButton } from "./whatsapp-group-button";
+import { EditLeagueForm } from "./edit-league-form";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
@@ -31,9 +32,12 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
         <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold">{league.name}</h1>
           {canManage && (
-            <Link href={`/ligas/${leagueId}/membros`}>
-              <Button size="sm" variant="secondary">Gerir Membros</Button>
-            </Link>
+            <>
+              <EditLeagueForm leagueId={leagueId} currentName={league.name} currentLocation={league.location} />
+              <Link href={`/ligas/${leagueId}/membros`}>
+                <Button size="sm" variant="secondary">Gerir Membros</Button>
+              </Link>
+            </>
           )}
         </div>
         {league.location && <p className="text-sm text-text-muted mt-1">{league.location}</p>}

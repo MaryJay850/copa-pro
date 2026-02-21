@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RankingTable } from "@/components/ranking-table";
 import { RecentResults } from "@/components/recent-results";
+import { AvailabilityCalendar } from "@/components/availability-calendar";
 import { EmptyState } from "@/components/ui/empty-state";
 import Link from "next/link";
 
@@ -102,7 +103,7 @@ export function DashboardContent({
         <select
           value={activeLeague?.id ?? ""}
           onChange={(e) => handleFilterChange("liga", e.target.value)}
-          className="rounded-lg border border-border bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         >
           <option value="">Todas as Ligas</option>
           {filters.map((l) => (
@@ -115,7 +116,7 @@ export function DashboardContent({
         <select
           value={activeSeason?.id ?? ""}
           onChange={(e) => handleFilterChange("epoca", e.target.value)}
-          className="rounded-lg border border-border bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           disabled={!activeLeague}
         >
           <option value="">Todas as Épocas</option>
@@ -129,7 +130,7 @@ export function DashboardContent({
         <select
           value={selectedTournamentId ?? ""}
           onChange={(e) => handleFilterChange("torneio", e.target.value)}
-          className="rounded-lg border border-border bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          className="rounded-lg border border-border bg-surface px-3 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
           disabled={!activeSeason}
         >
           <option value="">Todos os Torneios</option>
@@ -176,6 +177,35 @@ export function DashboardContent({
               </>
             )}
           </div>
+
+          {/* Quick Stats */}
+          {data.rankings.length > 0 && (() => {
+            const totalMatches = data.rankings.reduce((s, r) => s + r.matchesPlayed, 0);
+            const totalWins = data.rankings.reduce((s, r) => s + r.wins, 0);
+            const totalSetsWon = data.rankings.reduce((s, r) => s + r.setsWon, 0);
+            const totalSetsLost = data.rankings.reduce((s, r) => s + r.setsLost, 0);
+            const topPlayer = data.rankings[0];
+            return (
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
+                <Card className="text-center py-3">
+                  <p className="text-2xl font-bold text-primary">{data.rankings.length}</p>
+                  <p className="text-xs text-text-muted">Jogadores</p>
+                </Card>
+                <Card className="text-center py-3">
+                  <p className="text-2xl font-bold text-emerald-600">{Math.round(totalMatches / 2)}</p>
+                  <p className="text-xs text-text-muted">Jogos Totais</p>
+                </Card>
+                <Card className="text-center py-3">
+                  <p className="text-2xl font-bold text-accent">{totalSetsWon + totalSetsLost}</p>
+                  <p className="text-xs text-text-muted">Sets Disputados</p>
+                </Card>
+                <Card className="text-center py-3">
+                  <p className="text-lg font-bold text-primary">{topPlayer?.playerName ?? "—"}</p>
+                  <p className="text-xs text-text-muted">Líder ({topPlayer?.pointsTotal ?? 0} pts)</p>
+                </Card>
+              </div>
+            );
+          })()}
 
           {/* Active Tournaments */}
           {data.activeTournaments.length > 0 && (
@@ -264,6 +294,11 @@ export function DashboardContent({
             </h2>
             {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
             <RecentResults matches={data.recentMatches as any} />
+          </section>
+
+          {/* Availability Calendar */}
+          <section>
+            <AvailabilityCalendar />
           </section>
         </>
       )}

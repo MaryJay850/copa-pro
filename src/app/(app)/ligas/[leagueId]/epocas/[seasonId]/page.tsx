@@ -27,6 +27,7 @@ export default async function SeasonPage({ params }: { params: Promise<{ leagueI
 
   const rankingRows = season.rankings.map((r, i) => ({
     position: i + 1,
+    playerId: r.player.id,
     playerName: r.player.nickname || r.player.fullName,
     pointsTotal: r.pointsTotal,
     matchesPlayed: r.matchesPlayed,

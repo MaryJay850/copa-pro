@@ -9,6 +9,8 @@ import {
   forceRegenerateSchedule,
   finishTournament,
   deleteTournament,
+  cloneTournament,
+  reopenTournament,
 } from "@/lib/actions";
 
 export function TournamentActions({
@@ -73,6 +75,29 @@ export function TournamentActions({
     setLoading(false);
   };
 
+  const handleReopen = async () => {
+    if (!confirm("Reabrir o torneio? O estado voltará a 'A decorrer'.")) return;
+    setLoading(true);
+    try {
+      await reopenTournament(tournamentId);
+      router.refresh();
+    } catch (e: unknown) {
+      alert((e as Error).message);
+    }
+    setLoading(false);
+  };
+
+  const handleClone = async () => {
+    setLoading(true);
+    try {
+      const result = await cloneTournament(tournamentId);
+      router.push(`/torneios/${result.id}`);
+    } catch (e: unknown) {
+      alert((e as Error).message);
+    }
+    setLoading(false);
+  };
+
   const handleDelete = async () => {
     if (
       !confirm(
@@ -125,6 +150,12 @@ export function TournamentActions({
         </>
       )}
 
+      {status === "FINISHED" && (
+        <Button onClick={handleReopen} disabled={loading} size="sm" variant="secondary">
+          Reabrir Torneio
+        </Button>
+      )}
+
       {canEdit && (
         <Link href={`/torneios/${tournamentId}/editar`}>
           <Button size="sm" variant="secondary">
@@ -132,6 +163,10 @@ export function TournamentActions({
           </Button>
         </Link>
       )}
+
+      <Button onClick={handleClone} disabled={loading} size="sm" variant="secondary">
+        Duplicar Torneio
+      </Button>
 
       <Button onClick={handlePrint} size="sm" variant="ghost">
         Imprimir / Exportar

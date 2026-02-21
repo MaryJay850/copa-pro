@@ -5,6 +5,7 @@ import { requireLeagueManager } from "@/lib/auth-guards";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { MembersPanel } from "./members-panel";
+import { CsvImport } from "@/components/csv-import";
 
 export default async function LeagueMembersPage({
   params,
@@ -40,6 +41,7 @@ export default async function LeagueMembersPage({
         </p>
       </div>
 
+      <CsvImport leagueId={leagueId} />
       <MembersPanel leagueId={leagueId} initialMembers={members} />
     </div>
   );
