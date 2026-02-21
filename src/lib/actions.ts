@@ -22,6 +22,7 @@ import {
   promoteParticipants,
   normalizePhone,
   updateGroupPicture,
+  fetchGroupParticipants,
 } from "./whatsapp";
 import {
   leagueCreatedMessage,
@@ -183,20 +184,51 @@ export async function createOrSyncWhatsAppGroup(leagueId: string) {
     revalidatePath(`/ligas/${leagueId}`);
     return { created: true, groupJid, membersAdded: memberPhones.length };
   } else {
-    // ── Sync existing group — add missing members ──
-    const allPhones = [...new Set([...memberPhones, ...adminPhones])];
-    if (allPhones.length > 0) {
-      await addParticipants(league.whatsappGroupId, allPhones);
+    // ── Sync existing group — full bidirectional sync ──
+    const groupJid = league.whatsappGroupId;
+
+    // All phones that SHOULD be in the group
+    const expectedPhones = new Set([...memberPhones, ...adminPhones]);
+
+    // Fetch current participants from WhatsApp group
+    const currentParticipants = await fetchGroupParticipants(groupJid);
+    const currentSet = new Set(currentParticipants);
+
+    // Determine who to add (in expected but NOT in group)
+    const toAdd = [...expectedPhones].filter((p) => !currentSet.has(p));
+
+    // Determine who to remove (in group but NOT expected)
+    // Never remove the bot's own number (DEFAULT_ADMIN_PHONE from whatsapp.ts = 351932539702)
+    const botPhone = "351932539702";
+    const toRemove = currentParticipants.filter(
+      (p) => !expectedPhones.has(p) && p !== botPhone
+    );
+
+    let membersAdded = 0;
+    let membersRemoved = 0;
+
+    if (toAdd.length > 0) {
+      await addParticipants(groupJid, toAdd);
+      membersAdded = toAdd.length;
     }
+    if (toRemove.length > 0) {
+      await removeParticipants(groupJid, toRemove);
+      membersRemoved = toRemove.length;
+    }
+
     // Re-promote admins (idempotent)
     if (adminPhones.length > 0) {
-      await promoteParticipants(league.whatsappGroupId, adminPhones);
+      await promoteParticipants(groupJid, adminPhones);
     }
     // Update group profile picture (idempotent)
-    await updateGroupPicture(league.whatsappGroupId);
+    await updateGroupPicture(groupJid);
+
+    console.log(
+      `[WHATSAPP] Sync grupo ${groupJid}: +${membersAdded} adicionados, -${membersRemoved} removidos, ${currentParticipants.length} no grupo`
+    );
 
     revalidatePath(`/ligas/${leagueId}`);
-    return { created: false, groupJid: league.whatsappGroupId, membersAdded: allPhones.length };
+    return { created: false, groupJid, membersAdded, membersRemoved };
   }
 }
 

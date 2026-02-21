@@ -24,7 +24,11 @@ export function WhatsAppGroupButton({ leagueId, hasGroup }: WhatsAppGroupButtonP
       if (res.created) {
         setResult(`Grupo criado com sucesso! ${res.membersAdded} membro(s) adicionado(s).`);
       } else {
-        setResult(`Grupo sincronizado! ${res.membersAdded} membro(s) verificado(s).`);
+        const parts: string[] = [];
+        if (res.membersAdded > 0) parts.push(`${res.membersAdded} adicionado(s)`);
+        if (res.membersRemoved && res.membersRemoved > 0) parts.push(`${res.membersRemoved} removido(s)`);
+        const detail = parts.length > 0 ? parts.join(", ") : "sem alterações";
+        setResult(`Grupo sincronizado! ${detail}.`);
       }
     } catch (err) {
       setError((err as Error).message || "Erro ao criar grupo WhatsApp.");

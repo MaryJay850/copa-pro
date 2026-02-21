@@ -28,7 +28,7 @@ export function normalizePhone(phone: string): string {
 
 async function apiCall(
   path: string,
-  body: Record<string, unknown>,
+  body?: Record<string, unknown>,
   method = "POST"
 ): Promise<unknown> {
   const url = `${API_URL()}${path}`;
@@ -40,7 +40,7 @@ async function apiCall(
       "Content-Type": "application/json",
       apikey: API_KEY()!,
     },
-    body: JSON.stringify(body),
+    ...(body ? { body: JSON.stringify(body) } : {}),
   });
 
   const data = await res.json();
@@ -83,6 +83,38 @@ export async function updateGroupPicture(
       "[WHATSAPP] Erro ao atualizar avatar do grupo:",
       (error as Error).message
     );
+  }
+}
+
+/**
+ * Fetch current participants of a WhatsApp group.
+ * Returns normalized phone numbers (digits only) of all participants.
+ * EvolutionAPI returns: { participants: [{ id: "351932539702@s.whatsapp.net", admin: "superadmin" | "admin" | null }] }
+ */
+export async function fetchGroupParticipants(
+  groupJid: string
+): Promise<string[]> {
+  if (!isConfigured() || !groupJid) return [];
+
+  try {
+    const data = (await apiCall(
+      `/group/participants/${INSTANCE()}?groupJid=${encodeURIComponent(groupJid)}`,
+      undefined,
+      "GET"
+    )) as { participants?: { id: string; admin?: string | null }[] } | null;
+
+    if (!data?.participants) return [];
+
+    // Extract phone numbers from JIDs (e.g. "351932539702@s.whatsapp.net" → "351932539702")
+    return data.participants
+      .map((p) => p.id.replace(/@.*$/, ""))
+      .filter((p) => p.length > 0);
+  } catch (error) {
+    console.error(
+      "[WHATSAPP] Erro ao buscar participantes do grupo:",
+      (error as Error).message
+    );
+    return [];
   }
 }
 
