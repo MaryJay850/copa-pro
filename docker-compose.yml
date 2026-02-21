@@ -33,6 +33,9 @@ services:
       SMTP_FROM: "CopaPro <plataform@bitclever.pt>"
       SMTP_PASS: ${SMTP_PASS:-}
       APP_URL: ${APP_URL:-https://copapro.bitclever.pt}
+      WHATSAPP_API_URL: ${WHATSAPP_API_URL:-}
+      WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:-}
+      WHATSAPP_INSTANCE: ${WHATSAPP_INSTANCE:-Bitclever}
       TZ: Europe/Lisbon
     depends_on:
       db:

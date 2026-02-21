@@ -14,6 +14,20 @@ import {
   tournamentFinishedEmail,
   leagueInviteLinkEmail,
 } from "./email-templates";
+import {
+  createGroup,
+  addParticipants,
+  removeParticipants,
+  sendGroupMessage,
+} from "./whatsapp";
+import {
+  leagueCreatedMessage,
+  tournamentCreatedMessage,
+  teamsAnnouncementMessage,
+  scheduleAnnouncementMessage,
+  tournamentFinishedMessage,
+  seasonRankingMessage,
+} from "./whatsapp-templates";
 
 // Helper: strip Prisma Date objects → plain JSON-safe objects
 // Converts Date → string (ISO), BigInt → string, etc.
@@ -40,6 +54,29 @@ export async function createLeague(formData: FormData) {
   const league = await prisma.league.create({
     data: { name: name.trim(), location: location?.trim() || null },
   });
+
+  // ── WhatsApp: criar grupo e enviar boas-vindas (fire-and-forget) ──
+  (async () => {
+    try {
+      const user = await prisma.user.findFirst({
+        where: { managedLeagues: { some: { leagueId: league.id } } },
+        select: { phone: true },
+      });
+      // If no manager yet, use current session user — but createLeague may run before manager assignment
+      // Attempt to get any phone we can for group creation
+      const phones = user?.phone ? [user.phone.replace(/[\s+]/g, "")] : [];
+      const groupJid = await createGroup(league.name, phones);
+      if (groupJid) {
+        await prisma.league.update({
+          where: { id: league.id },
+          data: { whatsappGroupId: groupJid },
+        });
+        await sendGroupMessage(groupJid, leagueCreatedMessage(league.name));
+      }
+    } catch (err) {
+      console.error("[WHATSAPP] Erro ao criar grupo para liga:", err);
+    }
+  })();
 
   revalidatePath("/ligas");
   return league;
@@ -253,6 +290,48 @@ export async function createTournament(data: {
     }
   }
 
+  // ── WhatsApp: anunciar torneio no grupo da liga (fire-and-forget) ──
+  (async () => {
+    try {
+      const league = await prisma.league.findUnique({
+        where: { id: data.leagueId },
+        select: { whatsappGroupId: true },
+      });
+      if (league?.whatsappGroupId) {
+        const appUrl = process.env.APP_URL || "https://copapro.bitclever.pt";
+        const dateStr = data.startDate
+          ? new Date(data.startDate + "T00:00:00").toLocaleDateString("pt-PT", {
+              weekday: "long",
+              day: "2-digit",
+              month: "long",
+              year: "numeric",
+            })
+          : "A definir";
+        await sendGroupMessage(
+          league.whatsappGroupId,
+          tournamentCreatedMessage(data.name, dateStr, appUrl)
+        );
+
+        // Se já tem equipas, anunciar também
+        if (data.teams.length > 0) {
+          const teamsWithNames = await Promise.all(
+            data.teams.map(async (t) => {
+              const p1 = await prisma.player.findUnique({ where: { id: t.player1Id }, select: { fullName: true } });
+              const p2 = t.player2Id ? await prisma.player.findUnique({ where: { id: t.player2Id }, select: { fullName: true } }) : null;
+              return { name: t.name, player1: p1?.fullName || "?", player2: p2?.fullName || null };
+            })
+          );
+          await sendGroupMessage(
+            league.whatsappGroupId,
+            teamsAnnouncementMessage(data.name, teamsWithNames)
+          );
+        }
+      }
+    } catch (err) {
+      console.error("[WHATSAPP] Erro ao anunciar torneio:", err);
+    }
+  })();
+
   return tournament;
 }
 
@@ -323,6 +402,51 @@ export async function generateSchedule(tournamentId: string) {
     where: { id: tournamentId },
     data: { status: "PUBLISHED" },
   });
+
+  // ── WhatsApp: divulgar calendário no grupo (fire-and-forget) ──
+  (async () => {
+    try {
+      const league = await prisma.league.findUnique({
+        where: { id: tournament.leagueId },
+        select: { whatsappGroupId: true },
+      });
+      if (league?.whatsappGroupId) {
+        // Build rounds data for the message
+        const allMatches = await prisma.match.findMany({
+          where: { tournamentId },
+          include: {
+            round: { select: { index: true } },
+            court: { select: { name: true } },
+            teamA: { select: { name: true } },
+            teamB: { select: { name: true } },
+          },
+          orderBy: [{ round: { index: "asc" } }, { slotIndex: "asc" }],
+        });
+
+        const roundsMap = new Map<number, { teamA: string; teamB: string; court: string }[]>();
+        for (const m of allMatches) {
+          const ri = m.round.index;
+          if (!roundsMap.has(ri)) roundsMap.set(ri, []);
+          roundsMap.get(ri)!.push({
+            teamA: m.teamA.name,
+            teamB: m.teamB.name,
+            court: m.court?.name || "TBD",
+          });
+        }
+
+        const rounds = [...roundsMap.entries()]
+          .sort(([a], [b]) => a - b)
+          .map(([roundIndex, matches]) => ({ roundIndex, matches }));
+
+        await sendGroupMessage(
+          league.whatsappGroupId,
+          scheduleAnnouncementMessage(tournament.name, rounds)
+        );
+      }
+    } catch (err) {
+      console.error("[WHATSAPP] Erro ao divulgar calendário:", err);
+    }
+  })();
 
   revalidatePath(`/torneios/${tournamentId}`);
   return { roundCount: roundMap.size, matchCount: pairings.length };
@@ -836,6 +960,65 @@ export async function finishTournament(tournamentId: string) {
     console.error("Failed to send tournament finished emails:", emailErr);
   }
 
+  // ── WhatsApp: ranking final + ranking da época (fire-and-forget) ──
+  (async () => {
+    try {
+      const t = await prisma.tournament.findUnique({
+        where: { id: tournamentId },
+        include: {
+          league: { select: { whatsappGroupId: true } },
+          season: { select: { id: true, name: true } },
+          teams: { select: { id: true, name: true } },
+          matches: true,
+        },
+      });
+
+      if (t?.league?.whatsappGroupId) {
+        // Compute team standings for WhatsApp message
+        const stats = new Map<string, { name: string; points: number; wins: number; losses: number }>();
+        for (const team of t.teams) {
+          stats.set(team.id, { name: team.name, points: 0, wins: 0, losses: 0 });
+        }
+        for (const m of t.matches) {
+          if (m.status !== "FINISHED") continue;
+          const sA = stats.get(m.teamAId);
+          const sB = stats.get(m.teamBId);
+          const sets: { a: number; b: number }[] = [];
+          if (m.set1A !== null && m.set1B !== null) sets.push({ a: m.set1A, b: m.set1B });
+          if (m.set2A !== null && m.set2B !== null) sets.push({ a: m.set2A, b: m.set2B });
+          if (m.set3A !== null && m.set3B !== null) sets.push({ a: m.set3A, b: m.set3B });
+          let setsA = 0, setsB = 0;
+          for (const s of sets) { if (s.a > s.b) setsA++; else if (s.b > s.a) setsB++; }
+          if (sA) sA.points += setsA * 2;
+          if (sB) sB.points += setsB * 2;
+          if (m.resultType === "WIN_A") { if (sA) { sA.points += 3; sA.wins++; } if (sB) sB.losses++; }
+          else if (m.resultType === "WIN_B") { if (sB) { sB.points += 3; sB.wins++; } if (sA) sA.losses++; }
+        }
+        const rankings = [...stats.values()]
+          .sort((a, b) => b.points - a.points)
+          .map((r, i) => ({ position: i + 1, teamName: r.name, points: r.points, wins: r.wins, losses: r.losses }));
+
+        await sendGroupMessage(t.league.whatsappGroupId, tournamentFinishedMessage(t.name, rankings));
+
+        // Season ranking
+        const seasonRanking = await prisma.seasonRankingEntry.findMany({
+          where: { seasonId: t.season.id },
+          orderBy: { pointsTotal: "desc" },
+          include: { player: { select: { fullName: true } } },
+        });
+        const seasonRankings = seasonRanking.map((r, i) => ({
+          position: i + 1,
+          playerName: r.player.fullName,
+          points: r.pointsTotal,
+          matchesPlayed: r.matchesPlayed,
+        }));
+        await sendGroupMessage(t.league.whatsappGroupId, seasonRankingMessage(t.season.name, seasonRankings));
+      }
+    } catch (err) {
+      console.error("[WHATSAPP] Erro ao enviar ranking final:", err);
+    }
+  })();
+
   revalidatePath(`/torneios/${tournamentId}`);
 }
 
@@ -985,6 +1168,33 @@ export async function updateTournament(data: {
       }
     }
   });
+
+  // ── WhatsApp: anunciar equipas atualizadas (fire-and-forget) ──
+  if (data.teams.length > 0) {
+    (async () => {
+      try {
+        const league = await prisma.league.findUnique({
+          where: { id: existing.leagueId },
+          select: { whatsappGroupId: true },
+        });
+        if (league?.whatsappGroupId) {
+          const teamsWithNames = await Promise.all(
+            data.teams.map(async (t) => {
+              const p1 = await prisma.player.findUnique({ where: { id: t.player1Id }, select: { fullName: true } });
+              const p2 = t.player2Id ? await prisma.player.findUnique({ where: { id: t.player2Id }, select: { fullName: true } }) : null;
+              return { name: t.name, player1: p1?.fullName || "?", player2: p2?.fullName || null };
+            })
+          );
+          await sendGroupMessage(
+            league.whatsappGroupId,
+            teamsAnnouncementMessage(data.name, teamsWithNames)
+          );
+        }
+      } catch (err) {
+        console.error("[WHATSAPP] Erro ao anunciar equipas atualizadas:", err);
+      }
+    })();
+  }
 
   revalidatePath(`/torneios/${data.tournamentId}`);
   return { tournamentId: data.tournamentId };
@@ -1390,6 +1600,23 @@ export async function handleMembershipRequest(
     data: { status: action },
   });
 
+  // ── WhatsApp: adicionar ao grupo se aprovado (fire-and-forget) ──
+  if (action === "APPROVED") {
+    (async () => {
+      try {
+        const [league, user] = await Promise.all([
+          prisma.league.findUnique({ where: { id: membership.leagueId }, select: { whatsappGroupId: true } }),
+          prisma.user.findUnique({ where: { id: membership.userId }, select: { phone: true } }),
+        ]);
+        if (league?.whatsappGroupId && user?.phone) {
+          await addParticipants(league.whatsappGroupId, [user.phone.replace(/[\s+]/g, "")]);
+        }
+      } catch (err) {
+        console.error("[WHATSAPP] Erro ao adicionar membro aprovado ao grupo:", err);
+      }
+    })();
+  }
+
   revalidatePath(`/ligas/${membership.leagueId}`);
   revalidatePath(`/ligas/${membership.leagueId}/membros`);
 }
@@ -1439,6 +1666,21 @@ export async function addPlayerToLeague(userId: string, leagueId: string) {
     });
   }
 
+  // ── WhatsApp: adicionar jogador ao grupo (fire-and-forget) ──
+  (async () => {
+    try {
+      const league = await prisma.league.findUnique({
+        where: { id: leagueId },
+        select: { whatsappGroupId: true },
+      });
+      if (league?.whatsappGroupId && user.phone) {
+        await addParticipants(league.whatsappGroupId, [user.phone.replace(/[\s+]/g, "")]);
+      }
+    } catch (err) {
+      console.error("[WHATSAPP] Erro ao adicionar jogador ao grupo:", err);
+    }
+  })();
+
   revalidatePath(`/ligas/${leagueId}/membros`);
   revalidatePath(`/ligas/${leagueId}`);
   revalidatePath("/dashboard");
@@ -1446,6 +1688,21 @@ export async function addPlayerToLeague(userId: string, leagueId: string) {
 
 export async function removePlayerFromLeague(userId: string, leagueId: string) {
   await requireLeagueManager(leagueId);
+
+  // ── WhatsApp: remover jogador do grupo (fire-and-forget) ──
+  (async () => {
+    try {
+      const [league, user] = await Promise.all([
+        prisma.league.findUnique({ where: { id: leagueId }, select: { whatsappGroupId: true } }),
+        prisma.user.findUnique({ where: { id: userId }, select: { phone: true } }),
+      ]);
+      if (league?.whatsappGroupId && user?.phone) {
+        await removeParticipants(league.whatsappGroupId, [user.phone.replace(/[\s+]/g, "")]);
+      }
+    } catch (err) {
+      console.error("[WHATSAPP] Erro ao remover jogador do grupo:", err);
+    }
+  })();
 
   await prisma.leagueMembership.deleteMany({
     where: { userId, leagueId },
@@ -1614,6 +1871,25 @@ export async function acceptLeagueInvite(token: string) {
       });
     }
   }
+
+  // ── WhatsApp: adicionar ao grupo (fire-and-forget) ──
+  (async () => {
+    try {
+      const league = await prisma.league.findUnique({
+        where: { id: invite.leagueId },
+        select: { whatsappGroupId: true },
+      });
+      const userInfo = await prisma.user.findUnique({
+        where: { id: user.id },
+        select: { phone: true },
+      });
+      if (league?.whatsappGroupId && userInfo?.phone) {
+        await addParticipants(league.whatsappGroupId, [userInfo.phone.replace(/[\s+]/g, "")]);
+      }
+    } catch (err) {
+      console.error("[WHATSAPP] Erro ao adicionar via convite ao grupo:", err);
+    }
+  })();
 
   revalidatePath(`/ligas/${invite.leagueId}`);
   revalidatePath(`/ligas/${invite.leagueId}/membros`);

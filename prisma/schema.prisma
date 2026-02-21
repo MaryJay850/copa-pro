@@ -111,11 +111,12 @@ model LeagueInviteUsage {
 // ── Domain Models ──
 
 model League {
-  id        String   @id @default(cuid())
-  name      String
-  location  String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id              String   @id @default(cuid())
+  name            String
+  location        String?
+  isActive        Boolean  @default(true)
+  whatsappGroupId String?
+  createdAt       DateTime @default(now())
 
   seasons     Season[]
   tournaments Tournament[]
