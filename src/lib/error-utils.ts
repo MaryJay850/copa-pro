@@ -45,10 +45,26 @@ export function sanitizeError(err: unknown, fallback?: string): string {
   }
 
   // ── Stripe errors ──
-  if (message.includes("STRIPE_") || message.includes("stripe")) {
+  if (
+    message.includes("STRIPE_") ||
+    message.includes("stripe") ||
+    message.includes("Stripe") ||
+    message.includes("StripeInvalidRequestError") ||
+    message.includes("No such price") ||
+    message.includes("No such customer") ||
+    message.includes("test mode key") ||
+    message.includes("live mode")
+  ) {
+    if (message.includes("test mode key") || message.includes("live mode")) {
+      return "Erro de configuração do sistema de pagamento. Por favor contacte o suporte. (modo Stripe incorreto)";
+    }
+    if (message.includes("No such price") || message.includes("resource_missing")) {
+      return "Erro de configuração do plano. Por favor contacte o suporte.";
+    }
     if (message.includes("não configurado") || message.includes("não definido")) {
       return "Erro ao processar o pagamento. Por favor contacte o suporte.";
     }
+    return "Erro ao processar o pagamento. Tente novamente ou contacte o suporte.";
   }
 
   // ── Next.js server action errors ──

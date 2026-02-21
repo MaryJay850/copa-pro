@@ -123,11 +123,17 @@ export function PlansPanel({
   const hasActiveSub = subscriptionInfo.hasActiveSubscription;
   const isCancelPending = hasActiveSub && subscriptionInfo.cancelAtPeriodEnd;
 
+  const redirectTo = (url: string) => {
+    if (typeof window !== "undefined") {
+      window.location.href = url;
+    }
+  };
+
   const handleUpgrade = (plan: "PRO" | "CLUB", selectedInterval: "month" | "year") => {
     startTransition(async () => {
       try {
         const url = await createCheckoutSession(plan, selectedInterval);
-        window.location.href = url;
+        redirectTo(url);
       } catch (err) {
         toast.error(sanitizeError(err, "Erro ao processar o upgrade. Tente novamente."));
       }
@@ -138,7 +144,7 @@ export function PlansPanel({
     startTransition(async () => {
       try {
         const url = await createBillingPortalSession();
-        window.location.href = url;
+        redirectTo(url);
       } catch (err) {
         toast.error(sanitizeError(err, "Erro ao aceder ao portal de pagamento."));
       }
