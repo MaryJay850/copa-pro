@@ -8,6 +8,8 @@ declare module "next-auth" {
   interface User {
     role: UserRole;
     playerId: string | null;
+    playerName: string | null;
+    phone: string;
     mustChangePassword: boolean;
   }
 }
@@ -17,6 +19,8 @@ declare module "@auth/core/jwt" {
     id: string;
     role: UserRole;
     playerId: string | null;
+    playerName: string | null;
+    phone: string;
     mustChangePassword: boolean;
   }
 }
@@ -38,6 +42,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
+          include: { player: { select: { fullName: true } } },
         });
         if (!user) return null;
 
@@ -52,6 +57,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           role: user.role,
           playerId: user.playerId,
+          playerName: user.player?.fullName ?? null,
+          phone: user.phone,
           mustChangePassword: user.mustChangePassword,
         };
       },
@@ -63,16 +70,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id!;
         token.role = (user as { role: UserRole }).role;
         token.playerId = (user as { playerId: string | null }).playerId;
+        token.playerName = (user as { playerName: string | null }).playerName;
+        token.phone = (user as { phone: string }).phone;
         token.mustChangePassword = (user as { mustChangePassword: boolean }).mustChangePassword;
       } else {
-        // Re-fetch from DB (ensures admin changes and password changes propagate)
+        // Re-fetch from DB (ensures admin changes and profile updates propagate)
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id },
-          select: { role: true, playerId: true, mustChangePassword: true },
+          select: {
+            role: true,
+            playerId: true,
+            phone: true,
+            mustChangePassword: true,
+            player: { select: { fullName: true } },
+          },
         });
         if (dbUser) {
           token.role = dbUser.role;
           token.playerId = dbUser.playerId;
+          token.playerName = dbUser.player?.fullName ?? null;
+          token.phone = dbUser.phone;
           token.mustChangePassword = dbUser.mustChangePassword;
         }
       }
@@ -82,6 +99,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       session.user.id = token.id;
       (session.user as any).role = token.role;
       (session.user as any).playerId = token.playerId;
+      (session.user as any).playerName = token.playerName;
+      (session.user as any).phone = token.phone;
       (session.user as any).mustChangePassword = token.mustChangePassword;
       return session;
     },

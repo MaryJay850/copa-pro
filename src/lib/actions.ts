@@ -3751,3 +3751,120 @@ export async function getAdvancedAnalytics() {
     })),
   });
 }
+
+// ══════════════════════════════════════════════════════════════════════
+// User Profile Management
+// ══════════════════════════════════════════════════════════════════════
+
+export async function getUserProfileData() {
+  const user = await requireAuth();
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    include: {
+      player: {
+        select: { id: true, fullName: true, nickname: true, level: true, eloRating: true },
+      },
+    },
+  });
+
+  if (!dbUser) throw new Error("Utilizador não encontrado.");
+
+  return serialize({
+    id: dbUser.id,
+    email: dbUser.email,
+    phone: dbUser.phone,
+    role: dbUser.role,
+    createdAt: dbUser.createdAt,
+    player: dbUser.player
+      ? {
+          id: dbUser.player.id,
+          fullName: dbUser.player.fullName,
+          nickname: dbUser.player.nickname,
+          level: dbUser.player.level,
+          eloRating: dbUser.player.eloRating,
+        }
+      : null,
+  });
+}
+
+export async function updateUserProfile(data: {
+  fullName?: string;
+  nickname?: string;
+  phone?: string;
+  level?: string;
+}) {
+  const user = await requireAuth();
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    include: { player: true },
+  });
+  if (!dbUser) throw new Error("Utilizador não encontrado.");
+
+  // Update phone on User
+  if (data.phone !== undefined) {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { phone: data.phone },
+    });
+  }
+
+  // Update Player fields
+  if (dbUser.player) {
+    const playerUpdate: Record<string, string | undefined> = {};
+    if (data.fullName !== undefined && data.fullName.trim()) {
+      playerUpdate.fullName = data.fullName.trim();
+    }
+    if (data.nickname !== undefined) {
+      playerUpdate.nickname = data.nickname.trim() || undefined;
+    }
+    if (data.level !== undefined) {
+      playerUpdate.level = data.level.trim() || undefined;
+    }
+
+    if (Object.keys(playerUpdate).length > 0) {
+      await prisma.player.update({
+        where: { id: dbUser.player.id },
+        data: playerUpdate,
+      });
+    }
+  }
+
+  await logAudit("UPDATE_PROFILE", "User", user.id, `Perfil atualizado`);
+  revalidatePath("/perfil");
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+export async function updateUserPassword(data: {
+  currentPassword: string;
+  newPassword: string;
+}) {
+  const user = await requireAuth();
+
+  const dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+  });
+  if (!dbUser) throw new Error("Utilizador não encontrado.");
+
+  // Verify current password
+  const valid = await bcrypt.compare(data.currentPassword, dbUser.hashedPassword);
+  if (!valid) {
+    throw new Error("Palavra-passe atual incorreta.");
+  }
+
+  if (data.newPassword.length < 6) {
+    throw new Error("A nova palavra-passe deve ter pelo menos 6 caracteres.");
+  }
+
+  const hashedPassword = await bcrypt.hash(data.newPassword, 12);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { hashedPassword, mustChangePassword: false },
+  });
+
+  await logAudit("CHANGE_PASSWORD", "User", user.id, "Palavra-passe alterada");
+  revalidatePath("/");
+  return { success: true };
+}
