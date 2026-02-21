@@ -33,8 +33,8 @@ services:
       SMTP_FROM: "CopaPro <plataform@bitclever.pt>"
       SMTP_PASS: ${SMTP_PASS:-}
       APP_URL: ${APP_URL:-https://copapro.bitclever.pt}
-      WHATSAPP_API_URL: ${WHATSAPP_API_URL:-}
-      WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:-}
+      WHATSAPP_API_URL: ${WHATSAPP_API_URL:-https://evo.bitclever.pt}
+      WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:-F7348E2454D2-46A3-B5CA-12B378EF10B6}
       WHATSAPP_INSTANCE: ${WHATSAPP_INSTANCE:-Bitclever}
       TZ: Europe/Lisbon
     depends_on:
