@@ -30,7 +30,7 @@ services:
       SMTP_HOST: smtp.office365.com
       SMTP_PORT: "587"
       SMTP_USER: ${SMTP_USER:-}
-      SMTP_FROM: "CopaPro <plataforma@bitclever.pt>"
+      SMTP_FROM: "CopaPro <plataform@bitclever.pt>"
       SMTP_PASS: ${SMTP_PASS:-}
       APP_URL: ${APP_URL:-https://copapro.bitclever.pt}
       TZ: Europe/Lisbon
