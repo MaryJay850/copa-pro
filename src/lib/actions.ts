@@ -19,6 +19,8 @@ import {
   addParticipants,
   removeParticipants,
   sendGroupMessage,
+  promoteParticipants,
+  normalizePhone,
 } from "./whatsapp";
 import {
   leagueCreatedMessage,
@@ -58,14 +60,21 @@ export async function createLeague(formData: FormData) {
   // ── WhatsApp: criar grupo e enviar boas-vindas (fire-and-forget) ──
   (async () => {
     try {
-      const user = await prisma.user.findFirst({
-        where: { managedLeagues: { some: { leagueId: league.id } } },
+      // Collect admin phones: platform ADMINISTRADOR users + league managers
+      const admins = await prisma.user.findMany({
+        where: { role: "ADMINISTRADOR" },
         select: { phone: true },
       });
-      // If no manager yet, use current session user — but createLeague may run before manager assignment
-      // Attempt to get any phone we can for group creation
-      const phones = user?.phone ? [user.phone.replace(/[\s+]/g, "")] : [];
-      const groupJid = await createGroup(league.name, phones);
+      const managers = await prisma.leagueManager.findMany({
+        where: { leagueId: league.id },
+        include: { user: { select: { phone: true } } },
+      });
+      const adminPhones = [
+        ...admins.map((a) => a.phone).filter(Boolean),
+        ...managers.map((m) => m.user.phone).filter(Boolean),
+      ].map(normalizePhone).filter((p) => p.length > 0);
+
+      const groupJid = await createGroup(league.name, adminPhones);
       if (groupJid) {
         await prisma.league.update({
           where: { id: league.id },
@@ -299,6 +308,7 @@ export async function createTournament(data: {
       });
       if (league?.whatsappGroupId) {
         const appUrl = process.env.APP_URL || "https://copapro.bitclever.pt";
+        const tournamentUrl = `${appUrl}/torneios/${tournament.id}`;
         const dateStr = data.startDate
           ? new Date(data.startDate + "T00:00:00").toLocaleDateString("pt-PT", {
               weekday: "long",
@@ -309,7 +319,7 @@ export async function createTournament(data: {
           : "A definir";
         await sendGroupMessage(
           league.whatsappGroupId,
-          tournamentCreatedMessage(data.name, dateStr, appUrl)
+          tournamentCreatedMessage(data.name, dateStr, tournamentUrl)
         );
 
         // Se já tem equipas, anunciar também
@@ -1609,7 +1619,7 @@ export async function handleMembershipRequest(
           prisma.user.findUnique({ where: { id: membership.userId }, select: { phone: true } }),
         ]);
         if (league?.whatsappGroupId && user?.phone) {
-          await addParticipants(league.whatsappGroupId, [user.phone.replace(/[\s+]/g, "")]);
+          await addParticipants(league.whatsappGroupId, [normalizePhone(user.phone)]);
         }
       } catch (err) {
         console.error("[WHATSAPP] Erro ao adicionar membro aprovado ao grupo:", err);
@@ -1674,7 +1684,7 @@ export async function addPlayerToLeague(userId: string, leagueId: string) {
         select: { whatsappGroupId: true },
       });
       if (league?.whatsappGroupId && user.phone) {
-        await addParticipants(league.whatsappGroupId, [user.phone.replace(/[\s+]/g, "")]);
+        await addParticipants(league.whatsappGroupId, [normalizePhone(user.phone)]);
       }
     } catch (err) {
       console.error("[WHATSAPP] Erro ao adicionar jogador ao grupo:", err);
@@ -1697,7 +1707,7 @@ export async function removePlayerFromLeague(userId: string, leagueId: string) {
         prisma.user.findUnique({ where: { id: userId }, select: { phone: true } }),
       ]);
       if (league?.whatsappGroupId && user?.phone) {
-        await removeParticipants(league.whatsappGroupId, [user.phone.replace(/[\s+]/g, "")]);
+        await removeParticipants(league.whatsappGroupId, [normalizePhone(user.phone)]);
       }
     } catch (err) {
       console.error("[WHATSAPP] Erro ao remover jogador do grupo:", err);
@@ -1884,7 +1894,7 @@ export async function acceptLeagueInvite(token: string) {
         select: { phone: true },
       });
       if (league?.whatsappGroupId && userInfo?.phone) {
-        await addParticipants(league.whatsappGroupId, [userInfo.phone.replace(/[\s+]/g, "")]);
+        await addParticipants(league.whatsappGroupId, [normalizePhone(userInfo.phone)]);
       }
     } catch (err) {
       console.error("[WHATSAPP] Erro ao adicionar via convite ao grupo:", err);
@@ -2131,6 +2141,23 @@ export async function assignLeagueManager(userId: string, leagueId: string) {
     update: { status: "APPROVED" },
     create: { userId, leagueId, status: "APPROVED" },
   });
+
+  // ── WhatsApp: adicionar ao grupo + promover a admin (fire-and-forget) ──
+  (async () => {
+    try {
+      const [league, user] = await Promise.all([
+        prisma.league.findUnique({ where: { id: leagueId }, select: { whatsappGroupId: true } }),
+        prisma.user.findUnique({ where: { id: userId }, select: { phone: true } }),
+      ]);
+      if (league?.whatsappGroupId && user?.phone) {
+        const phone = normalizePhone(user.phone);
+        await addParticipants(league.whatsappGroupId, [phone]);
+        await promoteParticipants(league.whatsappGroupId, [phone]);
+      }
+    } catch (err) {
+      console.error("[WHATSAPP] Erro ao promover gestor no grupo:", err);
+    }
+  })();
 
   revalidatePath("/admin/ligas");
   revalidatePath(`/ligas/${leagueId}`);

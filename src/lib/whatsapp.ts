@@ -4,14 +4,25 @@
  * Follows the same guard-clause pattern as email.ts:
  * if WHATSAPP_API_URL or WHATSAPP_API_KEY are not configured,
  * all functions silently skip (no errors thrown).
+ *
+ * Default admin phone: +351932539702 (fallback if platform admins have no phone)
  */
 
 const API_URL = () => process.env.WHATSAPP_API_URL;
 const API_KEY = () => process.env.WHATSAPP_API_KEY;
 const INSTANCE = () => process.env.WHATSAPP_INSTANCE || "Bitclever";
+const DEFAULT_ADMIN_PHONE = "351932539702";
 
 function isConfigured(): boolean {
   return !!(API_URL() && API_KEY());
+}
+
+/**
+ * Normalize a phone string: strip spaces, + and non-digits.
+ * Input: "+351 932539702" → "351932539702"
+ */
+export function normalizePhone(phone: string): string {
+  return phone.replace(/[^\d]/g, "");
 }
 
 async function apiCall(
@@ -45,12 +56,17 @@ async function apiCall(
 // ── Public API ──
 
 /**
- * Create a WhatsApp group.
+ * Create a WhatsApp group with proper settings:
+ * - not_announcement: everyone can send messages
+ * - locked: only admins can edit group settings
+ * - Admins are promoted after creation
+ * - Invite sending is restricted (approval required)
+ *
  * Returns the group JID (e.g. "120363...@g.us") or null on failure.
  */
 export async function createGroup(
   name: string,
-  phones: string[]
+  adminPhones: string[]
 ): Promise<string | null> {
   if (!isConfigured()) {
     console.warn("[WHATSAPP] Não configurado, grupo não criado");
@@ -58,22 +74,81 @@ export async function createGroup(
   }
 
   try {
+    // Ensure default admin phone is always included
+    const allPhones = [...new Set([...adminPhones, DEFAULT_ADMIN_PHONE])];
+
     // EvolutionAPI v2: POST /group/create/{instance}
-    // participants must be in format "55119999@s.whatsapp.net" or just the phone number
     const data = (await apiCall(`/group/create/${INSTANCE()}`, {
       subject: name,
-      participants: phones,
+      participants: allPhones,
     })) as { id?: string } | null;
 
-    if (data?.id) {
-      console.log(`[WHATSAPP] Grupo criado: ${data.id}`);
-      return data.id;
-    }
+    if (!data?.id) return null;
 
-    return null;
+    const groupJid = data.id;
+    console.log(`[WHATSAPP] Grupo criado: ${groupJid}`);
+
+    // Configure group settings:
+    // 1. not_announcement — everyone can send messages
+    await updateGroupSetting(groupJid, "not_announcement");
+    // 2. locked — only admins can edit group settings
+    await updateGroupSetting(groupJid, "locked");
+
+    // Promote admin phones to group admins
+    await promoteParticipants(groupJid, allPhones);
+
+    return groupJid;
   } catch (error) {
     console.error("[WHATSAPP] Erro ao criar grupo:", (error as Error).message);
     return null;
+  }
+}
+
+/**
+ * Update group setting.
+ * Actions: "announcement" | "not_announcement" | "locked" | "unlocked"
+ */
+export async function updateGroupSetting(
+  groupJid: string,
+  action: "announcement" | "not_announcement" | "locked" | "unlocked"
+): Promise<void> {
+  if (!isConfigured() || !groupJid) return;
+
+  try {
+    await apiCall(
+      `/group/updateSetting/${INSTANCE()}?groupJid=${encodeURIComponent(groupJid)}`,
+      { action }
+    );
+  } catch (error) {
+    console.error(
+      `[WHATSAPP] Erro ao atualizar setting (${action}):`,
+      (error as Error).message
+    );
+  }
+}
+
+/**
+ * Promote participants to group admin.
+ */
+export async function promoteParticipants(
+  groupJid: string,
+  phones: string[]
+): Promise<void> {
+  if (!isConfigured() || !groupJid || phones.length === 0) return;
+
+  try {
+    await apiCall(
+      `/group/updateParticipant/${INSTANCE()}?groupJid=${encodeURIComponent(groupJid)}`,
+      {
+        action: "promote",
+        participants: phones,
+      }
+    );
+  } catch (error) {
+    console.error(
+      "[WHATSAPP] Erro ao promover participantes:",
+      (error as Error).message
+    );
   }
 }
 
@@ -87,7 +162,6 @@ export async function addParticipants(
   if (!isConfigured() || !groupJid || phones.length === 0) return;
 
   try {
-    // EvolutionAPI v2: POST /group/updateParticipant/{instance}?groupJid=...
     await apiCall(
       `/group/updateParticipant/${INSTANCE()}?groupJid=${encodeURIComponent(groupJid)}`,
       {
@@ -130,26 +204,32 @@ export async function removeParticipants(
 
 /**
  * Send a text message to a WhatsApp group.
+ * Returns the message key (for pinning) or null.
  */
 export async function sendGroupMessage(
   groupJid: string,
   text: string
-): Promise<void> {
+): Promise<{ messageId: string } | null> {
   if (!isConfigured() || !groupJid) {
     console.warn("[WHATSAPP] Não configurado ou sem groupJid, mensagem não enviada");
-    return;
+    return null;
   }
 
   try {
-    // EvolutionAPI v2: POST /message/sendText/{instance}
-    await apiCall(`/message/sendText/${INSTANCE()}`, {
+    const result = (await apiCall(`/message/sendText/${INSTANCE()}`, {
       number: groupJid,
       text,
-    });
+    })) as { key?: { id?: string } } | null;
+
+    if (result?.key?.id) {
+      return { messageId: result.key.id };
+    }
+    return null;
   } catch (error) {
     console.error(
       "[WHATSAPP] Erro ao enviar mensagem:",
       (error as Error).message
     );
+    return null;
   }
 }

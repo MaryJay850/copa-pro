@@ -24,14 +24,14 @@ export function leagueCreatedMessage(leagueName: string): string {
 export function tournamentCreatedMessage(
   tournamentName: string,
   date: string,
-  appUrl: string
+  tournamentUrl: string
 ): string {
   return (
     `📢 *Novo Torneio: ${tournamentName}*\n\n` +
     `📅 Data: *${date}*\n\n` +
-    `Inscrevam-se na plataforma:\n` +
-    `${appUrl}\n\n` +
-    `_Confirma a tua participação!_`
+    `✅ Confirma a tua participação na plataforma:\n` +
+    `${tournamentUrl}\n\n` +
+    `_Inscreve-te já!_ 🎾`
   );
 }
 
