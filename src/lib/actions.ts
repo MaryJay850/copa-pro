@@ -161,6 +161,7 @@ export async function createTournament(data: {
   leagueId: string;
   seasonId: string;
   name: string;
+  startDate?: string;
   courtsCount: number;
   courtNames?: string[];
   matchesPerPair: number;
@@ -181,6 +182,7 @@ export async function createTournament(data: {
       leagueId: data.leagueId,
       seasonId: data.seasonId,
       name: data.name,
+      startDate: data.startDate ? new Date(data.startDate + "T00:00:00") : null,
       courtsCount: data.courtsCount,
       matchesPerPair: data.matchesPerPair,
       numberOfSets: data.numberOfSets,
@@ -892,6 +894,7 @@ export async function getTournamentForEdit(tournamentId: string) {
 export async function updateTournament(data: {
   tournamentId: string;
   name: string;
+  startDate?: string;
   courtsCount: number;
   courtNames?: string[];
   matchesPerPair: number;
@@ -934,6 +937,7 @@ export async function updateTournament(data: {
       where: { id: data.tournamentId },
       data: {
         name: data.name,
+        startDate: data.startDate ? new Date(data.startDate + "T00:00:00") : null,
         courtsCount: data.courtsCount,
         matchesPerPair: data.matchesPerPair,
         numberOfSets: data.numberOfSets,

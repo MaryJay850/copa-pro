@@ -35,6 +35,7 @@ export function TournamentWizard({
     tournamentId: string;
     initialData: {
       name: string;
+      startDate?: string;
       courtsCount: number;
       matchesPerPair: number;
       numberOfSets: number;
@@ -54,6 +55,7 @@ export function TournamentWizard({
 
   // Step 1
   const [name, setName] = useState(editMode?.initialData.name ?? "");
+  const [startDate, setStartDate] = useState(editMode?.initialData.startDate ?? "");
   const [courtsCount, setCourtsCount] = useState(editMode?.initialData.courtsCount ?? 2);
   const [courtNames, setCourtNames] = useState<string[]>(
     editMode?.initialData.courtNames ??
@@ -212,6 +214,7 @@ export function TournamentWizard({
     try {
       const payload = {
         name,
+        startDate: startDate || undefined,
         courtsCount,
         courtNames,
         matchesPerPair,
@@ -296,6 +299,17 @@ export function TournamentWizard({
             <Input label="Nome do Torneio" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Torneio Janeiro" required />
 
             <div>
+              <label className="block text-sm font-medium text-text mb-1">Data do Torneio</label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                required
+              />
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-text mb-1">Modo de Jogo</label>
               <div className="flex gap-3">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -371,7 +385,7 @@ export function TournamentWizard({
               </div>
             )}
 
-            <Button onClick={() => { if (name.trim()) { setError(null); setStep(2); } else setError("Nome é obrigatório."); }}>Seguinte</Button>
+            <Button onClick={() => { if (!name.trim()) { setError("Nome é obrigatório."); return; } if (!startDate) { setError("Data do torneio é obrigatória."); return; } setError(null); setStep(2); }}>Seguinte</Button>
           </div>
         </Card>
       )}
@@ -491,6 +505,7 @@ export function TournamentWizard({
           </h2>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Nome</span><span className="font-medium">{name}</span></div>
+            <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Data</span><span className="font-medium">{startDate ? new Date(startDate + "T00:00:00").toLocaleDateString("pt-PT", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }) : "—"}</span></div>
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Modo de Jogo</span><span className="font-medium">{teamSize === 1 ? "Individual (1v1)" : "Pares (2v2)"}</span></div>
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Campos</span><span className="font-medium">{courtNames.slice(0, courtsCount).join(", ")}</span></div>
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Formato</span><span className="font-medium">{matchesPerPair === 1 ? "RR Simples" : "RR Duplo"}</span></div>

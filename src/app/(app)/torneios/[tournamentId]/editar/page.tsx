@@ -37,6 +37,7 @@ export default async function EditTournamentPage({
 
   const initialData = {
     name: tournament.name,
+    startDate: tournament.startDate ? tournament.startDate.split("T")[0] : undefined,
     courtsCount: tournament.courtsCount,
     courtNames,
     matchesPerPair: tournament.matchesPerPair,

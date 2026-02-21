@@ -72,6 +72,11 @@ export default async function TournamentPage({
           <Badge variant={s.variant}>{s.label}</Badge>
         </div>
         <div className="flex gap-4 mt-2 text-sm text-text-muted flex-wrap">
+          {tournament.startDate && (
+            <span className="font-medium text-text">
+              {new Date(tournament.startDate).toLocaleDateString("pt-PT", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+            </span>
+          )}
           <span>{tournament.teamSize === 1 ? "1v1" : "2v2"}</span>
           <span>{tournament.teams.length} {tournament.teamSize === 1 ? "jogadores" : "equipas"}</span>
           <span>
