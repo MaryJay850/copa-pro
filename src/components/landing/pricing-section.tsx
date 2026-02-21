@@ -79,10 +79,10 @@ export function PricingSection() {
               <PricingFeature>Clonagem de torneios e épocas</PricingFeature>
             </ul>
             <Link
-              href="/registar"
+              href="/planos"
               className="block text-center rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700 shadow-lg shadow-emerald-600/30 transition-all"
             >
-              Começar Teste Grátis
+              Escolher Pro
             </Link>
           </div>
 
@@ -113,10 +113,10 @@ export function PricingSection() {
               <PricingFeature>Suporte prioritário</PricingFeature>
             </ul>
             <Link
-              href="/registar"
+              href="/planos"
               className="block text-center rounded-xl border-2 border-slate-200 px-6 py-3 text-sm font-semibold text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-all"
             >
-              Contactar
+              Escolher Club
             </Link>
           </div>
         </div>
