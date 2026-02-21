@@ -1,11 +1,12 @@
 export const dynamic = "force-dynamic";
 
-import { getLeague } from "@/lib/actions";
+import { getLeague, getLeagueInvites } from "@/lib/actions";
 import { isLeagueManager } from "@/lib/auth-guards";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { InviteLinkCard } from "@/components/invite-link-card";
 import { CreateSeasonForm } from "./create-season-form";
 import { notFound } from "next/navigation";
 import Link from "next/link";
@@ -17,6 +18,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
   if (!league) notFound();
 
   const canManage = await isLeagueManager(leagueId);
+  const invites = canManage ? await getLeagueInvites(leagueId) : [];
 
   return (
     <div className="space-y-6">
@@ -35,6 +37,13 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
         </div>
         {league.location && <p className="text-sm text-text-muted mt-1">{league.location}</p>}
       </div>
+
+      {canManage && (
+        <div>
+          <h2 className="text-sm font-semibold text-text-muted mb-2">Convidar Jogadores</h2>
+          <InviteLinkCard leagueId={leagueId} invites={invites} />
+        </div>
+      )}
 
       <div>
         <h2 className="text-lg font-semibold mb-3">Épocas</h2>

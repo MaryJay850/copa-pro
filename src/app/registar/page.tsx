@@ -3,9 +3,13 @@ import { redirect } from "next/navigation";
 import { RegisterForm } from "./register-form";
 import Link from "next/link";
 
-export default async function RegisterPage() {
+export default async function RegisterPage({ searchParams }: { searchParams: Promise<{ callbackUrl?: string }> }) {
   const session = await auth();
-  if (session?.user) redirect("/dashboard");
+  const { callbackUrl } = await searchParams;
+
+  if (session?.user) {
+    redirect(callbackUrl || "/dashboard");
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -18,7 +22,7 @@ export default async function RegisterPage() {
           </Link>
           <p className="text-sm text-slate-500 mt-1">Criar conta</p>
         </div>
-        <RegisterForm />
+        <RegisterForm callbackUrl={callbackUrl} />
       </div>
     </div>
   );

@@ -16,7 +16,7 @@ const COUNTRY_CODES = [
   { code: "+1", label: "🇺🇸 +1" },
 ];
 
-export function RegisterForm() {
+export function RegisterForm({ callbackUrl }: { callbackUrl?: string }) {
   const [fullName, setFullName] = useState("");
   const [nickname, setNickname] = useState("");
   const [countryCode, setCountryCode] = useState("+351");
@@ -41,7 +41,11 @@ export function RegisterForm() {
       formData.set("password", password);
 
       await registerUser(formData);
-      router.push("/login?registered=true");
+
+      const loginRedirect = callbackUrl
+        ? `/login?registered=true&callbackUrl=${encodeURIComponent(callbackUrl)}`
+        : "/login?registered=true";
+      router.push(loginRedirect);
     } catch (e) {
       setError((e as Error).message || "Erro ao criar conta.");
     }
@@ -143,7 +147,10 @@ export function RegisterForm() {
       </button>
       <p className="text-xs text-slate-500 text-center">
         Já tem conta?{" "}
-        <Link href="/login" className="text-emerald-600 hover:underline font-medium">
+        <Link
+          href={callbackUrl ? `/login?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/login"}
+          className="text-emerald-600 hover:underline font-medium"
+        >
           Entrar
         </Link>
       </p>

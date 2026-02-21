@@ -1187,14 +1187,15 @@ export async function searchUsers(query: string) {
   return serialize(users);
 }
 
-export async function createLeagueInvite(leagueId: string) {
+export async function createLeagueInvite(leagueId: string, maxUses?: number) {
   const user = await requireLeagueManager(leagueId);
 
   const invite = await prisma.leagueInvite.create({
     data: {
       leagueId,
       createdBy: user.id,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      maxUses: maxUses || null, // null = unlimited
     },
   });
 
@@ -1206,18 +1207,44 @@ export async function acceptLeagueInvite(token: string) {
 
   const invite = await prisma.leagueInvite.findUnique({
     where: { token },
+    include: { league: { select: { id: true, name: true } } },
   });
 
   if (!invite) throw new Error("Convite não encontrado.");
-  if (invite.usedBy) throw new Error("Este convite já foi utilizado.");
+  if (!invite.isActive) throw new Error("Este convite foi desativado.");
   if (invite.expiresAt < new Date()) throw new Error("Este convite expirou.");
+  if (invite.maxUses && invite.useCount >= invite.maxUses) {
+    throw new Error("Este convite atingiu o número máximo de utilizações.");
+  }
+
+  // Check if user already used this invite
+  const alreadyUsed = await prisma.leagueInviteUsage.findUnique({
+    where: { inviteId_userId: { inviteId: invite.id, userId: user.id } },
+  });
+
+  // Check if already a member
+  const existingMembership = await prisma.leagueMembership.findUnique({
+    where: { userId_leagueId: { userId: user.id, leagueId: invite.leagueId } },
+  });
+
+  if (existingMembership?.status === "APPROVED") {
+    return { leagueId: invite.leagueId, alreadyMember: true };
+  }
 
   await prisma.$transaction(async (tx) => {
-    await tx.leagueInvite.update({
-      where: { id: invite.id },
-      data: { usedBy: user.id, usedAt: new Date() },
-    });
+    // Record usage (if not already used by this user)
+    if (!alreadyUsed) {
+      await tx.leagueInviteUsage.create({
+        data: { inviteId: invite.id, userId: user.id },
+      });
 
+      await tx.leagueInvite.update({
+        where: { id: invite.id },
+        data: { useCount: { increment: 1 } },
+      });
+    }
+
+    // Create or approve membership
     await tx.leagueMembership.upsert({
       where: { userId_leagueId: { userId: user.id, leagueId: invite.leagueId } },
       update: { status: "APPROVED" },
@@ -1225,7 +1252,87 @@ export async function acceptLeagueInvite(token: string) {
     });
   });
 
-  return { leagueId: invite.leagueId };
+  // Create ranking entries for active seasons
+  if (user.playerId) {
+    const activeSeasons = await prisma.season.findMany({
+      where: { leagueId: invite.leagueId, isActive: true },
+    });
+
+    for (const season of activeSeasons) {
+      await prisma.seasonRankingEntry.upsert({
+        where: {
+          seasonId_playerId: { seasonId: season.id, playerId: user.playerId },
+        },
+        update: {},
+        create: {
+          seasonId: season.id,
+          playerId: user.playerId,
+          pointsTotal: 0,
+          matchesPlayed: 0,
+          wins: 0,
+          draws: 0,
+          losses: 0,
+          setsWon: 0,
+          setsLost: 0,
+          setsDiff: 0,
+        },
+      });
+    }
+  }
+
+  revalidatePath(`/ligas/${invite.leagueId}`);
+  revalidatePath(`/ligas/${invite.leagueId}/membros`);
+  return { leagueId: invite.leagueId, alreadyMember: false };
+}
+
+export async function getLeagueInvites(leagueId: string) {
+  await requireLeagueManager(leagueId);
+
+  const invites = await prisma.leagueInvite.findMany({
+    where: { leagueId },
+    orderBy: { createdAt: "desc" },
+    include: {
+      _count: { select: { usages: true } },
+    },
+  });
+
+  return serialize(invites);
+}
+
+export async function deactivateLeagueInvite(inviteId: string) {
+  const invite = await prisma.leagueInvite.findUnique({
+    where: { id: inviteId },
+  });
+
+  if (!invite) throw new Error("Convite não encontrado.");
+  await requireLeagueManager(invite.leagueId);
+
+  await prisma.leagueInvite.update({
+    where: { id: inviteId },
+    data: { isActive: false },
+  });
+
+  revalidatePath(`/ligas/${invite.leagueId}`);
+}
+
+export async function getInviteByToken(token: string) {
+  const invite = await prisma.leagueInvite.findUnique({
+    where: { token },
+    include: { league: { select: { id: true, name: true, location: true } } },
+  });
+
+  if (!invite) return null;
+
+  const isValid = invite.isActive &&
+    invite.expiresAt > new Date() &&
+    (!invite.maxUses || invite.useCount < invite.maxUses);
+
+  return serialize({
+    token: invite.token,
+    league: invite.league,
+    isValid,
+    expiresAt: invite.expiresAt,
+  });
 }
 
 export async function getLeaguePlayers(leagueId: string) {

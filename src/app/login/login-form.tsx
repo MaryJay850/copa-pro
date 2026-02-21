@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 import Link from "next/link";
 
-export function LoginForm() {
+export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -26,7 +26,7 @@ export function LoginForm() {
     if (result?.error) {
       setError("Email ou palavra-passe incorretos.");
     } else {
-      router.push("/dashboard");
+      router.push(callbackUrl || "/dashboard");
       router.refresh();
     }
     setLoading(false);
@@ -75,7 +75,10 @@ export function LoginForm() {
       </button>
       <p className="text-xs text-slate-500 text-center">
         Não tem conta?{" "}
-        <Link href="/registar" className="text-emerald-600 hover:underline font-medium">
+        <Link
+          href={callbackUrl ? `/registar?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/registar"}
+          className="text-emerald-600 hover:underline font-medium"
+        >
           Criar conta
         </Link>
       </p>

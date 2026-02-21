@@ -3,9 +3,13 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "./login-form";
 import Link from "next/link";
 
-export default async function LoginPage() {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ callbackUrl?: string; registered?: string }> }) {
   const session = await auth();
-  if (session?.user) redirect("/dashboard");
+  const { callbackUrl, registered } = await searchParams;
+
+  if (session?.user) {
+    redirect(callbackUrl || "/dashboard");
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -18,7 +22,12 @@ export default async function LoginPage() {
           </Link>
           <p className="text-sm text-slate-500 mt-1">Iniciar sessão</p>
         </div>
-        <LoginForm />
+        {registered && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 mb-4 text-center">
+            <p className="text-sm text-emerald-700">Conta criada com sucesso! Faça login.</p>
+          </div>
+        )}
+        <LoginForm callbackUrl={callbackUrl} />
       </div>
     </div>
   );
