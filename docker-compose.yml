@@ -26,7 +26,7 @@ services:
     environment:
       DATABASE_URL: postgresql://copapro:copapro_secret@db:5432/copapro
       NODE_ENV: production
-      RUN_SEED: "true"
+      RUN_SEED: "false"
     depends_on:
       db:
         condition: service_healthy

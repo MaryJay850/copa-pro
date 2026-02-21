@@ -10,23 +10,15 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log("Seeding database...");
 
-  // Clean up in a single transaction (order matters for foreign keys)
-  await prisma.$transaction([
-    prisma.seasonRankingEntry.deleteMany(),
-    prisma.match.deleteMany(),
-    prisma.round.deleteMany(),
-    prisma.court.deleteMany(),
-    prisma.team.deleteMany(),
-    prisma.tournament.deleteMany(),
-    prisma.season.deleteMany(),
-    prisma.leagueInvite.deleteMany(),
-    prisma.leagueMembership.deleteMany(),
-    prisma.leagueManager.deleteMany(),
-    prisma.user.deleteMany(),
-    prisma.player.deleteMany(),
-    prisma.league.deleteMany(),
-  ]);
-  console.log("Cleaned existing data");
+  // Safety check: skip seed if real data already exists
+  const existingLeagues = await prisma.league.count();
+  if (existingLeagues > 0) {
+    console.log(`Database already has ${existingLeagues} league(s). Skipping seed to protect existing data.`);
+    console.log("To force re-seed, manually delete all data first.");
+    return;
+  }
+
+  console.log("Empty database detected, seeding with test data...");
 
   // Create League
   const league = await prisma.league.create({
