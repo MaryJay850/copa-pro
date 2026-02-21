@@ -95,5 +95,24 @@ if [ -n "$ADMIN_EMAIL" ]; then
   " 2>&1
 fi
 
+# ── Setup cron for email notifications ──
+if [ -n "$SMTP_USER" ] && [ -n "$SMTP_PASS" ]; then
+  echo "==> A configurar cron para notificacoes por email..."
+
+  # Export env vars to a file that cron jobs can source
+  env | grep -E '^(DATABASE_URL|SMTP_|APP_URL|NODE_PATH|PATH|TZ)=' > /app/.cron-env
+
+  # Write crontab — run daily at 8:00 AM
+  echo "0 8 * * * . /app/.cron-env && tsx /app/scripts/cron-notifications.ts >> /var/log/cron-notifications.log 2>&1" > /tmp/crontab
+  crontab /tmp/crontab
+  rm /tmp/crontab
+
+  # Start crond in background
+  crond -b -l 8
+  echo "==> Cron ativo (diariamente as 8h)"
+else
+  echo "==> SMTP nao configurado, cron de notificacoes desativado"
+fi
+
 echo "==> A iniciar servidor Next.js..."
-exec node server.js
+exec su-exec nextjs node server.js

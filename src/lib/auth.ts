@@ -8,6 +8,7 @@ declare module "next-auth" {
   interface User {
     role: UserRole;
     playerId: string | null;
+    mustChangePassword: boolean;
   }
 }
 
@@ -16,6 +17,7 @@ declare module "@auth/core/jwt" {
     id: string;
     role: UserRole;
     playerId: string | null;
+    mustChangePassword: boolean;
   }
 }
 
@@ -50,6 +52,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           role: user.role,
           playerId: user.playerId,
+          mustChangePassword: user.mustChangePassword,
         };
       },
     }),
@@ -60,23 +63,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         token.id = user.id!;
         token.role = (user as { role: UserRole }).role;
         token.playerId = (user as { playerId: string | null }).playerId;
+        token.mustChangePassword = (user as { mustChangePassword: boolean }).mustChangePassword;
       } else {
-        // Re-fetch role from DB (ensures admin changes propagate)
+        // Re-fetch from DB (ensures admin changes and password changes propagate)
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id },
-          select: { role: true, playerId: true },
+          select: { role: true, playerId: true, mustChangePassword: true },
         });
         if (dbUser) {
           token.role = dbUser.role;
           token.playerId = dbUser.playerId;
+          token.mustChangePassword = dbUser.mustChangePassword;
         }
       }
       return token;
     },
     async session({ session, token }) {
       session.user.id = token.id;
-      (session.user as { role: UserRole }).role = token.role;
-      (session.user as { playerId: string | null }).playerId = token.playerId;
+      (session.user as any).role = token.role;
+      (session.user as any).playerId = token.playerId;
+      (session.user as any).mustChangePassword = token.mustChangePassword;
       return session;
     },
   },

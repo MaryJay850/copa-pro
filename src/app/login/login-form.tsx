@@ -26,6 +26,19 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
     if (result?.error) {
       setError("Email ou palavra-passe incorretos.");
     } else {
+      // Check if user must change password
+      try {
+        const sessionRes = await fetch("/api/auth/session");
+        const sessionData = await sessionRes.json();
+        if (sessionData?.user?.mustChangePassword) {
+          router.push("/alterar-password");
+          router.refresh();
+          setLoading(false);
+          return;
+        }
+      } catch {
+        // If session check fails, proceed normally
+      }
       router.push(callbackUrl || "/dashboard");
       router.refresh();
     }
@@ -60,6 +73,11 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
           placeholder="••••••••"
         />
+        <div className="text-right mt-1">
+          <Link href="/recuperar-password" className="text-xs text-emerald-600 hover:underline">
+            Esqueceu a palavra-passe?
+          </Link>
+        </div>
       </div>
       {error && (
         <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

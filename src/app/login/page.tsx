@@ -3,11 +3,14 @@ import { redirect } from "next/navigation";
 import { LoginForm } from "./login-form";
 import Link from "next/link";
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ callbackUrl?: string; registered?: string }> }) {
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ callbackUrl?: string; registered?: string; passwordChanged?: string }> }) {
   const session = await auth();
-  const { callbackUrl, registered } = await searchParams;
+  const { callbackUrl, registered, passwordChanged } = await searchParams;
 
   if (session?.user) {
+    if ((session.user as any).mustChangePassword) {
+      redirect("/alterar-password");
+    }
     redirect(callbackUrl || "/dashboard");
   }
 
@@ -25,6 +28,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         {registered && (
           <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 mb-4 text-center">
             <p className="text-sm text-emerald-700">Conta criada com sucesso! Faça login.</p>
+          </div>
+        )}
+        {passwordChanged && (
+          <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 mb-4 text-center">
+            <p className="text-sm text-emerald-700">Palavra-passe alterada com sucesso! Faça login.</p>
           </div>
         )}
         <LoginForm callbackUrl={callbackUrl} />

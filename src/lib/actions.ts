@@ -6,6 +6,14 @@ import { computeMatchContribution, validateMatchScores, determineResult } from "
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { requireAuth, requireAdmin, requireLeagueManager } from "./auth-guards";
+import { sendEmail } from "./email";
+import {
+  welcomeEmail,
+  inscriptionConfirmationEmail,
+  substitutePromotedEmail,
+  tournamentFinishedEmail,
+  leagueInviteLinkEmail,
+} from "./email-templates";
 
 // Helper: strip Prisma Date objects → plain JSON-safe objects
 // Converts Date → string (ISO), BigInt → string, etc.
@@ -217,6 +225,29 @@ export async function createTournament(data: {
           status: i < maxTitulars ? "TITULAR" : "SUPLENTE",
         },
       });
+    }
+
+    // Send inscription confirmation emails (fire-and-forget)
+    const league = await prisma.league.findUnique({ where: { id: data.leagueId } });
+    for (let i = 0; i < data.allPlayerIds.length; i++) {
+      const player = await prisma.player.findUnique({
+        where: { id: data.allPlayerIds[i] },
+        include: { user: true },
+      });
+      if (player?.user?.email) {
+        const status = i < maxTitulars ? "TITULAR" as const : "SUPLENTE" as const;
+        sendEmail({
+          to: player.user.email,
+          subject: `CopaPro: Inscrição no torneio ${data.name}`,
+          html: inscriptionConfirmationEmail({
+            playerName: player.fullName,
+            tournamentName: data.name,
+            leagueName: league?.name || "",
+            status,
+            orderIndex: status === "SUPLENTE" ? i - maxTitulars + 1 : undefined,
+          }),
+        });
+      }
     }
   }
 
@@ -586,6 +617,25 @@ export async function desistPlayer(tournamentId: string, playerId: string) {
         where: { id: team.id },
         data: updateData,
       });
+
+      // Send promotion email to the substitute (fire-and-forget)
+      const promotedPlayer = await prisma.player.findUnique({
+        where: { id: nextSuplente.playerId },
+        include: { user: true },
+      });
+      if (promotedPlayer?.user?.email) {
+        const league = await prisma.league.findUnique({ where: { id: tournament.leagueId } });
+        sendEmail({
+          to: promotedPlayer.user.email,
+          subject: `CopaPro: Foi promovido a titular no torneio ${tournament.name}!`,
+          html: substitutePromotedEmail({
+            playerName: promotedPlayer.fullName,
+            tournamentName: tournament.name,
+            leagueName: league?.name || "",
+            teamName: team.name,
+          }),
+        });
+      }
     }
   }
 
@@ -718,6 +768,71 @@ export async function finishTournament(tournamentId: string) {
     where: { id: tournamentId },
     data: { status: "FINISHED" },
   });
+
+  // ── Email: notify all participants with final standings ──
+  try {
+    const fullTournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: {
+        league: { select: { name: true } },
+        teams: { include: { player1: true, player2: true } },
+        matches: true,
+        inscriptions: {
+          where: { status: { in: ["TITULAR", "PROMOVIDO"] } },
+          include: { player: { include: { user: { select: { email: true } } } } },
+        },
+      },
+    });
+
+    if (fullTournament) {
+      // Compute standings per team
+      const teamStats = new Map<string, { name: string; points: number; wins: number; losses: number }>();
+      for (const team of fullTournament.teams) {
+        teamStats.set(team.id, { name: team.name, points: 0, wins: 0, losses: 0 });
+      }
+      for (const m of fullTournament.matches) {
+        if (m.status !== "FINISHED") continue;
+        const sA = teamStats.get(m.teamAId!);
+        const sB = teamStats.get(m.teamBId!);
+        // Count sets won
+        const sets: { a: number; b: number }[] = [];
+        if (m.set1A !== null && m.set1B !== null) sets.push({ a: m.set1A, b: m.set1B });
+        if (m.set2A !== null && m.set2B !== null) sets.push({ a: m.set2A, b: m.set2B });
+        if (m.set3A !== null && m.set3B !== null) sets.push({ a: m.set3A, b: m.set3B });
+        let setsA = 0, setsB = 0;
+        for (const s of sets) { if (s.a > s.b) setsA++; else if (s.b > s.a) setsB++; }
+        if (sA) { sA.points += setsA * 2; }
+        if (sB) { sB.points += setsB * 2; }
+        if (m.resultType === "WIN_A") { if (sA) { sA.points += 3; sA.wins++; } if (sB) { sB.losses++; } }
+        else if (m.resultType === "WIN_B") { if (sB) { sB.points += 3; sB.wins++; } if (sA) { sA.losses++; } }
+      }
+      const rankings = [...teamStats.values()]
+        .sort((a, b) => b.points - a.points)
+        .map((t, i) => ({ position: i + 1, teamName: t.name, points: t.points, wins: t.wins, losses: t.losses }));
+
+      const appUrl = process.env.APP_URL || "https://copapro.bitclever.pt";
+      const tournamentUrl = `${appUrl}/torneios/${tournamentId}`;
+
+      for (const ins of fullTournament.inscriptions) {
+        const email = ins.player?.user?.email;
+        if (email) {
+          sendEmail({
+            to: email,
+            subject: `Torneio terminado: ${fullTournament.name}`,
+            html: tournamentFinishedEmail({
+              playerName: ins.player.fullName,
+              tournamentName: fullTournament.name,
+              leagueName: fullTournament.league.name,
+              rankings,
+              tournamentUrl,
+            }),
+          });
+        }
+      }
+    }
+  } catch (emailErr) {
+    console.error("Failed to send tournament finished emails:", emailErr);
+  }
 
   revalidatePath(`/torneios/${tournamentId}`);
 }
@@ -1162,6 +1277,70 @@ export async function registerUser(formData: FormData) {
       },
     });
   });
+
+  // Send welcome email (fire-and-forget)
+  sendEmail({
+    to: email,
+    subject: "Bem-vindo ao CopaPro!",
+    html: welcomeEmail({ fullName, email }),
+  });
+}
+
+// ── Password Recovery ──
+
+export async function requestPasswordRecovery(email: string) {
+  const trimmedEmail = email?.trim()?.toLowerCase();
+  if (!trimmedEmail) return { success: true };
+
+  const user = await prisma.user.findUnique({
+    where: { email: trimmedEmail },
+    include: { player: true },
+  });
+
+  // Always return success (no information leakage about email existence)
+  if (!user) return { success: true };
+
+  // Generate random 8-char temporary password
+  const crypto = await import("crypto");
+  const tempPassword = crypto.randomBytes(4).toString("hex");
+  const hashedPassword = await bcrypt.hash(tempPassword, 12);
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { hashedPassword, mustChangePassword: true },
+  });
+
+  // Send recovery email (fire-and-forget)
+  const { sendEmail } = await import("./email");
+  const { passwordRecoveryEmail } = await import("./email-templates");
+  sendEmail({
+    to: user.email,
+    subject: "CopaPro: Recuperação de palavra-passe",
+    html: passwordRecoveryEmail({
+      fullName: user.player?.fullName || user.email,
+      tempPassword,
+    }),
+  });
+
+  return { success: true };
+}
+
+export async function changePassword(formData: FormData) {
+  const user = await requireAuth();
+  const newPassword = formData.get("newPassword") as string;
+
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error("A nova palavra-passe deve ter pelo menos 6 caracteres.");
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 12);
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { hashedPassword, mustChangePassword: false },
+  });
+
+  revalidatePath("/");
+  return { success: true };
 }
 
 // ────────────────────────────────────────
@@ -1323,6 +1502,33 @@ export async function createLeagueInvite(leagueId: string, maxUses?: number) {
       maxUses: maxUses || null, // null = unlimited
     },
   });
+
+  // ── Email: send invite link to the manager who created it ──
+  try {
+    const manager = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { email: true, player: { select: { fullName: true } } },
+    });
+    const league = await prisma.league.findUnique({
+      where: { id: leagueId },
+      select: { name: true },
+    });
+    if (manager?.email && league) {
+      const appUrl = process.env.APP_URL || "https://copapro.bitclever.pt";
+      sendEmail({
+        to: manager.email,
+        subject: `Link de convite criado: ${league.name}`,
+        html: leagueInviteLinkEmail({
+          managerName: manager.player?.fullName || manager.email,
+          leagueName: league.name,
+          inviteUrl: `${appUrl}/convite/${invite.token}`,
+          expiresAt: invite.expiresAt.toLocaleDateString("pt-PT", { day: "2-digit", month: "long", year: "numeric" }),
+        }),
+      });
+    }
+  } catch (emailErr) {
+    console.error("Failed to send invite link email:", emailErr);
+  }
 
   return { token: invite.token };
 }

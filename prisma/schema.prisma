@@ -34,8 +34,9 @@ model User {
   id             String   @id @default(cuid())
   email          String   @unique
   phone          String   @default("")
-  hashedPassword String
-  role           UserRole @default(JOGADOR)
+  hashedPassword     String
+  mustChangePassword Boolean  @default(false)
+  role               UserRole @default(JOGADOR)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

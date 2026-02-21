@@ -30,8 +30,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install netcat for TCP health checks
-RUN apk add --no-cache netcat-openbsd
+# Install netcat, cron, timezone data, and su-exec for privilege dropping
+RUN apk add --no-cache netcat-openbsd dcron tzdata su-exec
+ENV TZ=Europe/Lisbon
 
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
@@ -49,10 +50,15 @@ COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY --from=builder /app/generated ./generated
 
+# Copy cron scripts and email modules (needed for cron notifications)
+COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /app/src/lib/email.ts ./src/lib/email.ts
+COPY --from=builder /app/src/lib/email-templates.ts ./src/lib/email-templates.ts
+
 # Install runtime deps in a separate directory to avoid conflicts with standalone node_modules
 RUN mkdir -p /app/runtime_deps && cd /app/runtime_deps && \
     npm init -y > /dev/null 2>&1 && \
-    npm install prisma@7 @prisma/adapter-pg@7 pg postgres-array dotenv seedrandom bcryptjs 2>&1 && \
+    npm install prisma@7 @prisma/adapter-pg@7 pg postgres-array dotenv seedrandom bcryptjs nodemailer 2>&1 && \
     npm install -g tsx 2>&1
 
 ENV NODE_PATH="/app/runtime_deps/node_modules"
@@ -62,7 +68,9 @@ COPY docker-entrypoint.sh ./docker-entrypoint.sh
 RUN chmod +x ./docker-entrypoint.sh
 
 RUN chown -R nextjs:nodejs /app
-USER nextjs
+
+# NOTE: No USER nextjs here — crond requires root.
+# The entrypoint uses su-exec to drop to nextjs for the Node.js server.
 
 EXPOSE 3000
 
