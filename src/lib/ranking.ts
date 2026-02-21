@@ -25,8 +25,8 @@ export interface MatchData {
   resultType: string;
   teamAId: string;
   teamBId: string;
-  teamA: { player1Id: string; player2Id: string };
-  teamB: { player1Id: string; player2Id: string };
+  teamA: { player1Id: string; player2Id: string | null };
+  teamB: { player1Id: string; player2Id: string | null };
 }
 
 export interface PlayerDelta {
@@ -124,8 +124,8 @@ export function computeMatchContribution(
   const totalA = setPointsA + matchPointsA;
   const totalB = setPointsB + matchPointsB;
 
-  const teamAPlayers = [match.teamA.player1Id, match.teamA.player2Id];
-  const teamBPlayers = [match.teamB.player1Id, match.teamB.player2Id];
+  const teamAPlayers = [match.teamA.player1Id, match.teamA.player2Id].filter(Boolean) as string[];
+  const teamBPlayers = [match.teamB.player1Id, match.teamB.player2Id].filter(Boolean) as string[];
 
   const deltas: PlayerDelta[] = [];
 

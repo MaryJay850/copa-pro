@@ -21,13 +21,13 @@ interface MatchCardProps {
       id: string;
       name: string;
       player1: { fullName: string; nickname: string | null };
-      player2: { fullName: string; nickname: string | null };
+      player2: { fullName: string; nickname: string | null } | null;
     };
     teamB: {
       id: string;
       name: string;
       player1: { fullName: string; nickname: string | null };
-      player2: { fullName: string; nickname: string | null };
+      player2: { fullName: string; nickname: string | null } | null;
     };
   };
   numberOfSets?: number;
@@ -103,14 +103,14 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true }: MatchCard
           <div>
             <div className="font-medium text-sm">{match.teamA.name}</div>
             <div className="text-xs text-text-muted">
-              {playerLabel(match.teamA.player1)} & {playerLabel(match.teamA.player2)}
+              {playerLabel(match.teamA.player1)}{match.teamA.player2 && ` & ${playerLabel(match.teamA.player2)}`}
             </div>
           </div>
           <div className="text-lg font-bold text-text-muted">vs</div>
           <div className="text-right">
             <div className="font-medium text-sm">{match.teamB.name}</div>
             <div className="text-xs text-text-muted">
-              {playerLabel(match.teamB.player1)} & {playerLabel(match.teamB.player2)}
+              {playerLabel(match.teamB.player1)}{match.teamB.player2 && ` & ${playerLabel(match.teamB.player2)}`}
             </div>
           </div>
         </div>

@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { TournamentActions } from "./actions-client";
+import { PlayerManagement } from "@/components/player-management";
 
 const statusLabels: Record<
   string,
@@ -70,8 +71,9 @@ export default async function TournamentPage({
           <h1 className="text-2xl font-bold">{tournament.name}</h1>
           <Badge variant={s.variant}>{s.label}</Badge>
         </div>
-        <div className="flex gap-4 mt-2 text-sm text-text-muted">
-          <span>{tournament.teams.length} equipas</span>
+        <div className="flex gap-4 mt-2 text-sm text-text-muted flex-wrap">
+          <span>{tournament.teamSize === 1 ? "1v1" : "2v2"}</span>
+          <span>{tournament.teams.length} {tournament.teamSize === 1 ? "jogadores" : "equipas"}</span>
           <span>
             {tournament.courtsCount}{" "}
             {tournament.courtsCount === 1 ? "campo" : "campos"}
@@ -99,6 +101,14 @@ export default async function TournamentPage({
         />
       )}
 
+      {/* Player Management - only for managers when inscriptions exist */}
+      {canManage && tournament.inscriptions && tournament.inscriptions.length > 0 && (
+        <PlayerManagement
+          tournamentId={tournament.id}
+          inscriptions={tournament.inscriptions}
+        />
+      )}
+
       {/* Teams overview */}
       <Card>
         <CardHeader>
@@ -113,15 +123,63 @@ export default async function TournamentPage({
               <span className="font-medium">{team.name}</span>
               <span className="text-text-muted text-xs">
                 {team.player1.nickname ||
-                  team.player1.fullName.split(" ")[0]}{" "}
-                &amp;{" "}
-                {team.player2.nickname ||
-                  team.player2.fullName.split(" ")[0]}
+                  team.player1.fullName.split(" ")[0]}
+                {team.player2 && (
+                  <>
+                    {" "}&amp;{" "}
+                    {team.player2.nickname ||
+                      team.player2.fullName.split(" ")[0]}
+                  </>
+                )}
               </span>
             </div>
           ))}
         </div>
       </Card>
+
+      {/* Suplentes */}
+      {tournament.inscriptions && tournament.inscriptions.length > 0 && (
+        (() => {
+          const suplentes = tournament.inscriptions.filter(
+            (i: any) => i.status === "SUPLENTE" || i.status === "PROMOVIDO" || i.status === "DESISTIU"
+          );
+          if (suplentes.length === 0) return null;
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle>Inscrições</CardTitle>
+              </CardHeader>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {tournament.inscriptions.map((insc: any, idx: number) => (
+                  <div
+                    key={insc.id}
+                    className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm ${
+                      insc.status === "DESISTIU" ? "bg-red-50 line-through text-text-muted" : "bg-surface-alt"
+                    }`}
+                  >
+                    <span className={insc.status === "DESISTIU" ? "text-text-muted" : "font-medium"}>
+                      {insc.player.nickname || insc.player.fullName.split(" ")[0]}
+                    </span>
+                    <Badge
+                      variant={
+                        insc.status === "TITULAR" ? "success"
+                          : insc.status === "PROMOVIDO" ? "success"
+                          : insc.status === "SUPLENTE" ? "warning"
+                          : "default"
+                      }
+                    >
+                      {insc.status === "TITULAR" ? "Titular"
+                        : insc.status === "PROMOVIDO" ? "Promovido"
+                        : insc.status === "SUPLENTE" ? `Suplente #${idx - tournament.inscriptions.filter((x: any) => x.status === "TITULAR" || x.status === "PROMOVIDO").length + 1}`
+                        : "Desistiu"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          );
+        })()
+      )}
 
       {/* Schedule by rounds */}
       {tournament.rounds.length === 0 ? (

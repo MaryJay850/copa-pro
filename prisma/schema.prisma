@@ -21,6 +21,13 @@ enum MembershipStatus {
   REJECTED
 }
 
+enum InscriptionStatus {
+  TITULAR
+  SUPLENTE
+  DESISTIU
+  PROMOVIDO
+}
+
 // ── Auth Models ──
 
 model User {
@@ -143,9 +150,10 @@ model Player {
   createdAt DateTime @default(now())
 
   user           User?
-  teamsAsPlayer1 Team[]               @relation("Player1")
-  teamsAsPlayer2 Team[]               @relation("Player2")
+  teamsAsPlayer1 Team[]                  @relation("Player1")
+  teamsAsPlayer2 Team[]                  @relation("Player2")
   rankings       SeasonRankingEntry[]
+  inscriptions   TournamentInscription[]
 
   @@map("players")
 }
@@ -166,12 +174,13 @@ model Tournament {
   randomSeed     String?
   createdAt      DateTime  @default(now())
 
-  league  League  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  season  Season  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  teams   Team[]
-  courts  Court[]
-  rounds  Round[]
-  matches Match[]
+  league       League                  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  season       Season                  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  teams        Team[]
+  courts       Court[]
+  rounds       Round[]
+  matches      Match[]
+  inscriptions TournamentInscription[]
 
   @@map("tournaments")
 }
@@ -181,12 +190,12 @@ model Team {
   tournamentId      String
   name              String
   player1Id         String
-  player2Id         String
+  player2Id         String?
   isRandomGenerated Boolean @default(false)
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   player1    Player     @relation("Player1", fields: [player1Id], references: [id])
-  player2    Player     @relation("Player2", fields: [player2Id], references: [id])
+  player2    Player?    @relation("Player2", fields: [player2Id], references: [id])
   matchesAsA Match[]    @relation("TeamA")
   matchesAsB Match[]    @relation("TeamB")
   matchesWon Match[]    @relation("Winner")
@@ -247,6 +256,22 @@ model Match {
   winner     Team?      @relation("Winner", fields: [winnerTeamId], references: [id])
 
   @@map("matches")
+}
+
+model TournamentInscription {
+  id           String            @id @default(cuid())
+  tournamentId String
+  playerId     String
+  orderIndex   Int
+  status       InscriptionStatus @default(TITULAR)
+  replacesId   String?
+  createdAt    DateTime          @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player     Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([tournamentId, playerId])
+  @@map("tournament_inscriptions")
 }
 
 model SeasonRankingEntry {

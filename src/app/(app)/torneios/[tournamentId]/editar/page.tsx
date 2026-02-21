@@ -23,25 +23,34 @@ export default async function EditTournamentPage({
 
   const allPlayers = await getLeagueMembersAsPlayers(tournament.leagueId);
 
-  // Build the selectedPlayerIds from the existing teams
-  const selectedPlayerIds = tournament.teams.flatMap((t) => [
-    t.player1Id,
-    t.player2Id,
-  ]);
+  // Build selectionOrder from inscriptions (ordered by orderIndex) or fallback to teams
+  const selectionOrder = tournament.inscriptions && tournament.inscriptions.length > 0
+    ? tournament.inscriptions.map((i: any) => i.playerId)
+    : tournament.teams.flatMap((t: any) => [t.player1Id, t.player2Id].filter(Boolean));
+
+  const selectedPlayerIds = selectionOrder;
+
+  // Extract court names
+  const courtNames = tournament.courts
+    ? tournament.courts.map((c: any) => c.name)
+    : Array.from({ length: tournament.courtsCount }, (_, i) => `Campo ${i + 1}`);
 
   const initialData = {
     name: tournament.name,
     courtsCount: tournament.courtsCount,
+    courtNames,
     matchesPerPair: tournament.matchesPerPair,
     numberOfSets: tournament.numberOfSets,
+    teamSize: tournament.teamSize ?? 2,
     teamMode: tournament.teamMode,
     randomSeed: tournament.randomSeed ?? undefined,
-    teams: tournament.teams.map((t) => ({
+    teams: tournament.teams.map((t: any) => ({
       name: t.name,
       player1Id: t.player1Id,
       player2Id: t.player2Id,
     })),
     selectedPlayerIds,
+    selectionOrder,
   };
 
   return (

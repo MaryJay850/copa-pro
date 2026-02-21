@@ -154,13 +154,19 @@ export async function createTournament(data: {
   seasonId: string;
   name: string;
   courtsCount: number;
+  courtNames?: string[];
   matchesPerPair: number;
   numberOfSets: number;
+  teamSize?: number;
   teamMode: string;
   randomSeed?: string;
-  teams: { name: string; player1Id: string; player2Id: string }[];
+  teams: { name: string; player1Id: string; player2Id: string | null }[];
+  allPlayerIds?: string[];
 }) {
   await requireLeagueManager(data.leagueId);
+
+  const teamSize = data.teamSize ?? 2;
+  const maxTitulars = data.courtsCount * 2 * teamSize;
 
   const tournament = await prisma.tournament.create({
     data: {
@@ -170,35 +176,48 @@ export async function createTournament(data: {
       courtsCount: data.courtsCount,
       matchesPerPair: data.matchesPerPair,
       numberOfSets: data.numberOfSets,
+      teamSize,
       teamMode: data.teamMode,
       randomSeed: data.randomSeed || null,
       status: "DRAFT",
     },
   });
 
-  // Create courts
+  // Create courts with custom names
   for (let i = 0; i < data.courtsCount; i++) {
     await prisma.court.create({
       data: {
         tournamentId: tournament.id,
-        name: `Campo ${i + 1}`,
+        name: data.courtNames?.[i] || `Campo ${i + 1}`,
       },
     });
   }
 
   // Create teams
-  const createdTeams = [];
   for (const t of data.teams) {
-    const team = await prisma.team.create({
+    await prisma.team.create({
       data: {
         tournamentId: tournament.id,
         name: t.name,
         player1Id: t.player1Id,
-        player2Id: t.player2Id,
+        player2Id: t.player2Id || null,
         isRandomGenerated: data.teamMode === "RANDOM_TEAMS",
       },
     });
-    createdTeams.push(team);
+  }
+
+  // Create inscriptions (titulars + suplentes)
+  if (data.allPlayerIds && data.allPlayerIds.length > 0) {
+    for (let i = 0; i < data.allPlayerIds.length; i++) {
+      await prisma.tournamentInscription.create({
+        data: {
+          tournamentId: tournament.id,
+          playerId: data.allPlayerIds[i],
+          orderIndex: i,
+          status: i < maxTitulars ? "TITULAR" : "SUPLENTE",
+        },
+      });
+    }
   }
 
   return tournament;
@@ -364,6 +383,10 @@ export async function getTournament(id: string) {
           },
         },
       },
+      inscriptions: {
+        orderBy: { orderIndex: "asc" },
+        include: { player: true },
+      },
     },
   });
   return serialize(result);
@@ -493,6 +516,81 @@ export async function updateTeamName(teamId: string, name: string) {
   });
 
   revalidatePath(`/torneios/${team.tournamentId}`);
+}
+
+// ── Desistência / Substituição automática ──
+
+export async function desistPlayer(tournamentId: string, playerId: string) {
+  // 1. Validate permissions
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    include: { teams: true },
+  });
+  if (!tournament) throw new Error("Torneio não encontrado.");
+  await requireLeagueManager(tournament.leagueId);
+
+  // 2. Find the player's inscription (must be TITULAR or PROMOVIDO)
+  const inscription = await prisma.tournamentInscription.findUnique({
+    where: { tournamentId_playerId: { tournamentId, playerId } },
+  });
+  if (!inscription) throw new Error("Jogador não está inscrito neste torneio.");
+  if (inscription.status !== "TITULAR" && inscription.status !== "PROMOVIDO") {
+    throw new Error("Jogador não está como titular neste torneio.");
+  }
+
+  // 3. Mark as DESISTIU
+  await prisma.tournamentInscription.update({
+    where: { id: inscription.id },
+    data: { status: "DESISTIU" },
+  });
+
+  // 4. Find next SUPLENTE (FIFO by orderIndex)
+  const nextSuplente = await prisma.tournamentInscription.findFirst({
+    where: { tournamentId, status: "SUPLENTE" },
+    orderBy: { orderIndex: "asc" },
+  });
+
+  if (nextSuplente) {
+    // 5a. Promote the substitute
+    await prisma.tournamentInscription.update({
+      where: { id: nextSuplente.id },
+      data: { status: "PROMOVIDO", replacesId: inscription.id },
+    });
+
+    // 5b. Find the team of the desisting player and replace
+    const team = tournament.teams.find(
+      (t) => t.player1Id === playerId || t.player2Id === playerId
+    );
+
+    if (team) {
+      const isPlayer1 = team.player1Id === playerId;
+      const updateData: any = {};
+
+      if (isPlayer1) {
+        updateData.player1Id = nextSuplente.playerId;
+      } else {
+        updateData.player2Id = nextSuplente.playerId;
+      }
+
+      // For 1v1, also update team name
+      if (tournament.teamSize === 1) {
+        const substitutePlayer = await prisma.player.findUnique({
+          where: { id: nextSuplente.playerId },
+        });
+        if (substitutePlayer) {
+          updateData.name = substitutePlayer.nickname || substitutePlayer.fullName.split(" ")[0];
+        }
+      }
+
+      await prisma.team.update({
+        where: { id: team.id },
+        data: updateData,
+      });
+    }
+  }
+
+  revalidatePath(`/torneios/${tournamentId}`);
+  return { success: true, promoted: nextSuplente ? true : false };
 }
 
 // ── Ranking recomputation ──
@@ -656,7 +754,12 @@ export async function getTournamentForEdit(tournamentId: string) {
       teams: {
         include: { player1: true, player2: true },
       },
+      courts: { orderBy: { name: "asc" } },
       matches: { select: { status: true } },
+      inscriptions: {
+        orderBy: { orderIndex: "asc" },
+        include: { player: true },
+      },
     },
   });
 
@@ -675,11 +778,14 @@ export async function updateTournament(data: {
   tournamentId: string;
   name: string;
   courtsCount: number;
+  courtNames?: string[];
   matchesPerPair: number;
   numberOfSets: number;
+  teamSize?: number;
   teamMode: string;
   randomSeed?: string;
-  teams: { name: string; player1Id: string; player2Id: string }[];
+  teams: { name: string; player1Id: string; player2Id: string | null }[];
+  allPlayerIds?: string[];
 }) {
   const existing = await prisma.tournament.findUnique({
     where: { id: data.tournamentId },
@@ -697,12 +803,16 @@ export async function updateTournament(data: {
     throw new Error("Não é possível editar um torneio terminado.");
   }
 
+  const teamSize = data.teamSize ?? 2;
+  const maxTitulars = data.courtsCount * 2 * teamSize;
+
   await prisma.$transaction(async (tx) => {
-    // Clear existing schedule and teams
+    // Clear existing schedule, teams, and inscriptions
     await tx.match.deleteMany({ where: { tournamentId: data.tournamentId } });
     await tx.round.deleteMany({ where: { tournamentId: data.tournamentId } });
     await tx.team.deleteMany({ where: { tournamentId: data.tournamentId } });
     await tx.court.deleteMany({ where: { tournamentId: data.tournamentId } });
+    await tx.tournamentInscription.deleteMany({ where: { tournamentId: data.tournamentId } });
 
     // Update tournament config
     await tx.tournament.update({
@@ -712,18 +822,19 @@ export async function updateTournament(data: {
         courtsCount: data.courtsCount,
         matchesPerPair: data.matchesPerPair,
         numberOfSets: data.numberOfSets,
+        teamSize,
         teamMode: data.teamMode,
         randomSeed: data.randomSeed || null,
         status: "DRAFT",
       },
     });
 
-    // Recreate courts
+    // Recreate courts with custom names
     for (let i = 0; i < data.courtsCount; i++) {
       await tx.court.create({
         data: {
           tournamentId: data.tournamentId,
-          name: `Campo ${i + 1}`,
+          name: data.courtNames?.[i] || `Campo ${i + 1}`,
         },
       });
     }
@@ -735,10 +846,24 @@ export async function updateTournament(data: {
           tournamentId: data.tournamentId,
           name: t.name,
           player1Id: t.player1Id,
-          player2Id: t.player2Id,
+          player2Id: t.player2Id || null,
           isRandomGenerated: data.teamMode === "RANDOM_TEAMS",
         },
       });
+    }
+
+    // Recreate inscriptions
+    if (data.allPlayerIds && data.allPlayerIds.length > 0) {
+      for (let i = 0; i < data.allPlayerIds.length; i++) {
+        await tx.tournamentInscription.create({
+          data: {
+            tournamentId: data.tournamentId,
+            playerId: data.allPlayerIds[i],
+            orderIndex: i,
+            status: i < maxTitulars ? "TITULAR" : "SUPLENTE",
+          },
+        });
+      }
     }
   });
 
@@ -1619,8 +1744,13 @@ export async function getLandingPageData() {
     if (m.set2A !== null && m.set2B !== null) scores.push(`${m.set2A}-${m.set2B}`);
     if (m.set3A !== null && m.set3B !== null) scores.push(`${m.set3A}-${m.set3B}`);
 
-    const teamAName = `${(m.teamA.player1.nickname || m.teamA.player1.fullName.split(" ")[0])} / ${(m.teamA.player2.nickname || m.teamA.player2.fullName.split(" ")[0])}`;
-    const teamBName = `${(m.teamB.player1.nickname || m.teamB.player1.fullName.split(" ")[0])} / ${(m.teamB.player2.nickname || m.teamB.player2.fullName.split(" ")[0])}`;
+    const p1A = m.teamA.player1.nickname || m.teamA.player1.fullName.split(" ")[0];
+    const p2A = m.teamA.player2 ? (m.teamA.player2.nickname || m.teamA.player2.fullName.split(" ")[0]) : null;
+    const teamAName = p2A ? `${p1A} / ${p2A}` : p1A;
+
+    const p1B = m.teamB.player1.nickname || m.teamB.player1.fullName.split(" ")[0];
+    const p2B = m.teamB.player2 ? (m.teamB.player2.nickname || m.teamB.player2.fullName.split(" ")[0]) : null;
+    const teamBName = p2B ? `${p1B} / ${p2B}` : p1B;
 
     return {
       teamA: teamAName,
