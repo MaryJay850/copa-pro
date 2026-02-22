@@ -8,6 +8,11 @@ export const metadata: Metadata = {
   title: "CopaPro - Gestão de Ligas de Padel",
   description: "Crie e gira torneios de padel com Round Robin, equipas de 2 e rankings individuais por época.",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/icons/icon-192.png",
+    shortcut: "/icons/icon-192.png",
+    apple: "/icons/icon-192.png",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",

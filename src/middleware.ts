@@ -23,6 +23,11 @@ export function middleware(request: NextRequest) {
   const isApi = pathname.startsWith("/api/");
   const isNextInternal = pathname.startsWith("/_next/");
 
+  // ── Static public files — skip middleware entirely ──
+  const isStaticPublicFile = /^\/(manifest\.json|sw\.js|robots\.txt|sitemap\.xml|favicon\.ico)$/.test(pathname)
+    || pathname.startsWith("/icons/");
+  if (isStaticPublicFile) return NextResponse.next();
+
   // ── Public routes — always accessible (no auth required) ──
   const publicPaths = ["/", "/login", "/registar", "/api/auth", "/recuperar-password", "/alterar-password", "/convite", "/api/stripe/webhook", "/api/stripe/debug-prices"];
   const isPublic = publicPaths.some(
