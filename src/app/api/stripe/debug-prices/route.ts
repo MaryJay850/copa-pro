@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getStripe, getStripePrices } from "@/lib/stripe";
+import { getStripe, getStripePricesFromEnv } from "@/lib/stripe";
 
 /**
  * DEBUG ONLY — remove after verifying prices.
@@ -9,7 +9,7 @@ import { getStripe, getStripePrices } from "@/lib/stripe";
 export async function GET() {
   try {
     const stripe = getStripe();
-    const prices = getStripePrices();
+    const prices = getStripePricesFromEnv();
 
     const results: Record<string, unknown> = {};
 

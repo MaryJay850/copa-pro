@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { getUserPlanLimits } from "@/lib/plan-guards";
 import { getSubscriptionInfo, syncPlanFromStripe } from "@/lib/stripe-actions";
+import { getActivePlanPrices, seedDefaultPlanPrices } from "@/lib/actions/plan-price-actions";
 import { PlansPanel } from "./plans-panel";
 
 export const dynamic = "force-dynamic";
@@ -21,9 +22,13 @@ export default async function PlansPage({
     await syncPlanFromStripe();
   }
 
-  const [{ plan }, subInfo] = await Promise.all([
+  // Seed default prices if table is empty
+  await seedDefaultPlanPrices();
+
+  const [{ plan }, subInfo, planPrices] = await Promise.all([
     getUserPlanLimits(),
     getSubscriptionInfo(),
+    getActivePlanPrices(),
   ]);
 
   return (
@@ -40,6 +45,7 @@ export default async function PlansPage({
         userEmail={session.user.email ?? ""}
         showSuccess={params.success === "true"}
         showCancelled={params.cancelled === "true"}
+        planPrices={planPrices}
       />
     </div>
   );

@@ -14,77 +14,68 @@ import {
   type SubscriptionInfo,
 } from "@/lib/stripe-actions";
 import { sanitizeError } from "@/lib/error-utils";
+import type { PlanPriceRow } from "@/lib/actions/plan-price-actions";
 
 type Plan = "FREE" | "PRO" | "CLUB";
 
-const PLANS = [
-  {
-    id: "FREE" as Plan,
-    name: "Free",
-    description: "Para experimentar e ligas pequenas",
-    priceMonthly: "0€",
-    priceYearly: null,
-    features: [
-      "1 liga",
-      "1 época ativa",
-      "2 torneios por época",
-      "Até 8 equipas por torneio",
-      "Até 2 campos",
-      "Ranking individual completo",
-      "Registo de resultados",
-      "Perfil de jogador",
-      "Dashboard com filtros",
-      "Dark mode",
-    ],
-  },
-  {
-    id: "PRO" as Plan,
-    name: "Pro",
-    description: "Para gestores de liga sérios",
-    priceMonthly: "4,99€",
-    priceYearly: "39,99€",
-    popular: true,
-    features: [
-      "Tudo do Free, mais:",
-      "Torneios e épocas ilimitadas",
-      "Equipas e campos ilimitados",
-      "Equipas aleatórias com seed",
-      "Double Round Robin",
-      "Sistema Elo completo + gráfico",
-      "Head-to-Head entre jogadores",
-      "Submissão de resultados por jogadores",
-      "Calendário de disponibilidade",
-      "Substituição automática de jogadores",
-      "Export PDF e iCalendar",
-      "Notificações em tempo real",
-      "Clonagem de torneios e épocas",
-    ],
-  },
-  {
-    id: "CLUB" as Plan,
-    name: "Club",
-    description: "Para clubes e organizações",
-    priceMonthly: "14,99€",
-    priceYearly: "119,99€",
-    features: [
-      "Tudo do Pro, mais:",
-      "Ligas ilimitadas",
-      "Integração WhatsApp automática",
-      "Grupo WhatsApp com sync bidirecional",
-      "Mensagens automáticas (resultados, rankings)",
-      "Import CSV de jogadores",
-      "Painel de administração completo",
-      "Analytics avançados com gráficos",
-      "Registo de auditoria",
-      "Configurações do sistema",
-      "Gestão de múltiplos gestores",
-      "Horários de campos personalizados",
-      "Suporte prioritário",
-    ],
-  },
-];
+// Features list per plan (static — display only)
+const PLAN_FEATURES: Record<Plan, string[]> = {
+  FREE: [
+    "1 liga",
+    "1 época ativa",
+    "2 torneios por época",
+    "Até 8 equipas por torneio",
+    "Até 2 campos",
+    "Ranking individual completo",
+    "Registo de resultados",
+    "Perfil de jogador",
+    "Dashboard com filtros",
+    "Dark mode",
+  ],
+  PRO: [
+    "Tudo do Free, mais:",
+    "Torneios e épocas ilimitadas",
+    "Equipas e campos ilimitados",
+    "Equipas aleatórias com seed",
+    "Double Round Robin",
+    "Sistema Elo completo + gráfico",
+    "Head-to-Head entre jogadores",
+    "Submissão de resultados por jogadores",
+    "Calendário de disponibilidade",
+    "Substituição automática de jogadores",
+    "Export PDF e iCalendar",
+    "Notificações em tempo real",
+    "Clonagem de torneios e épocas",
+  ],
+  CLUB: [
+    "Tudo do Pro, mais:",
+    "Ligas ilimitadas",
+    "Integração WhatsApp automática",
+    "Grupo WhatsApp com sync bidirecional",
+    "Mensagens automáticas (resultados, rankings)",
+    "Import CSV de jogadores",
+    "Painel de administração completo",
+    "Analytics avançados com gráficos",
+    "Registo de auditoria",
+    "Configurações do sistema",
+    "Gestão de múltiplos gestores",
+    "Horários de campos personalizados",
+    "Suporte prioritário",
+  ],
+};
+
+const PLAN_META: Record<Plan, { name: string; description: string; popular?: boolean }> = {
+  FREE: { name: "Free", description: "Para experimentar e ligas pequenas" },
+  PRO: { name: "Pro", description: "Para gestores de liga sérios", popular: true },
+  CLUB: { name: "Club", description: "Para clubes e organizações" },
+};
 
 const planOrder: Plan[] = ["FREE", "PRO", "CLUB"];
+
+/** Format amount as Euro string: 4.99 → "4,99€" */
+function formatEuro(amount: number): string {
+  return amount.toFixed(2).replace(".", ",") + "€";
+}
 
 export function PlansPanel({
   currentPlan,
@@ -92,12 +83,14 @@ export function PlansPanel({
   userEmail,
   showSuccess,
   showCancelled,
+  planPrices,
 }: {
   currentPlan: Plan;
   subscriptionInfo: SubscriptionInfo;
   userEmail: string;
   showSuccess?: boolean;
   showCancelled?: boolean;
+  planPrices: PlanPriceRow[];
 }) {
   const [interval, setInterval] = useState<"month" | "year">(
     subscriptionInfo.interval ?? "month"
@@ -117,6 +110,22 @@ export function PlansPanel({
       router.replace("/planos");
     }
   }, [showSuccess, showCancelled, router]);
+
+  // ── Price helpers ──
+
+  /** Get dynamic price for a plan + interval */
+  const getPrice = (plan: Plan, int: "month" | "year"): PlanPriceRow | undefined =>
+    planPrices.find((p) => p.plan === plan && p.interval === int);
+
+  /** Get display price string */
+  const getPriceDisplay = (plan: Plan, displayInterval: "month" | "year"): string => {
+    if (plan === "FREE") return "0€";
+    const price = getPrice(plan, displayInterval);
+    if (!price) return "—";
+    return formatEuro(price.amount);
+  };
+
+  // ── State ──
 
   const currentIndex = planOrder.indexOf(currentPlan);
   const subInterval = subscriptionInfo.interval;
@@ -195,6 +204,7 @@ export function PlansPanel({
    */
   function getButtonConfig(planId: Plan, displayInterval: "month" | "year") {
     const planIndex = planOrder.indexOf(planId);
+    const meta = PLAN_META[planId];
 
     // FREE card
     if (planId === "FREE") {
@@ -222,7 +232,7 @@ export function PlansPanel({
     // Paid plan card — user is FREE
     if (currentPlan === "FREE") {
       return {
-        label: `Subscrever ${PLANS.find(p => p.id === planId)?.name}`,
+        label: `Subscrever ${meta.name}`,
         disabled: false,
         variant: "default" as const,
         action: () => handleUpgrade(planId as "PRO" | "CLUB", displayInterval),
@@ -259,7 +269,7 @@ export function PlansPanel({
     // Different plan — upgrade
     if (planIndex > currentIndex) {
       return {
-        label: `Upgrade para ${PLANS.find(p => p.id === planId)?.name}`,
+        label: `Upgrade para ${meta.name}`,
         disabled: false,
         variant: "default" as const,
         action: () => handleUpgrade(planId as "PRO" | "CLUB", displayInterval),
@@ -293,7 +303,7 @@ export function PlansPanel({
           <div className="flex items-center gap-3">
             <span className="text-sm text-text-muted">Plano atual:</span>
             <Badge variant="success" className="text-sm">
-              {PLANS.find((p) => p.id === currentPlan)?.name ?? currentPlan}
+              {PLAN_META[currentPlan]?.name ?? currentPlan}
               {hasActiveSub && subInterval && (
                 <span className="ml-1 opacity-75">
                   ({subInterval === "year" ? "Anual" : "Mensal"})
@@ -326,7 +336,7 @@ export function PlansPanel({
         )}
         {isCancelPending && (
           <p className="text-xs text-amber-600 dark:text-amber-400">
-            A subscrição foi cancelada mas mantém acesso ao plano {PLANS.find((p) => p.id === currentPlan)?.name} até {formatDate(subscriptionInfo.currentPeriodEnd)}.
+            A subscrição foi cancelada mas mantém acesso ao plano {PLAN_META[currentPlan]?.name} até {formatDate(subscriptionInfo.currentPeriodEnd)}.
             Após essa data, será automaticamente alterado para o plano Free.
           </p>
         )}
@@ -339,7 +349,7 @@ export function PlansPanel({
             Tem a certeza que deseja cancelar a subscrição?
           </p>
           <p className="text-xs text-amber-600 dark:text-amber-400/80">
-            Manterá o acesso ao plano {PLANS.find((p) => p.id === currentPlan)?.name} até ao
+            Manterá o acesso ao plano {PLAN_META[currentPlan]?.name} até ao
             fim do período de faturação atual
             {subscriptionInfo.currentPeriodEnd && (
               <> ({formatDate(subscriptionInfo.currentPeriodEnd)})</>
@@ -393,20 +403,22 @@ export function PlansPanel({
 
       {/* Plan cards */}
       <div className="grid lg:grid-cols-3 gap-6">
-        {PLANS.map((plan) => {
+        {planOrder.map((planId) => {
+          const meta = PLAN_META[planId];
+          const features = PLAN_FEATURES[planId];
           const isCurrentExact =
-            plan.id === currentPlan &&
-            (plan.id === "FREE" || subInterval === interval);
-          const btnConfig = getButtonConfig(plan.id, interval);
+            planId === currentPlan &&
+            (planId === "FREE" || subInterval === interval);
+          const btnConfig = getButtonConfig(planId, interval);
 
           return (
             <Card
-              key={plan.id}
+              key={planId}
               className={`p-6 flex flex-col ${
-                plan.popular ? "ring-2 ring-primary shadow-lg" : ""
+                meta.popular ? "ring-2 ring-primary shadow-lg" : ""
               } ${isCurrentExact ? "bg-primary/5" : ""}`}
             >
-              {plan.popular && (
+              {meta.popular && (
                 <div className="flex justify-center -mt-9 mb-3">
                   <Badge variant="success" className="text-xs font-bold px-3 py-1">
                     Popular
@@ -415,17 +427,15 @@ export function PlansPanel({
               )}
 
               <div className="mb-4">
-                <h3 className="text-lg font-bold text-text-primary">{plan.name}</h3>
-                <p className="text-sm text-text-muted mt-1">{plan.description}</p>
+                <h3 className="text-lg font-bold text-text-primary">{meta.name}</h3>
+                <p className="text-sm text-text-muted mt-1">{meta.description}</p>
               </div>
 
               <div className="mb-6">
                 <span className="text-3xl font-extrabold text-text-primary">
-                  {interval === "year" && plan.priceYearly
-                    ? plan.priceYearly
-                    : plan.priceMonthly}
+                  {getPriceDisplay(planId, interval)}
                 </span>
-                {plan.id !== "FREE" && (
+                {planId !== "FREE" && (
                   <span className="text-sm text-text-muted">
                     /{interval === "year" ? "ano" : "mês"}
                   </span>
@@ -433,9 +443,9 @@ export function PlansPanel({
               </div>
 
               <ul className="space-y-2 text-sm text-text-secondary mb-6 flex-1">
-                {plan.features.map((feature, i) => (
+                {features.map((feature, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    {i === 0 && plan.id !== "FREE" ? (
+                    {i === 0 && planId !== "FREE" ? (
                       <span className="text-primary font-bold text-xs mt-0.5">★</span>
                     ) : (
                       <svg
@@ -454,7 +464,7 @@ export function PlansPanel({
                     )}
                     <span
                       className={
-                        i === 0 && plan.id !== "FREE" ? "font-semibold text-primary" : ""
+                        i === 0 && planId !== "FREE" ? "font-semibold text-primary" : ""
                       }
                     >
                       {feature}

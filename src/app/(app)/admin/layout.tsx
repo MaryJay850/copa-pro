@@ -42,6 +42,12 @@ export default async function AdminLayout({
             Analytics
           </Link>
           <Link
+            href="/admin/planos"
+            className="py-3 border-b-2 border-transparent text-text-muted hover:text-text hover:border-primary transition-colors"
+          >
+            Planos
+          </Link>
+          <Link
             href="/admin/auditoria"
             className="py-3 border-b-2 border-transparent text-text-muted hover:text-text hover:border-primary transition-colors"
           >

@@ -419,6 +419,23 @@ model SystemSetting {
   @@map("system_settings")
 }
 
+// ── Plan Prices (admin-configurable) ──
+
+model PlanPrice {
+  id            String           @id @default(cuid())
+  plan          SubscriptionPlan
+  interval      String           // "month" | "year"
+  amount        Float            // e.g. 4.99, 14.99
+  currency      String           @default("eur")
+  stripePriceId String           @default("")
+  active        Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([plan, interval])
+  @@map("plan_prices")
+}
+
 // ── Court Time Slots ──
 
 model CourtTimeSlot {

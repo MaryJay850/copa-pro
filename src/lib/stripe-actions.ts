@@ -1,6 +1,7 @@
 "use server";
 
-import { getStripe, getStripePrices } from "./stripe";
+import { getStripe, getStripePricesFromEnv } from "./stripe";
+import { getStripePriceId as getStripePriceIdFromDB } from "./actions/plan-price-actions";
 import { prisma } from "./db";
 import { requireAuth } from "./auth-guards";
 import type { SubscriptionPlan } from "../../generated/prisma/enums";
@@ -100,16 +101,20 @@ export async function createCheckoutSession(
     });
   }
 
-  // Resolve price ID
-  const prices = getStripePrices();
-  const priceKey = `${plan}_${interval === "month" ? "MONTHLY" : "YEARLY"}` as keyof ReturnType<typeof getStripePrices>;
-  const priceId = prices[priceKey];
+  // Resolve price ID — first from DB, fallback to env vars
+  let priceId = await getStripePriceIdFromDB(plan, interval);
   if (!priceId) {
-    console.error(`[STRIPE] Preço não configurado: STRIPE_PRICE_${priceKey}`);
-    throw new Error("Erro ao processar o plano. Por favor contacte o suporte.");
+    // Fallback to env vars for backward compatibility
+    const envPrices = getStripePricesFromEnv();
+    const priceKey = `${plan}_${interval === "month" ? "MONTHLY" : "YEARLY"}` as keyof ReturnType<typeof getStripePricesFromEnv>;
+    priceId = envPrices[priceKey] || null;
+  }
+  if (!priceId) {
+    console.error(`[STRIPE] Preço não configurado para ${plan} ${interval}`);
+    throw new Error("Preço do plano não configurado. Por favor contacte o suporte.");
   }
 
-  console.log(`[STRIPE CHECKOUT] plan=${plan}, interval=${interval}, priceKey=${priceKey}, priceId=${priceId}`);
+  console.log(`[STRIPE CHECKOUT] plan=${plan}, interval=${interval}, priceId=${priceId}`);
 
   const session = await getStripe().checkout.sessions.create({
     customer: customerId,

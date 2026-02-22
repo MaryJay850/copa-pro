@@ -105,7 +105,7 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
   },
 };
 
-// ── Plan display info ──
+// ── Plan display info (static fallback — dynamic prices come from plan_prices table) ──
 export const PLAN_INFO: Record<SubscriptionPlan, { name: string; price: string; priceYearly: string }> = {
   FREE: { name: "Free", price: "0€", priceYearly: "0€" },
   PRO: { name: "Pro", price: "4,99€/mês", priceYearly: "39,99€/ano" },

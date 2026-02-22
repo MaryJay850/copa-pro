@@ -16,8 +16,8 @@ export function getStripe(): Stripe {
   return _stripe;
 }
 
-// Price IDs — read at runtime, not at import time
-export function getStripePrices() {
+// Legacy fallback — reads from env vars (used only if DB has no prices)
+export function getStripePricesFromEnv() {
   return {
     PRO_MONTHLY: process.env.STRIPE_PRICE_PRO_MONTHLY ?? "",
     PRO_YEARLY: process.env.STRIPE_PRICE_PRO_YEARLY ?? "",
