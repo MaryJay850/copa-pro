@@ -29,7 +29,7 @@ export function middleware(request: NextRequest) {
   if (isStaticPublicFile) return NextResponse.next();
 
   // ── Public routes — always accessible (no auth required) ──
-  const publicPaths = ["/", "/login", "/registar", "/api/auth", "/recuperar-password", "/alterar-password", "/convite", "/api/stripe/webhook", "/api/stripe/debug-prices"];
+  const publicPaths = ["/", "/login", "/registar", "/api/auth", "/recuperar-password", "/alterar-password", "/convite", "/api/stripe/webhook", "/api/stripe/debug-prices", "/api/debug"];
   const isPublic = publicPaths.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
   );
