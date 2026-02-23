@@ -1539,6 +1539,106 @@ export async function updateTournament(data: {
   return { tournamentId: data.tournamentId };
 }
 
+/**
+ * Lightweight tournament update — preserves existing schedule (matches, rounds).
+ * Only updates basic fields, court names, and team compositions.
+ * Use when no structural changes require schedule regeneration.
+ */
+export async function updateTournamentBasic(data: {
+  tournamentId: string;
+  name: string;
+  startDate?: string;
+  numberOfSets: number;
+  courtNames?: string[];
+  teams: { name: string; player1Id: string; player2Id: string | null }[];
+  allPlayerIds?: string[];
+}) {
+  const existing = await prisma.tournament.findUnique({
+    where: { id: data.tournamentId },
+    include: {
+      courts: { orderBy: { id: "asc" } },
+      teams: {
+        where: { roundId: null }, // Only non-per-round teams
+        orderBy: { id: "asc" },
+      },
+    },
+  });
+
+  if (!existing) throw new Error("Torneio não encontrado.");
+  await requireLeagueManager(existing.leagueId);
+
+  if (existing.status === "FINISHED") {
+    throw new Error("Não é possível editar um torneio terminado.");
+  }
+
+  await prisma.$transaction(async (tx) => {
+    // 1. Update tournament basic fields
+    await tx.tournament.update({
+      where: { id: data.tournamentId },
+      data: {
+        name: data.name,
+        startDate: data.startDate ? new Date(data.startDate + "T00:00:00") : null,
+        numberOfSets: data.numberOfSets,
+      },
+    });
+
+    // 2. Update court names (match existing courts by index)
+    if (data.courtNames && existing.courts.length > 0) {
+      for (let i = 0; i < existing.courts.length; i++) {
+        if (data.courtNames[i] && data.courtNames[i] !== existing.courts[i].name) {
+          await tx.court.update({
+            where: { id: existing.courts[i].id },
+            data: { name: data.courtNames[i] },
+          });
+        }
+      }
+    }
+
+    // 3. Update team compositions (match existing teams by index)
+    if (data.teams.length > 0 && existing.teams.length > 0) {
+      const updateCount = Math.min(data.teams.length, existing.teams.length);
+      for (let i = 0; i < updateCount; i++) {
+        const newTeam = data.teams[i];
+        const existingTeam = existing.teams[i];
+        if (
+          newTeam.name !== existingTeam.name ||
+          newTeam.player1Id !== existingTeam.player1Id ||
+          newTeam.player2Id !== existingTeam.player2Id
+        ) {
+          await tx.team.update({
+            where: { id: existingTeam.id },
+            data: {
+              name: newTeam.name,
+              player1Id: newTeam.player1Id,
+              player2Id: newTeam.player2Id || null,
+            },
+          });
+        }
+      }
+    }
+
+    // 4. Update inscriptions order if players changed positions
+    if (data.allPlayerIds && data.allPlayerIds.length > 0) {
+      const maxTitulars = existing.courtsCount * 2 * (existing.teamSize ?? 2);
+      // Delete and recreate inscriptions to update order
+      await tx.tournamentInscription.deleteMany({ where: { tournamentId: data.tournamentId } });
+      for (let i = 0; i < data.allPlayerIds.length; i++) {
+        await tx.tournamentInscription.create({
+          data: {
+            tournamentId: data.tournamentId,
+            playerId: data.allPlayerIds[i],
+            orderIndex: i,
+            status: i < maxTitulars ? "TITULAR" : "SUPLENTE",
+          },
+        });
+      }
+    }
+  });
+
+  revalidatePath(`/torneios/${data.tournamentId}`);
+  return { tournamentId: data.tournamentId };
+}
+
 // ── Homepage data ──
 
 export async function getHomepageData() {

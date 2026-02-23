@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, FieldLabel } from "@/components/ui/tooltip";
-import { createTournament, generateSchedule, updateTournament } from "@/lib/actions";
+import { createTournament, generateSchedule, updateTournament, updateTournamentBasic } from "@/lib/actions";
 import { sanitizeError } from "@/lib/error-utils";
 
 interface Player {
@@ -207,6 +207,19 @@ export function TournamentWizard({
     });
   };
 
+  // Detect if structural changes require schedule regeneration (only relevant in edit mode)
+  const needsRegeneration = !editMode ? true : (
+    courtsCount !== editMode.initialData.courtsCount ||
+    matchesPerPair !== editMode.initialData.matchesPerPair ||
+    (teamSize === 1 ? "FIXED_TEAMS" : teamMode) !== editMode.initialData.teamMode ||
+    teamSize !== editMode.initialData.teamSize ||
+    (teamMode === "RANDOM_PER_ROUND" && numberOfRounds !== editMode.initialData.numberOfRounds) ||
+    (["RANDOM_TEAMS", "RANDOM_PER_ROUND"].includes(teamMode) && randomSeed !== editMode.initialData.randomSeed) ||
+    // Player set changed (added/removed players)
+    selectionOrder.length !== editMode.initialData.selectedPlayerIds.length ||
+    !selectionOrder.every((id) => editMode.initialData.selectedPlayerIds.includes(id))
+  );
+
   const handleSubmit = async () => {
     // For RANDOM_PER_ROUND, skip team validation — teams are generated server-side
     if (teamMode !== "RANDOM_PER_ROUND" && teams.length > 0) {
@@ -245,9 +258,23 @@ export function TournamentWizard({
       };
 
       if (editMode) {
-        await updateTournament({ tournamentId: editMode.tournamentId, ...payload });
-        const hasTeamsOrPerRound = teams.length > 0 || teamMode === "RANDOM_PER_ROUND";
-        if (hasTeamsOrPerRound) await generateSchedule(editMode.tournamentId);
+        if (needsRegeneration) {
+          // Structural change: full reset + regenerate schedule
+          await updateTournament({ tournamentId: editMode.tournamentId, ...payload });
+          const hasTeamsOrPerRound = teams.length > 0 || teamMode === "RANDOM_PER_ROUND";
+          if (hasTeamsOrPerRound) await generateSchedule(editMode.tournamentId);
+        } else {
+          // Light update: preserve existing schedule
+          await updateTournamentBasic({
+            tournamentId: editMode.tournamentId,
+            name,
+            startDate: startDate || undefined,
+            numberOfSets,
+            courtNames,
+            teams,
+            allPlayerIds: selectionOrder,
+          });
+        }
         router.push(`/torneios/${editMode.tournamentId}`);
       } else {
         const tournament = await createTournament({ leagueId, seasonId, ...payload });
@@ -651,13 +678,19 @@ export function TournamentWizard({
             <Button variant="ghost" onClick={() => setStep(teams.length === 0 && teamMode !== "RANDOM_PER_ROUND" ? 2 : (skipsTeamStep ? 2 : 3))}>Anterior</Button>
             <Button onClick={handleSubmit} disabled={loading}>
               {loading
-                ? (editMode ? "A guardar..." : "A criar torneio...")
+                ? (editMode ? (needsRegeneration ? "A regenerar..." : "A guardar...") : "A criar torneio...")
                 : (editMode
-                    ? (teams.length > 0 || teamMode === "RANDOM_PER_ROUND" ? "Guardar e Regenerar Calendário" : "Guardar Alterações")
+                    ? (needsRegeneration ? "Guardar e Regenerar Calendário" : "Guardar Alterações")
                     : (teams.length > 0 || teamMode === "RANDOM_PER_ROUND" ? "Criar Torneio e Gerar Calendário" : "Criar Torneio")
                   )
               }
             </Button>
+            {editMode && !needsRegeneration && (
+              <span className="text-xs text-emerald-600 self-center">O calendário existente será preservado</span>
+            )}
+            {editMode && needsRegeneration && (teams.length > 0 || teamMode === "RANDOM_PER_ROUND") && (
+              <span className="text-xs text-amber-600 self-center">O calendário será regenerado</span>
+            )}
           </div>
         </Card>
       )}
