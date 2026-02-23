@@ -242,20 +242,21 @@ export function validateMatchScores(
   allowDraws: boolean,
   numberOfSets: number = 3
 ): string | null {
-  const isValidScore = (s: number | null) => s === null || (Number.isInteger(s) && s >= 0 && s <= 7);
+  const isValidScore = (s: number | null) => s === null || (Number.isInteger(s) && s >= 0 && s <= 99);
 
   if (!isValidScore(set1A) || !isValidScore(set1B) ||
       !isValidScore(set2A) || !isValidScore(set2B) ||
       !isValidScore(set3A) || !isValidScore(set3B)) {
-    return "Pontuação inválida. Valores permitidos: 0-7.";
+    return "Pontuação inválida. Valores permitidos: 0-99.";
   }
 
   // Set 1 is always required
   if (set1A === null || set1B === null) {
     return "O primeiro set é obrigatório.";
   }
-  if (set1A === set1B) {
-    return "Set 1: empate não é permitido num set.";
+  // Draws within a set: only allowed if allowDraws is enabled
+  if (set1A === set1B && !allowDraws) {
+    return "Set 1: empate não é permitido num set. Ative empates nas definições da época.";
   }
 
   // ── 1 Set format ──
@@ -263,7 +264,7 @@ export function validateMatchScores(
     if (set2A !== null || set2B !== null || set3A !== null || set3B !== null) {
       return "Este torneio é de 1 set. Não preencha o set 2 ou 3.";
     }
-    return null; // Valid: single set decides the match
+    return null; // Valid: single set decides the match (or draw if scores tied and allowDraws)
   }
 
   // ── 2 Sets or 3 Sets (Best of 3) ──
@@ -271,19 +272,20 @@ export function validateMatchScores(
   if (set2A === null || set2B === null) {
     return "O segundo set é obrigatório.";
   }
-  if (set2A === set2B) {
-    return "Set 2: empate não é permitido num set.";
+  if (set2A === set2B && !allowDraws) {
+    return "Set 2: empate não é permitido num set. Ative empates nas definições da época.";
   }
 
-  const s1Winner = set1A > set1B ? "A" : "B";
-  const s2Winner = set2A > set2B ? "A" : "B";
+  // Determine set winners (null if tied)
+  const s1Winner = set1A > set1B ? "A" : set1B > set1A ? "B" : null;
+  const s2Winner = set2A > set2B ? "A" : set2B > set2A ? "B" : null;
 
   // ── 2 Sets format (no 3rd set allowed) ──
   if (numberOfSets === 2) {
     if (set3A !== null || set3B !== null) {
       return "Este torneio é de 2 sets. Não preencha o 3º set.";
     }
-    // 2-0 or 0-2 → clear winner. 1-1 → draw (if allowed)
+    // If tied in sets and draws not allowed
     if (s1Winner !== s2Winner && !allowDraws) {
       return "Resultado empatado em sets (1-1). Ative empates nas definições da época.";
     }
@@ -292,23 +294,23 @@ export function validateMatchScores(
 
   // ── 3 Sets (Best of 3) ──
   // If same team won both sets → match decided, no set 3 needed
-  if (s1Winner === s2Winner) {
+  if (s1Winner !== null && s2Winner !== null && s1Winner === s2Winner) {
     if (set3A !== null || set3B !== null) {
       return "O jogo já está decidido em 2 sets. Não é necessário um 3º set.";
     }
     return null;
   }
 
-  // Split 1-1 → set 3 needed (or draw if allowed)
+  // Split 1-1 or ties → set 3 needed (or draw if allowed)
   if (set3A !== null && set3B !== null) {
-    if (set3A === set3B) {
-      return "Set 3: empate não é permitido num set.";
+    if (set3A === set3B && !allowDraws) {
+      return "Set 3: empate não é permitido num set. Ative empates nas definições da época.";
     }
     return null; // 3 sets played, match decided
   }
 
   if (allowDraws) {
-    return null; // Draw is allowed with 1-1
+    return null; // Draw is allowed
   }
   return "Resultado empatado em sets. Insira o 3º set ou ative empates nas definições da época.";
 }
@@ -329,17 +331,18 @@ export function determineResult(
   let setsA = 0;
   let setsB = 0;
 
+  // Count set wins (ties don't count as a win for either side)
   if (set1A > set1B) setsA++;
-  else setsB++;
+  else if (set1B > set1A) setsB++;
 
   if (numberOfSets >= 2 && set2A !== null && set2B !== null) {
     if (set2A > set2B) setsA++;
-    else setsB++;
+    else if (set2B > set2A) setsB++;
   }
 
   if (numberOfSets >= 3 && set3A !== null && set3B !== null) {
     if (set3A > set3B) setsA++;
-    else setsB++;
+    else if (set3B > set3A) setsB++;
   }
 
   if (setsA > setsB) return { resultType: "WIN_A", setsA, setsB };

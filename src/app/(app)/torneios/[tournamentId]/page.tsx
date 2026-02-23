@@ -103,7 +103,11 @@ export default async function TournamentPage({
             </span>
           )}
           <span>{tournament.teamSize === 1 ? "1v1" : "2v2"}</span>
-          <span>{tournament.teams.length} {tournament.teamSize === 1 ? "jogadores" : "equipas"}</span>
+          {tournament.teamMode === "RANDOM_PER_ROUND" ? (
+            <span>Aleatórias por Ronda ({tournament.numberOfRounds || tournament.rounds.length} rondas)</span>
+          ) : (
+            <span>{tournament.teams.length} {tournament.teamSize === 1 ? "jogadores" : "equipas"}</span>
+          )}
           <span>
             {tournament.courtsCount}{" "}
             {tournament.courtsCount === 1 ? "campo" : "campos"}
@@ -156,32 +160,68 @@ export default async function TournamentPage({
       )}
 
       {/* Teams overview */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Equipas</CardTitle>
-        </CardHeader>
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {tournament.teams.map((team) => (
-            <div
-              key={team.id}
-              className="flex items-center gap-2 px-3 py-2 bg-surface-alt rounded-lg text-sm"
-            >
-              <span className="font-medium">{team.name}</span>
-              <span className="text-text-muted text-xs">
-                {team.player1.nickname ||
-                  team.player1.fullName.split(" ")[0]}
-                {team.player2 && (
-                  <>
-                    {" "}&amp;{" "}
-                    {team.player2.nickname ||
-                      team.player2.fullName.split(" ")[0]}
-                  </>
-                )}
-              </span>
-            </div>
-          ))}
-        </div>
-      </Card>
+      {tournament.teamMode === "RANDOM_PER_ROUND" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Equipas Aleatórias por Ronda</CardTitle>
+          </CardHeader>
+          <div className="px-4 pb-4">
+            <p className="text-sm text-text-muted mb-3">
+              Cada ronda tem equipas diferentes geradas aleatoriamente.
+              {tournament.numberOfRounds && ` ${tournament.numberOfRounds} rondas configuradas.`}
+            </p>
+            {tournament.rounds.length > 0 ? (
+              <div className="space-y-3">
+                {tournament.rounds.map((round: any) => {
+                  const roundTeams = tournament.teams.filter((t: any) => t.roundId === round.id);
+                  if (roundTeams.length === 0) return null;
+                  return (
+                    <div key={round.id} className="border border-border rounded-lg p-3">
+                      <p className="text-sm font-medium mb-2">Ronda {round.index}</p>
+                      <div className="grid gap-1.5 sm:grid-cols-2">
+                        {roundTeams.map((team: any) => (
+                          <div key={team.id} className="flex items-center gap-2 px-2 py-1 bg-surface-alt rounded text-xs">
+                            <span className="font-medium">{team.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-text-muted">Equipas serão geradas ao publicar o calendário.</p>
+            )}
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Equipas</CardTitle>
+          </CardHeader>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {tournament.teams.map((team) => (
+              <div
+                key={team.id}
+                className="flex items-center gap-2 px-3 py-2 bg-surface-alt rounded-lg text-sm"
+              >
+                <span className="font-medium">{team.name}</span>
+                <span className="text-text-muted text-xs">
+                  {team.player1.nickname ||
+                    team.player1.fullName.split(" ")[0]}
+                  {team.player2 && (
+                    <>
+                      {" "}&amp;{" "}
+                      {team.player2.nickname ||
+                        team.player2.fullName.split(" ")[0]}
+                    </>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
 
       {/* Suplentes */}
       {tournament.inscriptions && tournament.inscriptions.length > 0 && (

@@ -36,8 +36,8 @@ export function CreateLeagueForm() {
 
   return (
     <form action={handleSubmit} className="bg-white rounded-xl border border-border p-4 space-y-3 max-w-md">
-      <Input name="name" label="Nome da Liga" placeholder="Ex: Liga Padel Lisboa" required />
-      <Input name="location" label="Localização (opcional)" placeholder="Ex: Lisboa, Portugal" />
+      <Input name="name" label="Nome da Liga" tooltip="Nome que identifica a liga. Ex: Liga Padel Lisboa" placeholder="Ex: Liga Padel Lisboa" required />
+      <Input name="location" label="Localização (opcional)" tooltip="Cidade ou local onde a liga se realiza. Aparece no perfil da liga." placeholder="Ex: Lisboa, Portugal" />
       <div className="flex gap-2">
         <Button type="submit" disabled={loading}>
           {loading ? "A criar..." : "Criar Liga"}

@@ -128,6 +128,76 @@ export function generateRoundRobinPairings(
 }
 
 /**
+ * Generate unique random teams for each round using 1-factorization of K_N.
+ *
+ * For N players (N even), the complete graph K_N has exactly N-1 perfect matchings
+ * (1-factors) that together cover all edges. Each 1-factor = 1 round of N/2 unique pairs.
+ * No pair of players repeats across rounds.
+ *
+ * Algorithm (circle/polygon method):
+ * 1. Fix player[0] in place.
+ * 2. Rotate the remaining N-1 players through positions.
+ * 3. In each rotation, pair position[i] with position[N-1-i].
+ * 4. Each rotation = 1 round with N/2 unique pairs.
+ *
+ * Returns `numberOfRounds` arrays of team pairs (max N-1 rounds).
+ */
+export function generateAllRoundTeams(
+  playerIds: string[],
+  numberOfRounds: number,
+  seed: string
+): { player1Id: string; player2Id: string }[][] {
+  const n = playerIds.length;
+  if (n < 4 || n % 2 !== 0) {
+    throw new Error("É necessário um número par de jogadores (mínimo 4) para gerar equipas por ronda.");
+  }
+
+  const maxRounds = n - 1;
+  const actualRounds = Math.min(numberOfRounds, maxRounds);
+
+  // Shuffle player order using seed for randomness
+  const rng = seedrandom(seed);
+  const shuffledIds = [...playerIds];
+  for (let i = shuffledIds.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [shuffledIds[i], shuffledIds[j]] = [shuffledIds[j], shuffledIds[i]];
+  }
+
+  // Build all N-1 rounds using circle method (1-factorization)
+  const slots = [...shuffledIds];
+  const allRounds: { player1Id: string; player2Id: string }[][] = [];
+
+  for (let r = 0; r < maxRounds; r++) {
+    const roundPairs: { player1Id: string; player2Id: string }[] = [];
+    for (let i = 0; i < n / 2; i++) {
+      const a = slots[i];
+      const b = slots[n - 1 - i];
+      // Consistent ordering: alphabetically smaller first
+      roundPairs.push(
+        a < b ? { player1Id: a, player2Id: b } : { player1Id: b, player2Id: a }
+      );
+    }
+    allRounds.push(roundPairs);
+
+    // Rotate: fix slots[0], shift the rest clockwise
+    const last = slots[n - 1];
+    for (let i = n - 1; i > 1; i--) {
+      slots[i] = slots[i - 1];
+    }
+    slots[1] = last;
+  }
+
+  // Shuffle the round order using seed (so different seeds give different round sequences)
+  for (let i = allRounds.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [allRounds[i], allRounds[j]] = [allRounds[j], allRounds[i]];
+  }
+
+  // Return only the requested number of rounds
+  return allRounds.slice(0, actualRounds);
+}
+
+/**
  * Generate random teams from a list of players.
  * Requires even number of players.
  */

@@ -7,6 +7,7 @@ import { createSeason } from "@/lib/actions";
 import { sanitizeError } from "@/lib/error-utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Tooltip } from "@/components/ui/tooltip";
 
 export function CreateSeasonForm({ leagueId }: { leagueId: string }) {
   const [open, setOpen] = useState(false);
@@ -39,9 +40,9 @@ export function CreateSeasonForm({ leagueId }: { leagueId: string }) {
 
   return (
     <form action={handleSubmit} className="bg-white rounded-xl border border-border p-4 space-y-3 max-w-md">
-      <Input name="name" label="Nome da Época" placeholder="Ex: Época 2026" required />
-      <Input name="startDate" label="Data de início (opcional)" type="date" />
-      <Input name="endDate" label="Data de fim (opcional)" type="date" />
+      <Input name="name" label="Nome da Época" tooltip="Nome identificador da época. Ex: Época 2026, Primavera 2026" placeholder="Ex: Época 2026" required />
+      <Input name="startDate" label="Data de início (opcional)" tooltip="Data em que a época começa. Ajuda a organizar épocas cronologicamente." type="date" />
+      <Input name="endDate" label="Data de fim (opcional)" tooltip="Data prevista para o fim da época." type="date" />
       <label className="flex items-center gap-2 text-sm cursor-pointer">
         <input
           type="checkbox"
@@ -50,6 +51,7 @@ export function CreateSeasonForm({ leagueId }: { leagueId: string }) {
           className="rounded border-border text-primary focus:ring-primary"
         />
         Permitir empates
+        <Tooltip text="Se ativo, os jogos podem terminar empatados. Caso contrário, é obrigatório haver um vencedor." />
       </label>
       <div className="flex gap-2">
         <Button type="submit" disabled={loading}>

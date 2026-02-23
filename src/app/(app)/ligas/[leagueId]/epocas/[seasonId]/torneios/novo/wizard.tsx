@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Tooltip, FieldLabel } from "@/components/ui/tooltip";
 import { createTournament, generateSchedule, updateTournament } from "@/lib/actions";
 import { sanitizeError } from "@/lib/error-utils";
 
@@ -21,7 +22,7 @@ interface TeamPair {
   player2Id: string | null;
 }
 
-type TeamMode = "FIXED_TEAMS" | "RANDOM_TEAMS" | "MANUAL_TEAMS";
+type TeamMode = "FIXED_TEAMS" | "RANDOM_TEAMS" | "MANUAL_TEAMS" | "RANDOM_PER_ROUND";
 
 export function TournamentWizard({
   leagueId,
@@ -43,6 +44,7 @@ export function TournamentWizard({
       teamMode: string;
       teamSize: number;
       randomSeed?: string;
+      numberOfRounds?: number;
       teams: { name: string; player1Id: string; player2Id: string | null }[];
       selectedPlayerIds: string[];
       courtNames?: string[];
@@ -68,6 +70,9 @@ export function TournamentWizard({
   const [teamMode, setTeamMode] = useState<TeamMode>(
     (editMode?.initialData.teamMode as TeamMode) ?? "FIXED_TEAMS"
   );
+  const [numberOfRounds, setNumberOfRounds] = useState(
+    editMode?.initialData.numberOfRounds ?? 3
+  );
 
   // Step 2 — ordered selection
   const [players] = useState<Player[]>(existingPlayers);
@@ -90,9 +95,14 @@ export function TournamentWizard({
   const titularPlayers = titularIds.map((id) => players.find((p) => p.id === id)!).filter(Boolean);
   const suplentePlayers = suplenteIds.map((id) => players.find((p) => p.id === id)!).filter(Boolean);
 
-  // Total steps: 1v1 skips step 3
-  const totalSteps = teamSize === 1 ? 3 : 4;
-  const reviewStep = teamSize === 1 ? 3 : 4;
+  // Max rounds for RANDOM_PER_ROUND: N-1 where N = number of titular players
+  // (1-factorization of complete graph K_N gives N-1 perfect matchings)
+  const maxPossibleRounds = Math.max(titularIds.length - 1, 1);
+
+  // Total steps: 1v1 skips step 3, RANDOM_PER_ROUND skips step 3
+  const skipsTeamStep = teamSize === 1 || teamMode === "RANDOM_PER_ROUND";
+  const totalSteps = skipsTeamStep ? 3 : 4;
+  const reviewStep = skipsTeamStep ? 3 : 4;
 
   // Compute unassigned players for MANUAL_TEAMS mode
   const assignedPlayerIds = new Set(teams.flatMap((t) => [t.player1Id, t.player2Id].filter(Boolean)));
@@ -196,8 +206,8 @@ export function TournamentWizard({
   };
 
   const handleSubmit = async () => {
-    // Only validate teams if there are any
-    if (teams.length > 0) {
+    // For RANDOM_PER_ROUND, skip team validation — teams are generated server-side
+    if (teamMode !== "RANDOM_PER_ROUND" && teams.length > 0) {
       const usedIds = new Set<string>();
       for (const t of teams) {
         if (!t.player1Id) { setError("Todos os lugares devem ser preenchidos."); return; }
@@ -216,6 +226,7 @@ export function TournamentWizard({
     setLoading(true);
     setError(null);
     try {
+      const effectiveTeamMode = teamSize === 1 ? "FIXED_TEAMS" : teamMode;
       const payload = {
         name,
         startDate: startDate || undefined,
@@ -224,19 +235,22 @@ export function TournamentWizard({
         matchesPerPair,
         numberOfSets,
         teamSize,
-        teamMode: teamSize === 1 ? "FIXED_TEAMS" : teamMode,
-        randomSeed: teamMode === "RANDOM_TEAMS" && teamSize === 2 ? randomSeed : undefined,
-        teams,
+        teamMode: effectiveTeamMode,
+        randomSeed: (teamMode === "RANDOM_TEAMS" || teamMode === "RANDOM_PER_ROUND") && teamSize === 2 ? randomSeed : undefined,
+        numberOfRounds: teamMode === "RANDOM_PER_ROUND" ? numberOfRounds : undefined,
+        teams: teamMode === "RANDOM_PER_ROUND" ? [] : teams,
         allPlayerIds: selectionOrder,
       };
 
       if (editMode) {
         await updateTournament({ tournamentId: editMode.tournamentId, ...payload });
-        if (teams.length > 0) await generateSchedule(editMode.tournamentId);
+        const hasTeamsOrPerRound = teams.length > 0 || teamMode === "RANDOM_PER_ROUND";
+        if (hasTeamsOrPerRound) await generateSchedule(editMode.tournamentId);
         router.push(`/torneios/${editMode.tournamentId}`);
       } else {
         const tournament = await createTournament({ leagueId, seasonId, ...payload });
-        if (teams.length > 0) await generateSchedule(tournament.id);
+        const hasTeamsOrPerRound = teams.length > 0 || teamMode === "RANDOM_PER_ROUND";
+        if (hasTeamsOrPerRound) await generateSchedule(tournament.id);
         router.push(`/torneios/${tournament.id}`);
       }
     } catch (e) {
@@ -267,7 +281,12 @@ export function TournamentWizard({
   };
 
   const teamModeLabel = (mode: string) => {
-    switch (mode) { case "RANDOM_TEAMS": return "Aleatórias"; case "MANUAL_TEAMS": return "Manuais"; default: return "Fixas"; }
+    switch (mode) {
+      case "RANDOM_TEAMS": return "Aleatórias";
+      case "MANUAL_TEAMS": return "Manuais";
+      case "RANDOM_PER_ROUND": return "Aleatórias por Ronda";
+      default: return "Fixas";
+    }
   };
 
   const handleStep2Next = () => {
@@ -283,9 +302,30 @@ export function TournamentWizard({
     if (teamSize === 2 && titularIds.length % 2 !== 0) {
       setError("O número de jogadores titulares deve ser par para modo 2v2."); return;
     }
+
+    // For RANDOM_PER_ROUND, ensure numberOfRounds is valid
+    if (teamMode === "RANDOM_PER_ROUND") {
+      if (numberOfRounds < 1 || numberOfRounds > maxPossibleRounds) {
+        setError(`O número de rondas deve ser entre 1 e ${maxPossibleRounds}.`);
+        return;
+      }
+    }
+
     setError(null);
-    if (teamSize === 1) { init1v1Teams(); setStep(reviewStep); }
-    else { if (teamMode === "RANDOM_TEAMS") generateRandomTeamsLocal(); else if (teamMode === "MANUAL_TEAMS") initManualTeams(); else initFixedTeams(); setStep(3); }
+
+    if (teamSize === 1) {
+      init1v1Teams();
+      setStep(reviewStep);
+    } else if (teamMode === "RANDOM_PER_ROUND") {
+      // Skip team formation — teams generated server-side per round
+      setTeams([]);
+      setStep(reviewStep);
+    } else {
+      if (teamMode === "RANDOM_TEAMS") generateRandomTeamsLocal();
+      else if (teamMode === "MANUAL_TEAMS") initManualTeams();
+      else initFixedTeams();
+      setStep(3);
+    }
   };
 
   const stepBars = Array.from({ length: totalSteps }, (_, i) => i + 1);
@@ -307,22 +347,23 @@ export function TournamentWizard({
         <Card>
           <h2 className="text-lg font-semibold mb-4">Passo 1: Informações Básicas</h2>
           <div className="space-y-4">
-            <Input label="Nome do Torneio" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Torneio Janeiro" required />
+            <Input label="Nome do Torneio" tooltip="Nome do torneio. Ex: Torneio Janeiro, Taça Verão" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Torneio Janeiro" required />
 
             <div>
-              <label className="block text-sm font-medium text-text mb-1">Data do Torneio</label>
+              <FieldLabel label="Data do Torneio" tooltip="Data em que o torneio será realizado." htmlFor="start-date" />
               <input
+                id="start-date"
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
                 required
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-text mb-1">Modo de Jogo</label>
-              <div className="flex gap-3">
+              <FieldLabel label="Modo de Jogo" tooltip="Pares (2v2): equipas de 2 jogadores. Individual (1v1): cada jogador joga sozinho." />
+              <div className="flex gap-3 mt-1">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
                   <input type="radio" checked={teamSize === 2} onChange={() => setTeamSize(2)} className="text-primary focus:ring-primary" />
                   Pares (2v2)
@@ -335,8 +376,8 @@ export function TournamentWizard({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-text mb-1">Número de Campos</label>
-              <select value={courtsCount} onChange={(e) => handleCourtsCountChange(parseInt(e.target.value))} className="w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20">
+              <FieldLabel label="Número de Campos" tooltip="Quantos campos disponíveis para jogar em simultâneo. Mais campos = mais jogos por ronda." htmlFor="courts-count" />
+              <select id="courts-count" value={courtsCount} onChange={(e) => handleCourtsCountChange(parseInt(e.target.value))} className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20">
                 {[1, 2, 3, 4, 5, 6].map((n) => (
                   <option key={n} value={n}>{n} {n === 1 ? "campo" : "campos"}</option>
                 ))}
@@ -344,7 +385,7 @@ export function TournamentWizard({
             </div>
 
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-text">Nomes dos Campos</label>
+              <FieldLabel label="Nomes dos Campos" tooltip="Nome identificador de cada campo. Ex: Campo Central, Campo 2" />
               {courtNames.slice(0, courtsCount).map((cn, i) => (
                 <input key={i} value={cn} onChange={(e) => setCourtNames((prev) => { const next = [...prev]; next[i] = e.target.value; return next; })}
                   className="w-full rounded-lg border border-border bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
@@ -357,8 +398,8 @@ export function TournamentWizard({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-text mb-1">Formato</label>
-              <div className="flex gap-3">
+              <FieldLabel label="Formato" tooltip="Simples: cada par joga uma vez. Duplo: cada par joga duas vezes (ida e volta)." />
+              <div className="flex gap-3 mt-1">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
                   <input type="radio" checked={matchesPerPair === 1} onChange={() => setMatchesPerPair(1)} className="text-primary focus:ring-primary" />
                   Round Robin Simples
@@ -371,8 +412,8 @@ export function TournamentWizard({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-text mb-1">Sets por Jogo</label>
-              <div className="flex gap-3">
+              <FieldLabel label="Sets por Jogo" tooltip="1 Set: jogo rápido. 2 Sets: dois sets obrigatórios. Melhor de 3: ganha quem vencer 2 sets." />
+              <div className="flex gap-3 mt-1">
                 {[1, 2, 3].map((n) => (
                   <label key={n} className="flex items-center gap-2 text-sm cursor-pointer">
                     <input type="radio" checked={numberOfSets === n} onChange={() => setNumberOfSets(n)} className="text-primary focus:ring-primary" />
@@ -384,15 +425,48 @@ export function TournamentWizard({
 
             {teamSize === 2 && (
               <div>
-                <label className="block text-sm font-medium text-text mb-1">Modo de Equipas</label>
-                <div className="flex flex-wrap gap-3">
-                  {(["FIXED_TEAMS", "RANDOM_TEAMS", "MANUAL_TEAMS"] as const).map((mode) => (
+                <FieldLabel label="Modo de Equipas" tooltip="Fixas: pares por ordem de seleção. Aleatórias: pares gerados aleatoriamente (seed). Manuais: escolha manual. Aleatórias por Ronda: novas equipas em cada ronda." />
+                <div className="flex flex-wrap gap-3 mt-1">
+                  {(["FIXED_TEAMS", "RANDOM_TEAMS", "MANUAL_TEAMS", "RANDOM_PER_ROUND"] as const).map((mode) => (
                     <label key={mode} className="flex items-center gap-2 text-sm cursor-pointer">
                       <input type="radio" checked={teamMode === mode} onChange={() => setTeamMode(mode)} className="text-primary focus:ring-primary" />
-                      {mode === "FIXED_TEAMS" ? "Equipas Fixas" : mode === "RANDOM_TEAMS" ? "Equipas Aleatórias" : "Equipas Manuais"}
+                      {mode === "FIXED_TEAMS" ? "Equipas Fixas" : mode === "RANDOM_TEAMS" ? "Equipas Aleatórias" : mode === "MANUAL_TEAMS" ? "Equipas Manuais" : "Aleatórias por Ronda"}
                     </label>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {teamSize === 2 && teamMode === "RANDOM_PER_ROUND" && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3 space-y-3">
+                <p className="text-sm text-indigo-800">
+                  Cada ronda terá novas equipas aleatórias. Nenhum par se repete até esgotar todas as combinações.
+                </p>
+                <div>
+                  <FieldLabel label="Número de Rondas" tooltip="Quantas rondas terá o torneio. Cada ronda gera equipas aleatórias diferentes. Máximo: quando os pares se esgotam." htmlFor="num-rounds" />
+                  <div className="flex items-center gap-3 mt-1">
+                    <input
+                      id="num-rounds"
+                      type="number"
+                      min={1}
+                      max={maxPossibleRounds}
+                      value={numberOfRounds}
+                      onChange={(e) => setNumberOfRounds(Math.max(1, Math.min(maxPossibleRounds, parseInt(e.target.value) || 1)))}
+                      className="w-20 rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    <span className="text-xs text-indigo-600">
+                      Máximo: {maxPossibleRounds} rondas
+                      {titularIds.length > 0 && ` (para ${titularIds.length} jogadores)`}
+                    </span>
+                  </div>
+                </div>
+                <Input
+                  label="Seed"
+                  tooltip="Código que determina a aleatoriedade. Mesmo seed = mesmas equipas."
+                  value={randomSeed}
+                  onChange={(e) => setRandomSeed(e.target.value)}
+                  className="w-40"
+                />
               </div>
             )}
 
@@ -415,6 +489,13 @@ export function TournamentWizard({
               <span className="text-amber-600"> {selectionOrder.length - maxTitulars} suplente(s).</span>
             )}
           </p>
+
+          {teamMode === "RANDOM_PER_ROUND" && titularIds.length >= 4 && (
+            <div className="bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs px-3 py-2 rounded-lg mb-3">
+              Modo Aleatórias por Ronda: <strong>{numberOfRounds}</strong> ronda(s) com equipas diferentes.
+              Máximo possível: <strong>{Math.max(titularIds.length - 1, 1)}</strong> rondas para {titularIds.length} jogadores.
+            </div>
+          )}
 
           {players.length === 0 && (
             <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-lg mb-3">
@@ -459,8 +540,8 @@ export function TournamentWizard({
         </Card>
       )}
 
-      {/* Step 3: Teams (only for 2v2) */}
-      {step === 3 && teamSize === 2 && (
+      {/* Step 3: Teams (only for 2v2, not RANDOM_PER_ROUND) */}
+      {step === 3 && teamSize === 2 && teamMode !== "RANDOM_PER_ROUND" && (
         <Card>
           <h2 className="text-lg font-semibold mb-4">
             Passo 3: {teamMode === "RANDOM_TEAMS" ? "Equipas Aleatórias" : teamMode === "MANUAL_TEAMS" ? "Formar Equipas Manualmente" : "Formar Equipas"}
@@ -468,7 +549,7 @@ export function TournamentWizard({
 
           {teamMode === "RANDOM_TEAMS" && (
             <div className="flex items-center gap-2 mb-4">
-              <Input label="Seed" value={randomSeed} onChange={(e) => setRandomSeed(e.target.value)} className="w-32" />
+              <Input label="Seed" tooltip="Código que determina a aleatoriedade. Mesmo seed = mesmas equipas." value={randomSeed} onChange={(e) => setRandomSeed(e.target.value)} className="w-32" />
               <Button size="sm" variant="secondary" onClick={generateRandomTeamsLocal}>Regenerar</Button>
             </div>
           )}
@@ -529,8 +610,15 @@ export function TournamentWizard({
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Formato</span><span className="font-medium">{matchesPerPair === 1 ? "RR Simples" : "RR Duplo"}</span></div>
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Sets</span><span className="font-medium">{numberOfSets === 1 ? "1 Set" : numberOfSets === 2 ? "2 Sets" : "Melhor de 3"}</span></div>
             {teamSize === 2 && <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Modo Equipas</span><span className="font-medium">{teamModeLabel(teamMode)}</span></div>}
+            {teamMode === "RANDOM_PER_ROUND" && (
+              <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Rondas</span><span className="font-medium">{numberOfRounds} rondas (equipas aleatórias por ronda)</span></div>
+            )}
             <div className="py-2">
-              {teams.length > 0 ? (
+              {teamMode === "RANDOM_PER_ROUND" ? (
+                <div className="bg-indigo-50 border border-indigo-200 text-indigo-800 text-sm px-4 py-3 rounded-lg">
+                  As equipas serão geradas automaticamente em cada ronda. {titularIds.length} jogadores titulares, {numberOfRounds} ronda(s) com equipas diferentes.
+                </div>
+              ) : teams.length > 0 ? (
                 <>
                   <span className="text-text-muted block mb-2">{teamSize === 1 ? `Jogadores (${teams.length})` : `Equipas (${teams.length})`}</span>
                   <div className="space-y-1">
@@ -558,9 +646,15 @@ export function TournamentWizard({
             )}
           </div>
           <div className="flex gap-2 mt-4">
-            <Button variant="ghost" onClick={() => setStep(teams.length === 0 ? 2 : (teamSize === 1 ? 2 : 3))}>Anterior</Button>
+            <Button variant="ghost" onClick={() => setStep(teams.length === 0 && teamMode !== "RANDOM_PER_ROUND" ? 2 : (skipsTeamStep ? 2 : 3))}>Anterior</Button>
             <Button onClick={handleSubmit} disabled={loading}>
-              {loading ? (editMode ? "A guardar..." : "A criar torneio...") : (editMode ? (teams.length > 0 ? "Guardar e Regenerar Calendário" : "Guardar Alterações") : (teams.length > 0 ? "Criar Torneio e Gerar Calendário" : "Criar Torneio"))}
+              {loading
+                ? (editMode ? "A guardar..." : "A criar torneio...")
+                : (editMode
+                    ? (teams.length > 0 || teamMode === "RANDOM_PER_ROUND" ? "Guardar e Regenerar Calendário" : "Guardar Alterações")
+                    : (teams.length > 0 || teamMode === "RANDOM_PER_ROUND" ? "Criar Torneio e Gerar Calendário" : "Criar Torneio")
+                  )
+              }
             </Button>
           </div>
         </Card>

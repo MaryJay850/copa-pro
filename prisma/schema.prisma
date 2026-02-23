@@ -194,6 +194,7 @@ model Tournament {
   numberOfSets   Int       @default(1)
   status         String    @default("DRAFT")
   randomSeed     String?
+  numberOfRounds Int?
   createdAt      DateTime  @default(now())
 
   league       League                  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
@@ -214,10 +215,12 @@ model Team {
   player1Id         String
   player2Id         String?
   isRandomGenerated Boolean @default(false)
+  roundId           String?
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   player1    Player     @relation("Player1", fields: [player1Id], references: [id])
   player2    Player?    @relation("Player2", fields: [player2Id], references: [id])
+  round      Round?     @relation(fields: [roundId], references: [id], onDelete: SetNull)
   matchesAsA Match[]    @relation("TeamA")
   matchesAsB Match[]    @relation("TeamB")
   matchesWon Match[]    @relation("Winner")
@@ -244,6 +247,7 @@ model Round {
 
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   matches    Match[]
+  teams      Team[]
 
   @@unique([tournamentId, index])
   @@map("rounds")

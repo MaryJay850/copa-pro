@@ -21,7 +21,7 @@ export function ScoreInput({ label, valueA, valueB, onChangeA, onChangeB, disabl
       return;
     }
     const num = parseInt(val, 10);
-    if (!isNaN(num) && num >= 0 && num <= 7) {
+    if (!isNaN(num) && num >= 0 && num <= 99) {
       setter(num);
     }
   };
@@ -42,7 +42,7 @@ export function ScoreInput({ label, valueA, valueB, onChangeA, onChangeB, disabl
       <input
         type="number"
         min={0}
-        max={7}
+        max={99}
         value={valueA ?? ""}
         onChange={handleChange(onChangeA)}
         onKeyDown={handleKeyDown}
@@ -55,7 +55,7 @@ export function ScoreInput({ label, valueA, valueB, onChangeA, onChangeB, disabl
         ref={refB}
         type="number"
         min={0}
-        max={7}
+        max={99}
         value={valueB ?? ""}
         onChange={handleChange(onChangeB)}
         disabled={disabled}
