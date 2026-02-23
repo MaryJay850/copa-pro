@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 
 import { getSeason } from "@/lib/actions";
 import { isLeagueManager } from "@/lib/auth-guards";
+import { getUserPlanLimits } from "@/lib/plan-guards";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,21 @@ export default async function SeasonPage({ params }: { params: Promise<{ leagueI
   if (!season) notFound();
 
   const canManage = await isLeagueManager(leagueId);
+
+  // Check plan limits for tournament creation
+  let canCreateTournament = true;
+  let tournamentLimitMessage = "";
+  if (canManage) {
+    try {
+      const { limits } = await getUserPlanLimits();
+      if (limits.maxTournamentsPerSeason !== null && season.tournaments.length >= limits.maxTournamentsPerSeason) {
+        canCreateTournament = false;
+        tournamentLimitMessage = `Limite de ${limits.maxTournamentsPerSeason} torneios por época atingido.`;
+      }
+    } catch {
+      // If plan check fails, allow creation (server action will still enforce)
+    }
+  }
 
   const rankingRows = season.rankings.map((r, i) => ({
     position: i + 1,
@@ -101,9 +117,18 @@ export default async function SeasonPage({ params }: { params: Promise<{ leagueI
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-lg font-semibold">Torneios</h2>
           {canManage && (
-            <Link href={`/ligas/${leagueId}/epocas/${seasonId}/torneios/novo`}>
-              <Button size="sm">+ Novo Torneio</Button>
-            </Link>
+            canCreateTournament ? (
+              <Link href={`/ligas/${leagueId}/epocas/${seasonId}/torneios/novo`}>
+                <Button size="sm">+ Novo Torneio</Button>
+              </Link>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button size="sm" disabled className="opacity-50 cursor-not-allowed">+ Novo Torneio</Button>
+                <Link href="/planos" className="text-xs text-primary hover:underline">
+                  {tournamentLimitMessage} Upgrade →
+                </Link>
+              </div>
+            )
           )}
         </div>
 
