@@ -97,7 +97,9 @@ export function TournamentWizard({
 
   // Max rounds for RANDOM_PER_ROUND: N-1 where N = number of titular players
   // (1-factorization of complete graph K_N gives N-1 perfect matchings)
-  const maxPossibleRounds = Math.max(titularIds.length - 1, 1);
+  // Use maxTitulars (capacity) as fallback when no players are selected yet (Step 1)
+  const effectivePlayerCount = titularIds.length > 0 ? titularIds.length : maxTitulars;
+  const maxPossibleRounds = Math.max(effectivePlayerCount - 1, 1);
 
   // Total steps: 1v1 skips step 3, RANDOM_PER_ROUND skips step 3
   const skipsTeamStep = teamSize === 1 || teamMode === "RANDOM_PER_ROUND";
