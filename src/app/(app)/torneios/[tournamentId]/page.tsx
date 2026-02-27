@@ -284,6 +284,8 @@ export default async function TournamentPage({
           currentPlayerId={currentPlayerId ?? undefined}
           currentUserId={currentUserId ?? undefined}
           pendingSubmissionsMap={pendingSubmissionsMap}
+          tournamentName={tournament.name}
+          seasonName={tournament.season.name}
         />
       )}
     </div>
