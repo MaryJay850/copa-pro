@@ -113,6 +113,10 @@ export function ScheduleView({
           .team-cell {
             font-weight: 500;
           }
+          .tracking-widest {
+            letter-spacing: 0.1em;
+            color: #999;
+          }
         </style>
       </head>
       <body>
@@ -264,18 +268,7 @@ export function ScheduleView({
                               rowSpan={matchCount}
                               className="px-3 py-2 font-bold text-center align-middle border border-border bg-surface-alt/30"
                             >
-                              <div>Ronda {round.index}</div>
-                              {startDate && (
-                                <div className="text-[10px] text-text-muted font-normal mt-0.5">
-                                  {new Date(
-                                    new Date(startDate).getTime() +
-                                      (round.index - 1) * 7 * 24 * 60 * 60 * 1000
-                                  ).toLocaleDateString("pt-PT", {
-                                    day: "2-digit",
-                                    month: "2-digit",
-                                  })}
-                                </div>
-                              )}
+                              Ronda {round.index}
                             </td>
                           )}
                           {/* Court */}
@@ -295,14 +288,17 @@ export function ScheduleView({
                             {getTeamName(match.teamB)}
                           </td>
                           {/* Set score columns */}
-                          {setHeaders.map((_, setIdx) => (
+                          {setHeaders.map((_, setIdx) => {
+                            const score = getSetScore(match, setIdx + 1);
+                            return (
                             <td
                               key={setIdx}
                               className="px-2 py-2 text-center border border-border text-text-muted"
                             >
-                              {getSetScore(match, setIdx + 1) || "\u2014"}
+                              {score || <span className="tracking-widest">___ - ___</span>}
                             </td>
-                          ))}
+                          );
+                          })}
                         </tr>
                       ));
                     })}
