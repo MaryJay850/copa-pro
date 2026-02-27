@@ -110,7 +110,6 @@ export function seasonRankingMessage(
   rankings: { position: number; playerName: string; points: number; matchesPlayed: number }[]
 ): string {
   const rankingList = rankings
-    .slice(0, 15) // limit to top 15
     .map((r) => {
       const medals = ["🥇", "🥈", "🥉"];
       const prefix = medals[r.position - 1] || `${r.position}.`;
