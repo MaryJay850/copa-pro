@@ -107,13 +107,14 @@ export function tournamentFinishedMessage(
 
 export function seasonRankingMessage(
   seasonName: string,
-  rankings: { position: number; playerName: string; points: number; matchesPlayed: number }[]
+  rankings: { position: number; playerName: string; points: number; matchesPlayed: number; wins: number; losses: number; setsDiff: number }[]
 ): string {
   const rankingList = rankings
     .map((r) => {
       const medals = ["🥇", "🥈", "🥉"];
       const prefix = medals[r.position - 1] || `${r.position}.`;
-      return `${prefix} *${r.playerName}* — ${r.points} pts (${r.matchesPlayed} jogos)`;
+      const diff = r.setsDiff >= 0 ? `+${r.setsDiff}` : `${r.setsDiff}`;
+      return `${prefix} *${r.playerName}* — ${r.points} pts (${r.wins}V ${r.losses}D | Sets: ${diff})`;
     })
     .join("\n");
 

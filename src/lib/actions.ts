@@ -1367,17 +1367,28 @@ export async function finishTournament(tournamentId: string) {
 
         await sendGroupMessage(t.league.whatsappGroupId, tournamentFinishedMessage(t.name, rankings));
 
-        // Season ranking
+        // Season ranking — full sort with tie-breakers
         const seasonRanking = await prisma.seasonRankingEntry.findMany({
           where: { seasonId: t.season.id },
-          orderBy: { pointsTotal: "desc" },
-          include: { player: { select: { fullName: true } } },
+          include: { player: { select: { fullName: true, nickname: true } } },
         });
-        const seasonRankings = seasonRanking.map((r, i) => ({
+        const sortedRanking = seasonRanking
+          .sort((a, b) => {
+            if (b.pointsTotal !== a.pointsTotal) return b.pointsTotal - a.pointsTotal;
+            if (b.wins !== a.wins) return b.wins - a.wins;
+            if (b.setsDiff !== a.setsDiff) return b.setsDiff - a.setsDiff;
+            if (b.setsWon !== a.setsWon) return b.setsWon - a.setsWon;
+            if (b.draws !== a.draws) return b.draws - a.draws;
+            return 0;
+          });
+        const seasonRankings = sortedRanking.map((r, i) => ({
           position: i + 1,
-          playerName: r.player.fullName,
+          playerName: r.player.nickname || r.player.fullName,
           points: r.pointsTotal,
           matchesPlayed: r.matchesPlayed,
+          wins: r.wins,
+          losses: r.losses,
+          setsDiff: r.setsDiff,
         }));
         await sendGroupMessage(t.league.whatsappGroupId, seasonRankingMessage(t.season.name, seasonRankings));
       }
