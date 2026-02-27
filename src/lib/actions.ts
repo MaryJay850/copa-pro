@@ -1212,21 +1212,55 @@ export async function recomputeSeasonRanking(seasonId: string) {
 export async function finishTournament(tournamentId: string) {
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    include: { matches: true },
+    include: {
+      matches: true,
+      rounds: { include: { matches: { select: { id: true, status: true } } } },
+    },
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
   await requireLeagueManager(tournament.leagueId);
 
-  const allFinished = tournament.matches.every((m) => m.status === "FINISHED");
-  if (!allFinished) {
-    throw new Error("Existem jogos por completar. Finalize todos os jogos antes de encerrar o torneio.");
+  const finishedCount = tournament.matches.filter((m) => m.status === "FINISHED").length;
+  if (finishedCount === 0) {
+    throw new Error("Não é possível encerrar um torneio sem nenhum jogo completo.");
+  }
+
+  // Delete incomplete matches and empty rounds
+  const unfinishedMatchIds = tournament.matches
+    .filter((m) => m.status !== "FINISHED")
+    .map((m) => m.id);
+
+  if (unfinishedMatchIds.length > 0) {
+    await prisma.match.deleteMany({
+      where: { id: { in: unfinishedMatchIds } },
+    });
+  }
+
+  // Find rounds that now have no matches (all their matches were unfinished)
+  const emptyRoundIds = tournament.rounds
+    .filter((r) => r.matches.every((m) => m.status !== "FINISHED"))
+    .map((r) => r.id);
+
+  if (emptyRoundIds.length > 0) {
+    // For RANDOM_PER_ROUND: delete teams linked to empty rounds
+    if (tournament.teamMode === "RANDOM_PER_ROUND") {
+      await prisma.team.deleteMany({
+        where: { roundId: { in: emptyRoundIds } },
+      });
+    }
+    await prisma.round.deleteMany({
+      where: { id: { in: emptyRoundIds } },
+    });
   }
 
   await prisma.tournament.update({
     where: { id: tournamentId },
     data: { status: "FINISHED" },
   });
+
+  // Recompute season rankings (in case unfinished matches were deleted)
+  await recomputeSeasonRanking(tournament.seasonId);
 
   // ── Email: notify all participants with final standings ──
   try {

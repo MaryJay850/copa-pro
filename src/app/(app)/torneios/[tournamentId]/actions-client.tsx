@@ -22,12 +22,16 @@ export function TournamentActions({
   leagueId,
   seasonId,
   hasResults,
+  finishedMatches = 0,
+  totalMatches = 0,
 }: {
   tournamentId: string;
   status: string;
   leagueId: string;
   seasonId: string;
   hasResults: boolean;
+  finishedMatches?: number;
+  totalMatches?: number;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -248,7 +252,17 @@ export function TournamentActions({
           </>
         }
       >
-        <p>Tem a certeza que deseja encerrar este torneio? Todos os jogos devem estar completos.</p>
+        <div className="space-y-2">
+          <p>Tem a certeza que deseja encerrar este torneio?</p>
+          <p className="text-sm text-text-muted">
+            <strong>{finishedMatches}</strong> de <strong>{totalMatches}</strong> jogos completos.
+          </p>
+          {totalMatches - finishedMatches > 0 && (
+            <p className="text-sm text-amber-600 font-medium">
+              Os {totalMatches - finishedMatches} jogos incompletos e as rondas sem resultados serão eliminados.
+            </p>
+          )}
+        </div>
       </Modal>
 
       {/* Delete Danger Modal */}

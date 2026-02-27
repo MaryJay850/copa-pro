@@ -132,6 +132,8 @@ export default async function TournamentPage({
           leagueId={tournament.leagueId}
           seasonId={tournament.seasonId}
           hasResults={finishedMatches > 0}
+          finishedMatches={finishedMatches}
+          totalMatches={totalMatches}
         />
       )}
 
