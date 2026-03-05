@@ -53,6 +53,8 @@ function serialize<T>(obj: T): Serialized<T> {
 // ── League actions ──
 
 export async function createLeague(formData: FormData) {
+  await requireAdmin();
+
   const name = formData.get("name") as string;
   const location = (formData.get("location") as string) || null;
 
@@ -248,6 +250,8 @@ export async function createOrSyncWhatsAppGroup(leagueId: string) {
 // ── Season actions ──
 
 export async function createSeason(formData: FormData) {
+  await requireAdmin();
+
   const leagueId = formData.get("leagueId") as string;
   const name = formData.get("name") as string;
   const allowDraws = formData.get("allowDraws") === "true";
@@ -1006,6 +1010,90 @@ export async function updateTeamName(teamId: string, name: string) {
   });
 
   revalidatePath(`/torneios/${team.tournamentId}`);
+}
+
+// ── Troca de jogadores (Admin only) ──
+
+export async function swapTournamentPlayers(
+  tournamentId: string,
+  playerAId: string,
+  playerBId: string
+) {
+  await requireAdmin();
+
+  if (playerAId === playerBId) throw new Error("Os dois jogadores devem ser diferentes.");
+
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    include: {
+      teams: { include: { player1: true, player2: true } },
+    },
+  });
+
+  if (!tournament) throw new Error("Torneio não encontrado.");
+
+  // Fetch player names for team name generation
+  const [playerA, playerB] = await Promise.all([
+    prisma.player.findUnique({ where: { id: playerAId }, select: { fullName: true, nickname: true } }),
+    prisma.player.findUnique({ where: { id: playerBId }, select: { fullName: true, nickname: true } }),
+  ]);
+
+  if (!playerA || !playerB) throw new Error("Jogador não encontrado.");
+
+  const nameA = playerA.nickname || playerA.fullName.split(" ")[0];
+  const nameB = playerB.nickname || playerB.fullName.split(" ")[0];
+
+  // Swap in all teams: wherever playerA appears, put playerB and vice-versa
+  for (const team of tournament.teams) {
+    let newP1 = team.player1Id;
+    let newP2 = team.player2Id;
+    let changed = false;
+
+    if (team.player1Id === playerAId) { newP1 = playerBId; changed = true; }
+    else if (team.player1Id === playerBId) { newP1 = playerAId; changed = true; }
+
+    if (team.player2Id === playerAId) { newP2 = playerBId; changed = true; }
+    else if (team.player2Id === playerBId) { newP2 = playerAId; changed = true; }
+
+    if (changed) {
+      // Build new team name
+      const p1Name = newP1 === playerAId ? nameA : newP1 === playerBId ? nameB
+        : (team.player1Id === newP1
+          ? (team.player1.nickname || team.player1.fullName.split(" ")[0])
+          : (team.player2?.nickname || team.player2?.fullName?.split(" ")[0] || ""));
+      const p2Name = newP2
+        ? (newP2 === playerAId ? nameA : newP2 === playerBId ? nameB
+          : (team.player2Id === newP2
+            ? (team.player2?.nickname || team.player2?.fullName?.split(" ")[0] || "")
+            : (team.player1.nickname || team.player1.fullName.split(" ")[0])))
+        : null;
+      const teamName = p2Name ? `${p1Name} & ${p2Name}` : p1Name;
+
+      await prisma.team.update({
+        where: { id: team.id },
+        data: { player1Id: newP1, player2Id: newP2 || null, name: teamName },
+      });
+    }
+  }
+
+  // Also swap in inscriptions if they exist
+  const inscriptions = await prisma.tournamentInscription.findMany({
+    where: { tournamentId, playerId: { in: [playerAId, playerBId] } },
+  });
+
+  for (const ins of inscriptions) {
+    const newPlayerId = ins.playerId === playerAId ? playerBId : playerAId;
+    await prisma.tournamentInscription.update({
+      where: { id: ins.id },
+      data: { playerId: newPlayerId },
+    });
+  }
+
+  // Recompute season ranking if tournament has results
+  await recomputeSeasonRanking(tournament.seasonId);
+
+  logAudit("SWAP_PLAYERS", "Tournament", tournamentId, { playerAId, playerBId }).catch(() => {});
+  revalidatePath(`/torneios/${tournamentId}`);
 }
 
 // ── Desistência / Substituição automática ──

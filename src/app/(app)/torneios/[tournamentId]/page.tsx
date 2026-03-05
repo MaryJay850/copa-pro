@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { getTournament, getPendingSubmissions } from "@/lib/actions";
-import { isLeagueManager } from "@/lib/auth-guards";
+import { isLeagueManager, isAdmin } from "@/lib/auth-guards";
 import { auth } from "@/lib/auth";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +12,7 @@ import Link from "next/link";
 import { TournamentActions } from "./actions-client";
 import { PlayerManagement } from "@/components/player-management";
 import { ExportCalendar } from "@/components/export-calendar";
+import { PlayerSwap } from "./player-swap";
 
 const statusLabels: Record<
   string,
@@ -37,6 +38,7 @@ export default async function TournamentPage({
   if (!tournament) notFound();
 
   const canManage = await isLeagueManager(tournament.leagueId);
+  const adminUser = await isAdmin();
   const s = statusLabels[tournament.status] || statusLabels.DRAFT;
 
   // Get current user info for player result submission
@@ -134,6 +136,28 @@ export default async function TournamentPage({
           hasResults={finishedMatches > 0}
           finishedMatches={finishedMatches}
           totalMatches={totalMatches}
+        />
+      )}
+
+      {/* Player Swap - Admin only, when tournament has teams and is not finished */}
+      {adminUser && tournament.status !== "FINISHED" && tournament.teams.length > 0 && (
+        <PlayerSwap
+          tournamentId={tournament.id}
+          players={(() => {
+            const seen = new Set<string>();
+            const result: { id: string; fullName: string; nickname: string | null }[] = [];
+            for (const team of tournament.teams) {
+              if (team.player1 && !seen.has(team.player1.id)) {
+                seen.add(team.player1.id);
+                result.push({ id: team.player1.id, fullName: team.player1.fullName, nickname: team.player1.nickname });
+              }
+              if (team.player2 && !seen.has(team.player2.id)) {
+                seen.add(team.player2.id);
+                result.push({ id: team.player2.id, fullName: team.player2.fullName, nickname: team.player2.nickname });
+              }
+            }
+            return result.sort((a, b) => (a.nickname || a.fullName).localeCompare(b.nickname || b.fullName));
+          })()}
         />
       )}
 

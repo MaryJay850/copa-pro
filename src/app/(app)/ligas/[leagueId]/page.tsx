@@ -1,7 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { getLeague, getLeagueInvites } from "@/lib/actions";
-import { isLeagueManager } from "@/lib/auth-guards";
+import { isLeagueManager, isAdmin } from "@/lib/auth-guards";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
   if (!league) notFound();
 
   const canManage = await isLeagueManager(leagueId);
+  const adminUser = await isAdmin();
   const invites = canManage ? await getLeagueInvites(leagueId) : [];
 
   return (
@@ -68,7 +69,7 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
 
       <div>
         <h2 className="text-lg font-semibold mb-3">Épocas</h2>
-        {canManage && <CreateSeasonForm leagueId={league.id} />}
+        {adminUser && <CreateSeasonForm leagueId={league.id} />}
       </div>
 
       {league.seasons.length === 0 ? (

@@ -39,6 +39,16 @@ export async function requireLeagueManager(leagueId: string): Promise<AuthUser> 
   return user;
 }
 
+export async function isAdmin(): Promise<boolean> {
+  try {
+    const session = await auth();
+    if (!session?.user?.id) return false;
+    return (session.user as AuthUser).role === "ADMINISTRADOR";
+  } catch {
+    return false;
+  }
+}
+
 export async function isLeagueManager(leagueId: string): Promise<boolean> {
   try {
     const session = await auth();

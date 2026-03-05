@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { getLeagues } from "@/lib/actions";
+import { isAdmin } from "@/lib/auth-guards";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -8,7 +9,7 @@ import { CreateLeagueForm } from "./create-league-form";
 import Link from "next/link";
 
 export default async function LigasPage() {
-  const leagues = await getLeagues();
+  const [leagues, adminUser] = await Promise.all([getLeagues(), isAdmin()]);
 
   return (
     <div className="space-y-6">
@@ -19,7 +20,7 @@ export default async function LigasPage() {
         </div>
       </div>
 
-      <CreateLeagueForm />
+      {adminUser && <CreateLeagueForm />}
 
       {leagues.length === 0 ? (
         <EmptyState
