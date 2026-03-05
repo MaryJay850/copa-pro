@@ -1043,7 +1043,23 @@ export async function swapTournamentPlayers(
   const nameA = playerA.nickname || playerA.fullName.split(" ")[0];
   const nameB = playerB.nickname || playerB.fullName.split(" ")[0];
 
-  // Swap in all teams: wherever playerA appears, put playerB and vice-versa
+  // Build a map of all player names (from teams) for team name generation
+  const playerNames = new Map<string, string>();
+  for (const team of tournament.teams) {
+    if (team.player1) {
+      playerNames.set(team.player1.id, team.player1.nickname || team.player1.fullName.split(" ")[0]);
+    }
+    if (team.player2) {
+      playerNames.set(team.player2.id, team.player2.nickname || team.player2.fullName.split(" ")[0]);
+    }
+  }
+  // Ensure swapped players have their names
+  playerNames.set(playerAId, nameA);
+  playerNames.set(playerBId, nameB);
+
+  // Compute all team updates
+  const teamUpdates: { id: string; player1Id: string; player2Id: string | null; name: string }[] = [];
+
   for (const team of tournament.teams) {
     let newP1 = team.player1Id;
     let newP2 = team.player2Id;
@@ -1056,38 +1072,62 @@ export async function swapTournamentPlayers(
     else if (team.player2Id === playerBId) { newP2 = playerAId; changed = true; }
 
     if (changed) {
-      // Build new team name
-      const p1Name = newP1 === playerAId ? nameA : newP1 === playerBId ? nameB
-        : (team.player1Id === newP1
-          ? (team.player1.nickname || team.player1.fullName.split(" ")[0])
-          : (team.player2?.nickname || team.player2?.fullName?.split(" ")[0] || ""));
-      const p2Name = newP2
-        ? (newP2 === playerAId ? nameA : newP2 === playerBId ? nameB
-          : (team.player2Id === newP2
-            ? (team.player2?.nickname || team.player2?.fullName?.split(" ")[0] || "")
-            : (team.player1.nickname || team.player1.fullName.split(" ")[0])))
-        : null;
+      const p1Name = playerNames.get(newP1) || "";
+      const p2Name = newP2 ? (playerNames.get(newP2) || "") : null;
       const teamName = p2Name ? `${p1Name} & ${p2Name}` : p1Name;
-
-      await prisma.team.update({
-        where: { id: team.id },
-        data: { player1Id: newP1, player2Id: newP2 || null, name: teamName },
-      });
+      teamUpdates.push({ id: team.id, player1Id: newP1, player2Id: newP2, name: teamName });
     }
   }
 
-  // Also swap in inscriptions if they exist
-  const inscriptions = await prisma.tournamentInscription.findMany({
-    where: { tournamentId, playerId: { in: [playerAId, playerBId] } },
-  });
+  // Run all updates in a single transaction (avoids unique constraint issues on inscriptions)
+  await prisma.$transaction(async (tx) => {
+    // 1. Update all teams
+    for (const upd of teamUpdates) {
+      await tx.team.update({
+        where: { id: upd.id },
+        data: { player1Id: upd.player1Id, player2Id: upd.player2Id, name: upd.name },
+      });
+    }
 
-  for (const ins of inscriptions) {
-    const newPlayerId = ins.playerId === playerAId ? playerBId : playerAId;
-    await prisma.tournamentInscription.update({
-      where: { id: ins.id },
-      data: { playerId: newPlayerId },
+    // 2. Swap inscriptions — delete and re-create to avoid unique constraint violation
+    const inscriptions = await tx.tournamentInscription.findMany({
+      where: { tournamentId, playerId: { in: [playerAId, playerBId] } },
     });
-  }
+
+    if (inscriptions.length > 0) {
+      const insA = inscriptions.find((i) => i.playerId === playerAId);
+      const insB = inscriptions.find((i) => i.playerId === playerBId);
+
+      // Delete existing inscriptions
+      await tx.tournamentInscription.deleteMany({
+        where: { id: { in: inscriptions.map((i) => i.id) } },
+      });
+
+      // Re-create with swapped player IDs
+      if (insA) {
+        await tx.tournamentInscription.create({
+          data: {
+            tournamentId,
+            playerId: playerBId,
+            orderIndex: insA.orderIndex,
+            status: insA.status,
+            replacesId: insA.replacesId,
+          },
+        });
+      }
+      if (insB) {
+        await tx.tournamentInscription.create({
+          data: {
+            tournamentId,
+            playerId: playerAId,
+            orderIndex: insB.orderIndex,
+            status: insB.status,
+            replacesId: insB.replacesId,
+          },
+        });
+      }
+    }
+  });
 
   // Recompute season ranking if tournament has results
   await recomputeSeasonRanking(tournament.seasonId);
