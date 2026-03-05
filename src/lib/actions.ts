@@ -1133,7 +1133,8 @@ export async function swapTournamentPlayers(
   await recomputeSeasonRanking(tournament.seasonId);
 
   logAudit("SWAP_PLAYERS", "Tournament", tournamentId, { playerAId, playerBId }).catch(() => {});
-  revalidatePath(`/torneios/${tournamentId}`);
+  revalidatePath(`/torneios/${tournamentId}`, "page");
+  revalidatePath(`/ligas/${tournament.leagueId}`);
 }
 
 // ── Desistência / Substituição automática ──

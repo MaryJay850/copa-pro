@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { toast } from "sonner";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { swapTournamentPlayers } from "@/lib/actions";
@@ -20,7 +19,6 @@ interface PlayerSwapProps {
 }
 
 export function PlayerSwap({ tournamentId, players }: PlayerSwapProps) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [playerAId, setPlayerAId] = useState("");
@@ -39,15 +37,13 @@ export function PlayerSwap({ tournamentId, players }: PlayerSwapProps) {
     setLoading(true);
     try {
       await swapTournamentPlayers(tournamentId, playerAId, playerBId);
-      toast.success("Jogadores trocados com sucesso.");
-      setOpen(false);
-      setPlayerAId("");
-      setPlayerBId("");
-      router.refresh();
+      toast.success("Jogadores trocados com sucesso. A recarregar...");
+      // Full page reload to ensure fresh data (router.refresh may use stale cache)
+      setTimeout(() => window.location.reload(), 500);
     } catch (e) {
       toast.error(sanitizeError(e, "Erro ao trocar jogadores."));
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const displayName = (p: Player) => p.nickname || p.fullName.split(" ")[0];
