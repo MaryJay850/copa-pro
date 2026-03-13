@@ -22,6 +22,7 @@ export function ScheduleView({
   pendingSubmissionsMap,
   tournamentName,
   seasonName,
+  tournamentId,
 }: {
   rounds: ScheduleRound[];
   numberOfSets: number;
@@ -32,6 +33,7 @@ export function ScheduleView({
   pendingSubmissionsMap?: Record<string, any>;
   tournamentName?: string;
   seasonName?: string;
+  tournamentId?: string;
 }) {
   const [view, setView] = useState<"list" | "calendar" | "print">("list");
   const printRef = useRef<HTMLDivElement>(null);
@@ -116,6 +118,21 @@ export function ScheduleView({
           .tracking-widest {
             letter-spacing: 0.1em;
             color: #999;
+          }
+          .match-code {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 9px;
+            color: #666;
+            text-align: center;
+          }
+          .print-footer {
+            margin-top: 12px;
+            padding-top: 6px;
+            border-top: 1px solid #ccc;
+            display: flex;
+            justify-content: space-between;
+            font-size: 9px;
+            color: #888;
           }
         </style>
       </head>
@@ -228,6 +245,9 @@ export function ScheduleView({
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="bg-surface-alt border-b-2 border-border">
+                      <th className="px-1 py-2 text-center text-xs font-bold uppercase tracking-wide border border-border w-12">
+                        Cod
+                      </th>
                       <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wide border border-border w-24">
                         Ronda
                       </th>
@@ -253,15 +273,24 @@ export function ScheduleView({
                     </tr>
                   </thead>
                   <tbody>
-                    {rounds.map((round) => {
+                    {(() => {
+                      let matchSeq = 0;
+                      return rounds.map((round) => {
                       const matchCount = round.matches.length;
-                      return round.matches.map((match: any, idx: number) => (
+                      return round.matches.map((match: any, idx: number) => {
+                        matchSeq++;
+                        const matchCode = `M${String(matchSeq).padStart(2, "0")}`;
+                        return (
                         <tr
                           key={match.id}
                           className={`border border-border ${
                             idx === matchCount - 1 ? "border-b-2 border-b-border" : ""
                           } hover:bg-surface-alt/50 transition-colors`}
                         >
+                          {/* Match code */}
+                          <td className="px-1 py-2 text-center border border-border font-mono text-xs text-text-muted match-code">
+                            {matchCode}
+                          </td>
                           {/* Round cell - spans all matches in round */}
                           {idx === 0 && (
                             <td
@@ -300,10 +329,20 @@ export function ScheduleView({
                           );
                           })}
                         </tr>
-                      ));
-                    })}
+                        );
+                      });
+                    });
+                    })()}
                   </tbody>
                 </table>
+
+                {/* Footer with tournament ID */}
+                {tournamentId && (
+                  <div className="print-footer flex justify-between text-[9px] text-text-muted mt-3 pt-2 border-t border-border">
+                    <span>Torneio: {tournamentId.slice(0, 8)}</span>
+                    <span>CopaPro</span>
+                  </div>
+                )}
               </div>
             </div>
           </Card>

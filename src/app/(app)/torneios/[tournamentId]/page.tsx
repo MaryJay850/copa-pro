@@ -13,6 +13,7 @@ import { TournamentActions } from "./actions-client";
 import { PlayerManagement } from "@/components/player-management";
 import { ExportCalendar } from "@/components/export-calendar";
 import { PlayerSwap } from "./player-swap";
+import { OcrResultsUpload } from "@/components/ocr-results-upload";
 
 const statusLabels: Record<
   string,
@@ -158,6 +159,24 @@ export default async function TournamentPage({
             }
             return result.sort((a, b) => (a.nickname || a.fullName).localeCompare(b.nickname || b.fullName));
           })()}
+        />
+      )}
+
+      {/* OCR Results Upload - for managers when tournament has pending matches */}
+      {canManage && tournament.status !== "FINISHED" && tournament.rounds.length > 0 && (
+        <OcrResultsUpload
+          tournamentId={tournament.id}
+          matches={tournament.rounds.flatMap((r) =>
+            r.matches.map((m) => ({
+              id: m.id,
+              roundIndex: r.index,
+              courtName: m.court?.name || "",
+              teamAName: m.teamA.name,
+              teamBName: m.teamB.name,
+              status: m.status,
+            }))
+          )}
+          numberOfSets={tournament.numberOfSets}
         />
       )}
 
@@ -310,6 +329,7 @@ export default async function TournamentPage({
           pendingSubmissionsMap={pendingSubmissionsMap}
           tournamentName={tournament.name}
           seasonName={tournament.season.name}
+          tournamentId={tournament.id}
         />
       )}
     </div>

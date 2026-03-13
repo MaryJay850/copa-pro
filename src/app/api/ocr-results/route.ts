@@ -1,0 +1,306 @@
+import { NextRequest, NextResponse } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
+import { prisma } from "@/lib/db";
+import { requireLeagueManager } from "@/lib/auth-guards";
+
+interface OcrResult {
+  matchCode: string;
+  roundIndex: number;
+  courtName: string;
+  set1A: number | null;
+  set1B: number | null;
+  set2A: number | null;
+  set2B: number | null;
+  set3A: number | null;
+  set3B: number | null;
+  confidence: "high" | "low";
+}
+
+interface MatchInfo {
+  id: string;
+  matchCode: string;
+  roundIndex: number;
+  courtName: string;
+  teamAName: string;
+  teamBName: string;
+  status: string;
+}
+
+interface MatchedResult {
+  matchId: string;
+  matchCode: string;
+  roundIndex: number;
+  courtName: string;
+  teamAName: string;
+  teamBName: string;
+  set1A: number | null;
+  set1B: number | null;
+  set2A: number | null;
+  set2B: number | null;
+  set3A: number | null;
+  set3B: number | null;
+  confidence: "high" | "low";
+  status: "matched" | "unmatched";
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const formData = await req.formData();
+    const tournamentId = formData.get("tournamentId") as string;
+
+    if (!tournamentId) {
+      return NextResponse.json({ error: "tournamentId obrigatório." }, { status: 400 });
+    }
+
+    // Get tournament with matches
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: {
+        rounds: {
+          orderBy: { index: "asc" },
+          include: {
+            matches: {
+              include: {
+                teamA: true,
+                teamB: true,
+                court: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!tournament) {
+      return NextResponse.json({ error: "Torneio não encontrado." }, { status: 404 });
+    }
+
+    // Check permissions
+    await requireLeagueManager(tournament.leagueId);
+
+    // Collect images from form data
+    const images: { base64: string; mediaType: string }[] = [];
+    for (const [key, value] of formData.entries()) {
+      if (key === "images" && value instanceof File) {
+        const buffer = Buffer.from(await value.arrayBuffer());
+        const base64 = buffer.toString("base64");
+        const mediaType = value.type || "image/jpeg";
+        images.push({ base64, mediaType });
+      }
+    }
+
+    if (images.length === 0) {
+      return NextResponse.json({ error: "Nenhuma imagem enviada." }, { status: 400 });
+    }
+
+    if (images.length > 5) {
+      return NextResponse.json({ error: "Máximo de 5 imagens por vez." }, { status: 400 });
+    }
+
+    // Build match list with sequential codes (M01, M02, ...) matching the printed sheet
+    const allMatches: MatchInfo[] = [];
+    let matchSeq = 0;
+    for (const round of tournament.rounds) {
+      for (const match of round.matches) {
+        matchSeq++;
+        allMatches.push({
+          id: match.id,
+          matchCode: `M${String(matchSeq).padStart(2, "0")}`,
+          roundIndex: round.index,
+          courtName: match.court?.name || `Campo ${match.courtId}`,
+          teamAName: match.teamA.name,
+          teamBName: match.teamB.name,
+          status: match.status,
+        });
+      }
+    }
+
+    const scheduledMatches = allMatches.filter((m) => m.status === "SCHEDULED");
+
+    if (scheduledMatches.length === 0) {
+      return NextResponse.json({ error: "Não há jogos pendentes neste torneio." }, { status: 400 });
+    }
+
+    const numberOfSets = tournament.numberOfSets;
+
+    // Build the match context for the prompt — include ALL matches so OCR can see codes
+    const matchListText = allMatches
+      .map(
+        (m) =>
+          `${m.matchCode} | Ronda ${m.roundIndex} | ${m.courtName} | ${m.teamAName} vs ${m.teamBName}${m.status === "FINISHED" ? " [JÁ JOGADO]" : ""}`
+      )
+      .join("\n");
+
+    // Call Claude Vision API
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json(
+        { error: "ANTHROPIC_API_KEY não configurada no servidor." },
+        { status: 500 }
+      );
+    }
+
+    const anthropic = new Anthropic({ apiKey });
+
+    const imageContent: Anthropic.Messages.ImageBlockParam[] = images.map(
+      (img) => ({
+        type: "image" as const,
+        source: {
+          type: "base64" as const,
+          media_type: img.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+          data: img.base64,
+        },
+      })
+    );
+
+    const setsInfo =
+      numberOfSets === 1
+        ? "Cada jogo tem 1 set. Preenche apenas set1A e set1B. Os outros sets devem ser null."
+        : numberOfSets === 2
+        ? "Cada jogo tem 2 sets. Preenche set1A, set1B, set2A, set2B. Set 3 é null (não há)."
+        : "Cada jogo tem melhor de 3 sets. Preenche set1 e set2 sempre. Set 3 só se necessário (caso contrário null).";
+
+    const response = await anthropic.messages.create({
+      model: "claude-sonnet-4-5-20241022",
+      max_tokens: 4096,
+      messages: [
+        {
+          role: "user",
+          content: [
+            ...imageContent,
+            {
+              type: "text",
+              text: `Analisa esta(s) foto(s) de folhas de resultados de um torneio de padel.
+
+A folha tem colunas: Cod | Ronda | Campo | Equipa A | vs | Equipa B | Set 1 | Set 2 | Set 3
+A coluna "Cod" contém um código único por jogo (ex: M01, M02, M03...).
+Os resultados são escritos à mão. Os scores de cada set são escritos como "X-Y" onde X são os pontos da Equipa A e Y os pontos da Equipa B.
+
+${setsInfo}
+
+Estes são TODOS os jogos do torneio:
+${matchListText}
+
+IMPORTANTE:
+- Cada linha da folha tem um código (M01, M02, etc.) na primeira coluna. Usa esse código para associar o resultado ao jogo correto.
+- Se a folha não tiver códigos, associa pelo número da ronda e nome do campo.
+- Se não conseguires ler um score claramente, coloca confidence como "low".
+- Se não conseguires identificar a que jogo pertence, usa matchCode como string vazia "".
+- Scores são números inteiros (0-99). Se leres algo que não é um número válido, coloca null.
+- Ignora jogos marcados como [JÁ JOGADO] — não deves retornar resultados para esses.
+
+Retorna APENAS um JSON válido (sem markdown, sem código, sem explicações) com este formato:
+{
+  "results": [
+    {
+      "matchCode": "M01",
+      "roundIndex": 1,
+      "courtName": "Campo 3",
+      "set1A": 6, "set1B": 3,
+      "set2A": 4, "set2B": 6,
+      "set3A": 6, "set3B": 2,
+      "confidence": "high"
+    }
+  ]
+}`,
+            },
+          ],
+        },
+      ],
+    });
+
+    // Parse Claude's response
+    const textBlock = response.content.find((b) => b.type === "text");
+    if (!textBlock || textBlock.type !== "text") {
+      return NextResponse.json(
+        { error: "Resposta inesperada da API de análise." },
+        { status: 500 }
+      );
+    }
+
+    let ocrResults: OcrResult[];
+    try {
+      // Try to extract JSON from the response (handle possible markdown wrapping)
+      let jsonText = textBlock.text.trim();
+      const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonText = jsonMatch[0];
+      }
+      const parsed = JSON.parse(jsonText);
+      ocrResults = parsed.results || [];
+    } catch {
+      console.error("[OCR] Failed to parse Claude response:", textBlock.text);
+      return NextResponse.json(
+        { error: "Não foi possível interpretar os resultados. Tente novamente com fotos mais claras." },
+        { status: 422 }
+      );
+    }
+
+    // Match OCR results with tournament matches
+    // Priority: matchCode > roundIndex + courtName
+    const matchedResults: MatchedResult[] = ocrResults.map((ocr) => {
+      // Try matching by code first (most reliable)
+      let match = ocr.matchCode
+        ? scheduledMatches.find(
+            (m) => m.matchCode.toUpperCase() === ocr.matchCode.toUpperCase()
+          )
+        : undefined;
+
+      // Fallback: match by roundIndex + courtName
+      if (!match) {
+        match = scheduledMatches.find(
+          (m) =>
+            m.roundIndex === ocr.roundIndex &&
+            m.courtName.toLowerCase().trim() === ocr.courtName.toLowerCase().trim()
+        );
+      }
+
+      if (match) {
+        return {
+          matchId: match.id,
+          matchCode: match.matchCode,
+          roundIndex: match.roundIndex,
+          courtName: match.courtName,
+          teamAName: match.teamAName,
+          teamBName: match.teamBName,
+          set1A: ocr.set1A,
+          set1B: ocr.set1B,
+          set2A: ocr.set2A,
+          set2B: ocr.set2B,
+          set3A: ocr.set3A,
+          set3B: ocr.set3B,
+          confidence: ocr.confidence,
+          status: "matched" as const,
+        };
+      }
+
+      return {
+        matchId: "",
+        matchCode: ocr.matchCode || "",
+        roundIndex: ocr.roundIndex,
+        courtName: ocr.courtName,
+        teamAName: "?",
+        teamBName: "?",
+        set1A: ocr.set1A,
+        set1B: ocr.set1B,
+        set2A: ocr.set2A,
+        set2B: ocr.set2B,
+        set3A: ocr.set3A,
+        set3B: ocr.set3B,
+        confidence: ocr.confidence,
+        status: "unmatched" as const,
+      };
+    });
+
+    return NextResponse.json({
+      results: matchedResults,
+      totalDetected: ocrResults.length,
+      totalMatched: matchedResults.filter((r) => r.status === "matched").length,
+    });
+  } catch (error) {
+    console.error("[OCR] Error:", error);
+    const message =
+      error instanceof Error ? error.message : "Erro ao processar imagens.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
