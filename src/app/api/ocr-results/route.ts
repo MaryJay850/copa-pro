@@ -345,6 +345,7 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`[OCR] Using provider: ${provider}`);
+    console.log(`[OCR] Raw response:`, responseText);
 
     // Parse response
     let ocrResults: OcrResult[];
@@ -356,6 +357,7 @@ export async function POST(req: NextRequest) {
         jsonText = jsonMatch[0];
       }
       const parsed = JSON.parse(jsonText);
+      console.log(`[OCR] Parsed results:`, JSON.stringify(parsed.results, null, 2));
       ocrResults = parsed.results || [];
     } catch {
       console.error("[OCR] Failed to parse response:", responseText);
@@ -431,6 +433,7 @@ export async function POST(req: NextRequest) {
       totalMatched: matchedResults.filter((r) => r.status === "matched")
         .length,
       provider,
+      debug: { rawOcr: ocrResults },
     });
   } catch (error) {
     console.error("[OCR] Error:", error);

@@ -94,6 +94,9 @@ export function OcrResultsUpload({
         throw new Error(data.error || "Erro ao analisar fotos.");
       }
 
+      // Debug: log raw API response to browser console
+      console.log("[OCR] API response:", JSON.stringify(data, null, 2));
+
       const matchedResults: MatchedResult[] = (data.results || []).map(
         (r: any) => ({
           ...r,
