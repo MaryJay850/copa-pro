@@ -46,24 +46,34 @@ interface MatchedResult {
 
 // Build the OCR prompt text (shared between providers)
 function buildPrompt(setsInfo: string, matchListText: string): string {
-  return `Analisa esta(s) foto(s) de folhas de resultados de um torneio de padel.
+  return `Tens de analisar foto(s) de uma folha de resultados impressa de um torneio de padel.
 
-A folha tem colunas: Cod | Ronda | Campo | Equipa A | vs | Equipa B | Set 1 | Set 2 | Set 3
-A coluna "Cod" contém um código único por jogo (ex: M01, M02, M03...).
-Os resultados são escritos à mão. Os scores de cada set são escritos como "X-Y" onde X são os pontos da Equipa A e Y os pontos da Equipa B.
+ATENÇÃO À ORIENTAÇÃO DA FOTO:
+- A foto pode estar rodada (90°, 180°, 270°) ou inclinada. Roda mentalmente a imagem até que o texto fique legível na orientação correta.
+- A folha tem um cabeçalho no topo com o nome do torneio e data, seguido de uma tabela.
+
+ESTRUTURA DA FOLHA:
+- É uma tabela impressa com estas colunas da esquerda para a direita: Cod | Ronda | Campo | Equipa A | (vs) | Equipa B | Set 1 | Set 2 | Set 3
+- A coluna "Cod" contém um código único por jogo (ex: M01, M02, M03...).
+- As colunas "Set 1", "Set 2", "Set 3" são onde os resultados são ESCRITOS À MÃO com caneta/lápis.
+- Os scores de cada set são escritos como dois números separados por um traço: "X - Y" onde X são os pontos da Equipa A e Y os pontos da Equipa B.
+- Exemplos de scores escritos à mão: "6-3", "4-6", "7-5", "6 - 4", "4 - 1"
 
 ${setsInfo}
 
-Estes são TODOS os jogos do torneio:
+Estes são TODOS os jogos do torneio (usa isto para validar o que lês na foto):
 ${matchListText}
 
-IMPORTANTE:
-- Cada linha da folha tem um código (M01, M02, etc.) na primeira coluna. Usa esse código para associar o resultado ao jogo correto.
-- Se a folha não tiver códigos, associa pelo número da ronda e nome do campo.
-- Se não conseguires ler um score claramente, coloca confidence como "low".
-- Se não conseguires identificar a que jogo pertence, usa matchCode como string vazia "".
-- Scores são números inteiros (0-99). Se leres algo que não é um número válido, coloca null.
-- Ignora jogos marcados como [JÁ JOGADO] — não deves retornar resultados para esses.
+REGRAS DE LEITURA:
+1. Primeiro identifica a orientação correta da foto e lê a tabela.
+2. Para cada linha, lê o código (M01, M02, etc.) na primeira coluna e usa-o para associar ao jogo correto.
+3. Lê os scores escritos à mão nas colunas Set. Cada score é um par de números "X-Y". Extrai X como pontos da Equipa A e Y como pontos da Equipa B.
+4. Se conseguires ler claramente os números, coloca confidence "high". Só coloca "low" se realmente não tiveres a certeza do que está escrito.
+5. Se a folha não tiver códigos, associa pelo número da ronda e nome do campo.
+6. Se não conseguires identificar a que jogo pertence, usa matchCode como string vazia "".
+7. Scores são números inteiros (0-99). Se leres algo que não é um número válido, coloca null.
+8. Ignora jogos marcados como [JÁ JOGADO] — não retornes resultados para esses.
+9. Se uma coluna de set estiver vazia (sem nada escrito à mão), coloca null para ambos os valores desse set.
 
 Retorna APENAS um JSON válido (sem markdown, sem código, sem explicações) com este formato:
 {
@@ -74,7 +84,7 @@ Retorna APENAS um JSON válido (sem markdown, sem código, sem explicações) co
       "courtName": "Campo 3",
       "set1A": 6, "set1B": 3,
       "set2A": 4, "set2B": 6,
-      "set3A": 6, "set3B": 2,
+      "set3A": null, "set3B": null,
       "confidence": "high"
     }
   ]
