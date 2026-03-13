@@ -12,6 +12,7 @@ import { WhatsAppGroupButton } from "./whatsapp-group-button";
 import { WhatsAppMessageSender } from "@/components/whatsapp-message-sender";
 import { EditLeagueForm } from "./edit-league-form";
 import { ActivityLog } from "@/components/activity-log";
+import { DeleteLeagueButton } from "./delete-league-button";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 
@@ -99,6 +100,12 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
 
       {canManage && (
         <ActivityLog leagueId={leagueId} />
+      )}
+
+      {adminUser && (
+        <div className="pt-4 border-t border-border">
+          <DeleteLeagueButton leagueId={leagueId} leagueName={league.name} />
+        </div>
       )}
     </div>
   );

@@ -125,6 +125,16 @@ export async function getLeague(id: string) {
 }
 
 export async function deleteLeague(id: string) {
+  await requireAdmin();
+
+  const league = await prisma.league.findUnique({
+    where: { id },
+    select: { name: true },
+  });
+  if (!league) throw new Error("Liga não encontrada.");
+
+  logAudit("DELETE_LEAGUE", "League", id, `Liga: ${league.name}`).catch(() => {});
+
   await prisma.league.delete({ where: { id } });
   revalidatePath("/ligas");
 }
