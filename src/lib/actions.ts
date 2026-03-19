@@ -2596,6 +2596,37 @@ export async function getLeaguePlayers(leagueId: string) {
   return serialize(players);
 }
 
+export async function getAvailablePlayersForSwap(tournamentId: string) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: {
+      leagueId: true,
+      teams: { select: { player1Id: true, player2Id: true } },
+    },
+  });
+  if (!tournament) throw new Error("Torneio não encontrado.");
+
+  // Get all player IDs already in the tournament
+  const tournamentPlayerIds = new Set<string>();
+  for (const team of tournament.teams) {
+    if (team.player1Id) tournamentPlayerIds.add(team.player1Id);
+    if (team.player2Id) tournamentPlayerIds.add(team.player2Id);
+  }
+
+  // Get all approved league members with players, excluding those already in tournament
+  const memberships = await prisma.leagueMembership.findMany({
+    where: { leagueId: tournament.leagueId, status: "APPROVED" },
+    include: { user: { include: { player: true } } },
+  });
+
+  const players = memberships
+    .filter((m) => m.user.player && !tournamentPlayerIds.has(m.user.player.id))
+    .map((m) => m.user.player!)
+    .sort((a, b) => a.fullName.localeCompare(b.fullName));
+
+  return serialize(players);
+}
+
 export async function getLeagueMembersAsPlayers(leagueId: string) {
   const memberships = await prisma.leagueMembership.findMany({
     where: { leagueId, status: "APPROVED" },
