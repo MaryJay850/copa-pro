@@ -208,22 +208,16 @@ export function TournamentWizard({
   };
 
   // Detect if structural changes require schedule regeneration (only relevant in edit mode)
-  // Reducing numberOfRounds is NOT a structural change — we just trim excess unplayed rounds
-  const isReducingRounds = editMode &&
+  const roundsChanged = editMode &&
     teamMode === "RANDOM_PER_ROUND" &&
-    editMode.initialData.numberOfRounds !== undefined &&
-    numberOfRounds < editMode.initialData.numberOfRounds;
-  const isIncreasingRounds = editMode &&
-    teamMode === "RANDOM_PER_ROUND" &&
-    editMode.initialData.numberOfRounds !== undefined &&
-    numberOfRounds > editMode.initialData.numberOfRounds;
+    numberOfRounds !== (editMode.initialData.numberOfRounds ?? 3);
 
   const needsRegeneration = !editMode ? true : (
     courtsCount !== editMode.initialData.courtsCount ||
     matchesPerPair !== editMode.initialData.matchesPerPair ||
     (teamSize === 1 ? "FIXED_TEAMS" : teamMode) !== editMode.initialData.teamMode ||
     teamSize !== editMode.initialData.teamSize ||
-    (teamMode === "RANDOM_PER_ROUND" && isIncreasingRounds) ||
+    (teamMode === "RANDOM_PER_ROUND" && roundsChanged) ||
     (["RANDOM_TEAMS", "RANDOM_PER_ROUND"].includes(teamMode) && randomSeed !== editMode.initialData.randomSeed) ||
     // Player set changed (added/removed players)
     selectionOrder.length !== editMode.initialData.selectedPlayerIds.length ||
