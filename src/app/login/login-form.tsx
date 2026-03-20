@@ -48,21 +48,21 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 space-y-4"
+      className="bg-surface rounded-2xl border border-border shadow-sm p-6 space-y-4"
     >
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+        <label className="block text-sm font-medium text-text mb-1">Email</label>
         <input
           type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 hover:border-primary/30 transition-colors"
           placeholder="email@exemplo.pt"
         />
       </div>
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">
+        <label className="block text-sm font-medium text-text mb-1">
           Palavra-passe
         </label>
         <input
@@ -70,32 +70,32 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          className="w-full rounded-xl border border-border bg-surface px-3.5 py-2.5 text-sm text-text focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 hover:border-primary/30 transition-colors"
           placeholder="••••••••"
         />
         <div className="text-right mt-1">
-          <Link href="/recuperar-password" className="text-xs text-emerald-600 hover:underline">
+          <Link href="/recuperar-password" className="text-xs text-primary hover:underline font-medium">
             Esqueceu a palavra-passe?
           </Link>
         </div>
       </div>
       {error && (
-        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+        <p className="text-xs text-danger bg-danger/10 border border-danger/20 rounded-xl px-3 py-2">
           {error}
         </p>
       )}
       <button
         type="submit"
         disabled={loading}
-        className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full rounded-xl bg-gradient-to-r from-primary to-primary-light px-4 py-2.5 text-sm font-semibold text-white hover:shadow-md hover:shadow-primary/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
       >
         {loading ? "A entrar..." : "Entrar"}
       </button>
-      <p className="text-xs text-slate-500 text-center">
+      <p className="text-xs text-text-muted text-center">
         Não tem conta?{" "}
         <Link
           href={callbackUrl ? `/registar?callbackUrl=${encodeURIComponent(callbackUrl)}` : "/registar"}
-          className="text-emerald-600 hover:underline font-medium"
+          className="text-primary hover:underline font-medium"
         >
           Criar conta
         </Link>

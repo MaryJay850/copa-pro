@@ -1,9 +1,9 @@
 export function SolutionSection() {
   return (
-    <section className="bg-white">
+    <section className="bg-surface">
       <div className="max-w-7xl mx-auto px-6 py-20 lg:py-24">
         <div className="text-center mb-14">
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-text tracking-tight">
             CopaPro transforma organização em sistema.
           </h2>
         </div>
@@ -61,12 +61,12 @@ function FeatureCard({
   description: string;
 }) {
   return (
-    <div className="group rounded-2xl border border-slate-200 bg-white p-6 transition-all hover:shadow-lg hover:shadow-slate-200/50 hover:border-emerald-200">
-      <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-emerald-50 text-emerald-600 mb-4 group-hover:bg-emerald-100 transition-colors">
+    <div className="group rounded-2xl border border-border bg-surface p-6 transition-all card-hover">
+      <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl bg-primary/10 text-primary mb-4 group-hover:bg-primary/15 transition-colors">
         {icon}
       </div>
-      <h3 className="text-base font-bold text-slate-900 mb-2">{title}</h3>
-      <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
+      <h3 className="text-base font-bold text-text mb-2">{title}</h3>
+      <p className="text-sm text-text-muted leading-relaxed">{description}</p>
     </div>
   );
 }

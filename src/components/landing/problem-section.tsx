@@ -1,9 +1,9 @@
 export function ProblemSection() {
   return (
-    <section className="bg-slate-50 border-y border-slate-200">
+    <section className="bg-surface-alt border-y border-border">
       <div className="max-w-7xl mx-auto px-6 py-20 lg:py-24">
         <div className="text-center mb-14">
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-text tracking-tight">
             O problema das ligas organizadas manualmente
           </h2>
         </div>
@@ -54,11 +54,11 @@ function ProblemCard({
 }) {
   return (
     <div className="text-center space-y-4">
-      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-red-50 text-red-500">
+      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-danger/10 text-danger">
         {icon}
       </div>
-      <h3 className="text-lg font-bold text-slate-900">{title}</h3>
-      <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
+      <h3 className="text-lg font-bold text-text">{title}</h3>
+      <p className="text-sm text-text-muted leading-relaxed">{description}</p>
     </div>
   );
 }

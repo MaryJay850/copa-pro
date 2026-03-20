@@ -38,11 +38,11 @@ export function InviteAccept({ token, leagueName }: { token: string; leagueName:
 
   if (success) {
     return (
-      <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-center">
-        <p className="text-sm text-emerald-700 font-medium">
-          ✓ Juntaste-te à liga {leagueName}!
+      <div className="bg-success/10 border border-success/20 rounded-xl px-4 py-3 text-center animate-fade-in-up">
+        <p className="text-sm text-success font-medium">
+          Juntaste-te à liga {leagueName}!
         </p>
-        <p className="text-xs text-emerald-600 mt-1">
+        <p className="text-xs text-success/80 mt-1">
           A redirecionar...
         </p>
       </div>
@@ -52,14 +52,14 @@ export function InviteAccept({ token, leagueName }: { token: string; leagueName:
   return (
     <div className="space-y-3">
       {error && (
-        <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 text-center">
+        <p className="text-xs text-danger bg-danger/10 border border-danger/20 rounded-xl px-3 py-2 text-center">
           {error}
         </p>
       )}
       <button
         onClick={handleAccept}
         disabled={loading}
-        className="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        className="w-full rounded-xl bg-gradient-to-r from-primary to-primary-light px-4 py-2.5 text-sm font-semibold text-white hover:shadow-md hover:shadow-primary/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
       >
         {loading ? "A aceitar..." : "Aceitar Convite"}
       </button>

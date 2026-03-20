@@ -1,9 +1,9 @@
 export function AudienceSection() {
   return (
-    <section className="bg-slate-50 border-y border-slate-200">
+    <section className="bg-surface-alt border-y border-border">
       <div className="max-w-7xl mx-auto px-6 py-20 lg:py-24">
         <div className="text-center mb-14">
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-text tracking-tight">
             Para quem é o CopaPro?
           </h2>
         </div>
@@ -61,12 +61,12 @@ function AudienceCard({
   description: string;
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6 text-center space-y-4 hover:shadow-lg hover:shadow-slate-200/50 transition-all">
-      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-slate-100 text-slate-600">
+    <div className="bg-surface rounded-2xl border border-border p-6 text-center space-y-4 card-hover">
+      <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-surface-hover text-text-muted">
         {icon}
       </div>
-      <h3 className="text-base font-bold text-slate-900">{title}</h3>
-      <p className="text-sm text-slate-500 leading-relaxed">{description}</p>
+      <h3 className="text-base font-bold text-text">{title}</h3>
+      <p className="text-sm text-text-muted leading-relaxed">{description}</p>
     </div>
   );
 }

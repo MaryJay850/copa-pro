@@ -26,17 +26,20 @@ export function HeroSection({ leagueName, seasonName, rankings, recentMatches }:
   const hasData = rankings.length > 0;
 
   return (
-    <section className="relative overflow-hidden bg-white">
-      <div className="max-w-7xl mx-auto px-6 py-20 lg:py-28">
+    <section className="relative overflow-hidden bg-surface">
+      {/* Subtle gradient background */}
+      <div className="absolute inset-0 bg-gradient-to-br from-primary/[0.03] via-transparent to-accent/[0.03]" />
+
+      <div className="relative max-w-7xl mx-auto px-6 py-20 lg:py-28">
         <div className="grid lg:grid-cols-2 gap-16 items-center">
           {/* Left — Copy */}
-          <div className="space-y-8">
+          <div className="space-y-8 animate-fade-in-up">
             <div className="space-y-4">
-              <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-extrabold leading-[1.1] tracking-tight text-slate-900">
+              <h1 className="text-4xl sm:text-5xl lg:text-[3.25rem] font-extrabold leading-[1.1] tracking-tight text-text">
                 As ligas de Padel merecem mais do que folhas{" "}
-                <span className="text-emerald-600">Excel.</span>
+                <span className="bg-gradient-to-r from-primary to-primary-light bg-clip-text text-transparent">Excel.</span>
               </h1>
-              <p className="text-lg text-slate-500 leading-relaxed max-w-lg">
+              <p className="text-lg text-text-muted leading-relaxed max-w-lg">
                 Organize equipas, gere calendários Round Robin e acompanhe
                 rankings individuais por época com total transparência.
               </p>
@@ -44,13 +47,13 @@ export function HeroSection({ leagueName, seasonName, rankings, recentMatches }:
             <div className="flex flex-wrap gap-4">
               <Link
                 href="/ligas"
-                className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-emerald-600/25 hover:bg-emerald-700 transition-all hover:shadow-emerald-600/40"
+                className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-primary to-primary-light px-7 py-3.5 text-sm font-semibold text-white shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all active:scale-[0.98]"
               >
                 Criar Liga
               </Link>
               <Link
                 href="/dashboard"
-                className="inline-flex items-center justify-center rounded-xl bg-white px-7 py-3.5 text-sm font-semibold text-slate-700 border border-slate-200 shadow-sm hover:bg-slate-50 hover:border-slate-300 transition-all"
+                className="inline-flex items-center justify-center rounded-xl bg-surface px-7 py-3.5 text-sm font-semibold text-text border border-border shadow-sm hover:bg-surface-hover hover:border-primary/30 transition-all"
               >
                 Ver Demonstração
               </Link>
@@ -58,17 +61,17 @@ export function HeroSection({ leagueName, seasonName, rankings, recentMatches }:
           </div>
 
           {/* Right — Live data or empty state */}
-          <div className="hidden lg:block">
+          <div className="hidden lg:block animate-fade-in-up" style={{ animationDelay: "0.15s" }}>
             <div className="relative">
               {/* Background glow */}
-              <div className="absolute -inset-4 bg-gradient-to-tr from-emerald-50 via-white to-slate-50 rounded-3xl" />
+              <div className="absolute -inset-4 bg-gradient-to-tr from-primary/5 via-transparent to-accent/5 rounded-3xl" />
 
               <div className="relative space-y-4">
                 {/* Ranking table */}
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-5">
+                <div className="bg-surface rounded-2xl border border-border shadow-lg shadow-border/50 p-5">
                   <div className="flex items-center gap-2 mb-4">
-                    <div className={`w-2 h-2 rounded-full ${hasData ? "bg-emerald-500" : "bg-slate-300"}`} />
-                    <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                    <div className={`w-2 h-2 rounded-full ${hasData ? "bg-success" : "bg-border"}`} />
+                    <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
                       {hasData
                         ? `Ranking — ${seasonName}`
                         : "Ranking — Sem dados"}
@@ -80,29 +83,29 @@ export function HeroSection({ leagueName, seasonName, rankings, recentMatches }:
                       {rankings.map((r) => (
                         <div
                           key={r.position}
-                          className="flex items-center justify-between py-2.5 border-b border-slate-100 last:border-0"
+                          className="flex items-center justify-between py-2.5 border-b border-border-light last:border-0"
                         >
                           <div className="flex items-center gap-3">
                             <span
                               className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                                 r.position === 1
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-slate-100 text-slate-500"
+                                  ? "bg-primary/10 text-primary"
+                                  : "bg-surface-hover text-text-muted"
                               }`}
                             >
                               {r.position}
                             </span>
-                            <span className="text-sm font-medium text-slate-700">
+                            <span className="text-sm font-medium text-text">
                               {r.playerName}
                             </span>
                           </div>
                           <div className="flex items-center gap-3">
-                            <span className="text-xs text-slate-400">
+                            <span className="text-xs text-text-muted">
                               {r.matchesPlayed}J {r.wins}V
                             </span>
                             <span
-                              className={`text-sm font-bold ${
-                                r.position === 1 ? "text-emerald-600" : "text-slate-700"
+                              className={`text-sm font-bold tabular-nums ${
+                                r.position === 1 ? "text-primary" : "text-text"
                               }`}
                             >
                               {r.pointsTotal} pts
@@ -113,7 +116,7 @@ export function HeroSection({ leagueName, seasonName, rankings, recentMatches }:
                     </div>
                   ) : (
                     <div className="py-8 text-center">
-                      <p className="text-sm text-slate-400">
+                      <p className="text-sm text-text-muted">
                         Crie uma liga e registe resultados para ver o ranking aqui.
                       </p>
                     </div>
@@ -123,10 +126,10 @@ export function HeroSection({ leagueName, seasonName, rankings, recentMatches }:
                 {/* Recent matches + league info */}
                 <div className="grid grid-cols-2 gap-4">
                   {/* Recent matches block */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-4">
+                  <div className="bg-surface rounded-2xl border border-border shadow-lg shadow-border/50 p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <div className={`w-2 h-2 rounded-full ${recentMatches.length > 0 ? "bg-amber-400" : "bg-slate-300"}`} />
-                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      <div className={`w-2 h-2 rounded-full ${recentMatches.length > 0 ? "bg-accent" : "bg-border"}`} />
+                      <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
                         {recentMatches.length > 0
                           ? "Últimos Resultados"
                           : "Resultados"}
@@ -137,21 +140,21 @@ export function HeroSection({ leagueName, seasonName, rankings, recentMatches }:
                         {recentMatches.map((m, i) => (
                           <div
                             key={i}
-                            className="flex flex-col gap-0.5 text-xs py-1.5 border-b border-slate-100 last:border-0"
+                            className="flex flex-col gap-0.5 text-xs py-1.5 border-b border-border-light last:border-0"
                           >
                             <div className="flex items-center justify-between">
-                              <span className="text-slate-600 font-medium truncate max-w-[120px]">
+                              <span className="text-text font-medium truncate max-w-[120px]">
                                 {m.teamA}
                               </span>
-                              <span className="font-mono text-slate-400 text-[10px]">
+                              <span className="font-mono text-text-muted text-[10px]">
                                 R{m.round}
                               </span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="text-slate-600 font-medium truncate max-w-[120px]">
+                              <span className="text-text font-medium truncate max-w-[120px]">
                                 {m.teamB}
                               </span>
-                              <span className="font-mono text-emerald-600 font-semibold">
+                              <span className="font-mono text-primary font-semibold">
                                 {m.score}
                               </span>
                             </div>
@@ -160,7 +163,7 @@ export function HeroSection({ leagueName, seasonName, rankings, recentMatches }:
                       </div>
                     ) : (
                       <div className="py-4 text-center">
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-text-muted">
                           Sem jogos registados
                         </p>
                       </div>
@@ -168,35 +171,35 @@ export function HeroSection({ leagueName, seasonName, rankings, recentMatches }:
                   </div>
 
                   {/* League info card */}
-                  <div className="bg-white rounded-2xl border border-slate-200 shadow-lg shadow-slate-200/50 p-4">
+                  <div className="bg-surface rounded-2xl border border-border shadow-lg shadow-border/50 p-4">
                     <div className="flex items-center gap-2 mb-3">
-                      <div className={`w-2 h-2 rounded-full ${hasData ? "bg-blue-400" : "bg-slate-300"}`} />
-                      <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                      <div className={`w-2 h-2 rounded-full ${hasData ? "bg-primary-light" : "bg-border"}`} />
+                      <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
                         Liga
                       </span>
                     </div>
                     {hasData ? (
                       <div className="text-center space-y-2 py-2">
-                        <div className="text-sm font-semibold text-slate-700">
+                        <div className="text-sm font-semibold text-text">
                           {leagueName}
                         </div>
-                        <div className="text-xs text-slate-400">
+                        <div className="text-xs text-text-muted">
                           {seasonName}
                         </div>
                         <div className="flex justify-center gap-4 mt-2">
                           <div className="text-center">
-                            <div className="text-lg font-bold text-emerald-600">
+                            <div className="text-lg font-bold text-primary tabular-nums">
                               {rankings.length}
                             </div>
-                            <div className="text-[10px] text-slate-400 uppercase">
+                            <div className="text-[10px] text-text-muted uppercase">
                               Jogadores
                             </div>
                           </div>
                           <div className="text-center">
-                            <div className="text-lg font-bold text-blue-600">
+                            <div className="text-lg font-bold text-accent tabular-nums">
                               {rankings.reduce((sum, r) => sum + r.matchesPlayed, 0)}
                             </div>
-                            <div className="text-[10px] text-slate-400 uppercase">
+                            <div className="text-[10px] text-text-muted uppercase">
                               Jogos
                             </div>
                           </div>
@@ -204,7 +207,7 @@ export function HeroSection({ leagueName, seasonName, rankings, recentMatches }:
                       </div>
                     ) : (
                       <div className="py-4 text-center">
-                        <p className="text-[11px] text-slate-400">
+                        <p className="text-[11px] text-text-muted">
                           Nenhuma liga ativa
                         </p>
                       </div>

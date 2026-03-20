@@ -1,15 +1,15 @@
 export function FeaturesSection() {
   return (
-    <section className="bg-slate-50 border-y border-slate-200">
+    <section className="bg-surface-alt border-y border-border">
       <div className="max-w-7xl mx-auto px-6 py-20 lg:py-24">
         <div className="text-center mb-14">
-          <span className="inline-block text-xs font-bold uppercase tracking-widest text-emerald-600 mb-3">
+          <span className="inline-block text-xs font-bold uppercase tracking-widest text-primary mb-3">
             Funcionalidades
           </span>
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-text tracking-tight">
             Tudo o que precisa para gerir a sua liga.
           </h2>
-          <p className="text-slate-500 mt-3 max-w-xl mx-auto">
+          <p className="text-text-muted mt-3 max-w-xl mx-auto">
             Uma plataforma completa, do primeiro jogo ao ranking final da época.
           </p>
         </div>
@@ -147,18 +147,18 @@ function FeatureGroup({
   features: string[];
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-6 hover:shadow-lg hover:shadow-slate-200/50 transition-all">
+    <div className="bg-surface rounded-2xl border border-border p-6 card-hover">
       <div className="flex items-center gap-3 mb-4">
-        <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600">
+        <div className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-primary/10 text-primary">
           {icon}
         </div>
-        <h3 className="text-base font-bold text-slate-900">{title}</h3>
+        <h3 className="text-base font-bold text-text">{title}</h3>
       </div>
       <ul className="space-y-2">
         {features.map((feature, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm text-slate-600">
+          <li key={i} className="flex items-start gap-2 text-sm text-text-muted">
             <svg
-              className="w-4 h-4 mt-0.5 text-emerald-500 shrink-0"
+              className="w-4 h-4 mt-0.5 text-success shrink-0"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"

@@ -18,39 +18,49 @@ export default async function LandingPage() {
   const data = await getLandingPageData();
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-surface">
       {/* Landing Nav */}
-      <header className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-200/80">
+      <header className="sticky top-0 z-50 bg-surface border-b border-border backdrop-blur-sm">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-0.5">
-            <span className="text-xl font-extrabold text-slate-900 tracking-tight">
-              Copa<span className="text-emerald-600">Pro</span>
+          <Link href="/" className="flex items-center gap-2 group">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-primary to-primary-light flex items-center justify-center shadow-sm group-hover:shadow-md transition-shadow">
+              <svg className="w-4.5 h-4.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 2C12 2 5 8 5 12s3 8 7 10" />
+                <path d="M12 2c0 0 7 6 7 10s-3 8-7 10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+              </svg>
+            </div>
+            <span className="text-xl font-extrabold tracking-tight text-text">
+              Copa<span className="text-primary">Pro</span>
             </span>
           </Link>
-          <nav className="hidden sm:flex items-center gap-8 text-sm font-medium text-slate-500">
-            <a href="#problema" className="hover:text-slate-900 transition-colors">
-              Problema
-            </a>
-            <a href="#solucao" className="hover:text-slate-900 transition-colors">
-              Solução
-            </a>
-            <a href="#funcionalidades" className="hover:text-slate-900 transition-colors">
-              Funcionalidades
-            </a>
-            <a href="#planos" className="hover:text-slate-900 transition-colors">
-              Planos
-            </a>
+          <nav className="hidden sm:flex items-center gap-1">
+            {[
+              { href: "#problema", label: "Problema" },
+              { href: "#solucao", label: "Solução" },
+              { href: "#funcionalidades", label: "Funcionalidades" },
+              { href: "#planos", label: "Planos" },
+            ].map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="px-3.5 py-2 text-sm font-medium text-text-muted hover:text-text hover:bg-surface-hover rounded-xl transition-all duration-200"
+              >
+                {link.label}
+              </a>
+            ))}
           </nav>
           <div className="flex items-center gap-3">
             <Link
               href="/login"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+              className="text-sm font-medium text-text-muted hover:text-text transition-colors"
             >
               Entrar
             </Link>
             <Link
               href="/registar"
-              className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 transition-colors"
+              className="inline-flex items-center justify-center rounded-xl bg-gradient-to-r from-primary to-primary-light px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all active:scale-[0.98]"
             >
               Criar Conta
             </Link>

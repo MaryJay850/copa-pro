@@ -1,9 +1,9 @@
 export function ScoringSection() {
   return (
-    <section className="bg-white">
+    <section className="bg-surface">
       <div className="max-w-7xl mx-auto px-6 py-20 lg:py-24">
         <div className="text-center mb-14">
-          <h2 className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">
+          <h2 className="text-3xl sm:text-4xl font-extrabold text-text tracking-tight">
             Sistema de Pontuação Transparente
           </h2>
         </div>
@@ -11,18 +11,18 @@ export function ScoringSection() {
         <div className="max-w-3xl mx-auto space-y-10">
           {/* Points breakdown */}
           <div className="grid grid-cols-3 gap-4">
-            <PointCard value="+3" label="por vitória" accent="emerald" />
-            <PointCard value="+2" label="por set ganho" accent="blue" />
-            <PointCard value="+1" label="por empate" accent="amber" />
+            <PointCard value="+3" label="por vitória" accent="success" />
+            <PointCard value="+2" label="por set ganho" accent="primary" />
+            <PointCard value="+1" label="por empate" accent="accent" />
           </div>
 
           {/* Separator */}
           <div className="flex items-center gap-4">
-            <div className="flex-1 h-px bg-slate-200" />
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+            <div className="flex-1 h-px bg-border" />
+            <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">
               Critérios de Desempate
             </span>
-            <div className="flex-1 h-px bg-slate-200" />
+            <div className="flex-1 h-px bg-border" />
           </div>
 
           {/* Tiebreak order */}
@@ -35,17 +35,17 @@ export function ScoringSection() {
               { label: "E", desc: "Empates" },
             ].map((item, i) => (
               <div key={item.label} className="flex items-center gap-2">
-                <div className="flex flex-col items-center bg-slate-50 border border-slate-200 rounded-xl px-5 py-3 min-w-[80px]">
-                  <span className="text-lg font-extrabold text-slate-800">
+                <div className="flex flex-col items-center bg-surface-alt border border-border rounded-xl px-5 py-3 min-w-[80px]">
+                  <span className="text-lg font-extrabold text-text">
                     {item.label}
                   </span>
-                  <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">
+                  <span className="text-[10px] text-text-muted font-medium uppercase tracking-wider">
                     {item.desc}
                   </span>
                 </div>
                 {i < 4 && (
                   <svg
-                    className="w-4 h-4 text-slate-300 shrink-0"
+                    className="w-4 h-4 text-border shrink-0"
                     fill="none"
                     viewBox="0 0 24 24"
                     stroke="currentColor"
@@ -74,12 +74,12 @@ function PointCard({
 }: {
   value: string;
   label: string;
-  accent: "emerald" | "blue" | "amber";
+  accent: "success" | "primary" | "accent";
 }) {
   const styles = {
-    emerald: "bg-emerald-50 border-emerald-200 text-emerald-700",
-    blue: "bg-blue-50 border-blue-200 text-blue-700",
-    amber: "bg-amber-50 border-amber-200 text-amber-700",
+    success: "bg-success/10 border-success/20 text-success",
+    primary: "bg-primary/10 border-primary/20 text-primary",
+    accent: "bg-accent/10 border-accent/20 text-accent",
   };
 
   return (
