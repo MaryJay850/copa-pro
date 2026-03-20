@@ -42,6 +42,111 @@ interface MatchedResult {
 
 type Phase = "upload" | "processing" | "preview" | "saving";
 
+/**
+ * Pre-process image for better OCR: high contrast grayscale + sharpen.
+ * Returns a Blob of the processed JPEG image.
+ */
+async function preprocessImage(file: File): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      // Limit max dimension to 2048px to reduce API cost while keeping quality
+      const maxDim = 2048;
+      let w = img.width;
+      let h = img.height;
+      if (w > maxDim || h > maxDim) {
+        const scale = maxDim / Math.max(w, h);
+        w = Math.round(w * scale);
+        h = Math.round(h * scale);
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d")!;
+
+      // Draw original
+      ctx.drawImage(img, 0, 0, w, h);
+
+      // Get pixel data
+      const imageData = ctx.getImageData(0, 0, w, h);
+      const data = imageData.data;
+
+      // Pass 1: Convert to grayscale and calculate histogram for adaptive threshold
+      const grayValues = new Uint8Array(w * h);
+      for (let i = 0; i < data.length; i += 4) {
+        const gray = Math.round(0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]);
+        grayValues[i / 4] = gray;
+      }
+
+      // Calculate Otsu's threshold for adaptive binarization hint
+      let sum = 0;
+      const histogram = new Array(256).fill(0);
+      for (let i = 0; i < grayValues.length; i++) {
+        histogram[grayValues[i]]++;
+        sum += grayValues[i];
+      }
+
+      let sumB = 0;
+      let wB = 0;
+      let maxVariance = 0;
+      let threshold = 128;
+      const total = grayValues.length;
+
+      for (let t = 0; t < 256; t++) {
+        wB += histogram[t];
+        if (wB === 0) continue;
+        const wF = total - wB;
+        if (wF === 0) break;
+        sumB += t * histogram[t];
+        const mB = sumB / wB;
+        const mF = (sum - sumB) / wF;
+        const variance = wB * wF * (mB - mF) * (mB - mF);
+        if (variance > maxVariance) {
+          maxVariance = variance;
+          threshold = t;
+        }
+      }
+
+      // Pass 2: Apply contrast stretch + soft thresholding
+      // Instead of hard black/white, we boost contrast aggressively
+      // This preserves some gradation for the AI to read
+      for (let i = 0; i < grayValues.length; i++) {
+        let v = grayValues[i];
+
+        // Contrast stretch: expand range around threshold
+        if (v < threshold) {
+          // Dark pixels: make darker (ink/handwriting)
+          v = Math.max(0, Math.round((v / threshold) * 80));
+        } else {
+          // Light pixels: make lighter (paper background)
+          v = Math.min(255, Math.round(180 + ((v - threshold) / (255 - threshold)) * 75));
+        }
+
+        const idx = i * 4;
+        data[idx] = v;
+        data[idx + 1] = v;
+        data[idx + 2] = v;
+        // alpha stays 255
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+
+      // Export as JPEG with good quality
+      canvas.toBlob(
+        (blob) => {
+          if (blob) resolve(blob);
+          else reject(new Error("Failed to process image"));
+        },
+        "image/jpeg",
+        0.92
+      );
+    };
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 export function OcrResultsUpload({
   tournamentId,
   matches,
@@ -77,10 +182,22 @@ export function OcrResultsUpload({
     setPhase("processing");
 
     try {
+      // Pre-process images for better OCR (contrast + grayscale)
+      const processedFiles: Blob[] = [];
+      for (const file of files) {
+        try {
+          const processed = await preprocessImage(file);
+          processedFiles.push(processed);
+        } catch {
+          // If processing fails, use original
+          processedFiles.push(file);
+        }
+      }
+
       const formData = new FormData();
       formData.append("tournamentId", tournamentId);
-      for (const file of files) {
-        formData.append("images", file);
+      for (let i = 0; i < processedFiles.length; i++) {
+        formData.append("images", processedFiles[i], files[i].name);
       }
 
       const response = await fetch("/api/ocr-results", {
