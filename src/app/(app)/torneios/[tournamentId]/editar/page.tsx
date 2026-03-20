@@ -46,6 +46,7 @@ export default async function EditTournamentPage({
     teamMode: tournament.teamMode,
     randomSeed: tournament.randomSeed ?? undefined,
     numberOfRounds: tournament.numberOfRounds ?? undefined,
+    rankedSplitSubMode: tournament.rankedSplitSubMode ?? undefined,
     teams: tournament.teams.filter((t: any) => !t.roundId).map((t: any) => ({
       name: t.name,
       player1Id: t.player1Id,

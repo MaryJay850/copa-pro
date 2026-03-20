@@ -193,9 +193,10 @@ model Tournament {
   matchesPerPair Int       @default(1)
   numberOfSets   Int       @default(1)
   status         String    @default("DRAFT")
-  randomSeed     String?
-  numberOfRounds Int?
-  createdAt      DateTime  @default(now())
+  randomSeed          String?
+  numberOfRounds      Int?
+  rankedSplitSubMode  String?   // "fixed" or "per_round" — only used when teamMode = RANKED_SPLIT
+  createdAt           DateTime  @default(now())
 
   league       League                  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   season       Season                  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
