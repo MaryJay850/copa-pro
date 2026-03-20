@@ -14,7 +14,6 @@ export default async function GestorPage() {
 
   const userId = session.user.id;
 
-  // Get leagues this user manages
   const managedLeagues = await prisma.leagueManager.findMany({
     where: { userId },
     include: {
@@ -42,7 +41,6 @@ export default async function GestorPage() {
     },
   });
 
-  // Also check if admin (admins see all)
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { role: true },
@@ -51,7 +49,6 @@ export default async function GestorPage() {
   let leagues = managedLeagues.map((m) => m.league);
 
   if (user?.role === "ADMINISTRADOR" && leagues.length === 0) {
-    // Admin sees all leagues if no managed ones
     leagues = await prisma.league.findMany({
       include: {
         seasons: {
@@ -75,7 +72,6 @@ export default async function GestorPage() {
     });
   }
 
-  // Pending result submissions across all managed leagues
   const pendingSubmissions = await prisma.matchResultSubmission.count({
     where: {
       status: "PENDING",
@@ -89,7 +85,6 @@ export default async function GestorPage() {
     },
   });
 
-  // Get availability for next 7 days across all leagues
   const today = new Date();
   const next7 = new Date();
   next7.setDate(today.getDate() + 7);
@@ -114,49 +109,73 @@ export default async function GestorPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fade-in-up">
       <div>
-        <h1 className="text-2xl font-bold">Painel de Gestao</h1>
-        <p className="text-sm text-text-muted mt-1">
-          Visao geral das suas ligas
+        <h1 className="text-2xl font-extrabold tracking-tight">Painel de Gestão</h1>
+        <p className="text-sm text-text-muted mt-1 font-medium">
+          Visão geral das suas ligas
         </p>
       </div>
 
       {/* Quick Stats */}
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4">
-        <Card className="text-center py-3">
-          <p className="text-2xl font-bold text-primary">{leagues.length}</p>
-          <p className="text-xs text-text-muted">Ligas Geridas</p>
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-4">
+        <Card className="stat-card stat-card-blue py-4 px-5 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-2xl font-extrabold text-text tabular-nums">{leagues.length}</p>
+            <p className="text-xs text-text-muted font-medium">Ligas Geridas</p>
+          </div>
         </Card>
-        <Card className="text-center py-3">
-          <p className="text-2xl font-bold text-amber-600">
-            {pendingSubmissions}
-          </p>
-          <p className="text-xs text-text-muted">Resultados Pendentes</p>
+        <Card className="stat-card stat-card-amber py-4 px-5 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-2xl font-extrabold text-text tabular-nums">{pendingSubmissions}</p>
+            <p className="text-xs text-text-muted font-medium">Resultados Pendentes</p>
+          </div>
         </Card>
-        <Card className="text-center py-3">
-          <p className="text-2xl font-bold text-emerald-600">
-            {availabilityCount}
-          </p>
-          <p className="text-xs text-text-muted">Disponiveis (7 dias)</p>
+        <Card className="stat-card stat-card-green py-4 px-5 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-success/10 flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-2xl font-extrabold text-text tabular-nums">{availabilityCount}</p>
+            <p className="text-xs text-text-muted font-medium">Disponíveis (7 dias)</p>
+          </div>
         </Card>
-        <Card className="text-center py-3">
-          <p className="text-2xl font-bold text-red-500">
-            {leagues.reduce((s, l) => s + l.memberships.length, 0)}
-          </p>
-          <p className="text-xs text-text-muted">Pedidos Pendentes</p>
+        <Card className="stat-card stat-card-red py-4 px-5 flex items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-danger/10 flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-danger" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+            </svg>
+          </div>
+          <div>
+            <p className="text-2xl font-extrabold text-text tabular-nums">
+              {leagues.reduce((s, l) => s + l.memberships.length, 0)}
+            </p>
+            <p className="text-xs text-text-muted font-medium">Pedidos Pendentes</p>
+          </div>
         </Card>
       </div>
 
       {leagues.length === 0 ? (
         <EmptyState
-          title="Sem ligas atribuidas"
-          description="Nao gere nenhuma liga. Contacte um administrador."
+          title="Sem ligas atribuídas"
+          description="Não gere nenhuma liga. Contacte um administrador."
         />
       ) : (
         <div className="space-y-4">
-          {leagues.map((league) => (
-            <Card key={league.id}>
+          {leagues.map((league, i) => (
+            <Card key={league.id} className={`animate-fade-in-up stagger-${i + 1}`}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <Link
@@ -166,7 +185,7 @@ export default async function GestorPage() {
                     <CardTitle>{league.name}</CardTitle>
                   </Link>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-text-muted">
+                    <span className="text-xs text-text-muted font-medium">
                       {league._count.memberships} membros
                     </span>
                     {league.memberships.length > 0 && (
@@ -178,7 +197,6 @@ export default async function GestorPage() {
                 </div>
               </CardHeader>
 
-              {/* Active tournaments */}
               {league.seasons.flatMap((s) => s.tournaments).length > 0 ? (
                 <div className="space-y-2">
                   {league.seasons
@@ -186,35 +204,37 @@ export default async function GestorPage() {
                     .map((t) => {
                       const finished = t.matches.length;
                       const total = t._count.matches;
-                      const pct =
-                        total > 0 ? Math.round((finished / total) * 100) : 0;
+                      const pct = total > 0 ? Math.round((finished / total) * 100) : 0;
                       return (
                         <Link key={t.id} href={`/torneios/${t.id}`}>
-                          <div className="flex items-center justify-between px-3 py-2 bg-surface-alt rounded-lg hover:opacity-80 transition-opacity">
+                          <div className="flex items-center justify-between px-3 py-2.5 bg-surface-alt rounded-xl hover:bg-surface-hover transition-colors">
                             <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium">
-                                {t.name}
-                              </span>
+                              <span className="text-sm font-semibold">{t.name}</span>
                               <Badge
-                                variant={
-                                  t.status === "RUNNING" ? "warning" : "info"
-                                }
+                                variant={t.status === "RUNNING" ? "warning" : "info"}
+                                pulse={t.status === "RUNNING"}
                               >
-                                {t.status === "RUNNING"
-                                  ? "A decorrer"
-                                  : "Publicado"}
+                                {t.status === "RUNNING" ? "A decorrer" : "Publicado"}
                               </Badge>
                             </div>
-                            <span className="text-xs text-text-muted">
-                              {pct}% ({finished}/{total})
-                            </span>
+                            <div className="flex items-center gap-3">
+                              <div className="w-20 bg-surface-hover rounded-full h-1.5 overflow-hidden">
+                                <div
+                                  className="bg-gradient-to-r from-primary to-primary-light rounded-full h-1.5 transition-all"
+                                  style={{ width: `${pct}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-text-muted font-semibold tabular-nums w-8 text-right">
+                                {pct}%
+                              </span>
+                            </div>
                           </div>
                         </Link>
                       );
                     })}
                 </div>
               ) : (
-                <p className="text-xs text-text-muted px-3">
+                <p className="text-xs text-text-muted font-medium px-1">
                   Sem torneios ativos
                 </p>
               )}

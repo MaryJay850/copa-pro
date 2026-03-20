@@ -9,12 +9,12 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const variantStyles: Record<Variant, string> = {
-  primary: "bg-primary text-white hover:bg-primary-dark shadow-sm",
-  default: "bg-primary text-white hover:bg-primary-dark shadow-sm",
-  secondary: "bg-white text-text border border-border hover:bg-gray-50 shadow-sm",
-  danger: "bg-danger text-white hover:bg-red-600 shadow-sm",
-  destructive: "bg-danger text-white hover:bg-red-600 shadow-sm",
-  ghost: "text-text-muted hover:text-text hover:bg-gray-100",
+  primary: "bg-gradient-to-r from-primary to-primary-light text-white hover:from-primary-dark hover:to-primary shadow-sm hover:shadow-md",
+  default: "bg-gradient-to-r from-primary to-primary-light text-white hover:from-primary-dark hover:to-primary shadow-sm hover:shadow-md",
+  secondary: "bg-surface text-text border border-border hover:bg-surface-hover hover:border-primary/30 shadow-sm",
+  danger: "bg-gradient-to-r from-danger to-danger-light text-white hover:from-red-700 hover:to-danger shadow-sm hover:shadow-md",
+  destructive: "bg-gradient-to-r from-danger to-danger-light text-white hover:from-red-700 hover:to-danger shadow-sm hover:shadow-md",
+  ghost: "text-text-muted hover:text-text hover:bg-surface-hover",
 };
 
 const sizeStyles: Record<Size, string> = {
@@ -28,7 +28,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     return (
       <button
         ref={ref}
-        className={`inline-flex items-center justify-center rounded-lg font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary disabled:opacity-50 disabled:cursor-not-allowed ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+        className={`inline-flex items-center justify-center rounded-xl font-semibold transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
         disabled={disabled}
         {...props}
       >

@@ -17,12 +17,10 @@ export default async function PlansPage({
 
   const params = await searchParams;
 
-  // If returning from successful checkout, sync plan from Stripe as fallback
   if (params.success === "true") {
     await syncPlanFromStripe();
   }
 
-  // Seed default prices if table is empty
   await seedDefaultPlanPrices();
 
   const [{ plan }, subInfo, planPrices] = await Promise.all([
@@ -32,10 +30,10 @@ export default async function PlansPage({
   ]);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8">
+    <div className="max-w-5xl mx-auto space-y-8 animate-fade-in-up">
       <div>
-        <h1 className="text-2xl font-bold text-text-primary">Planos & Subscrição</h1>
-        <p className="text-sm text-text-muted mt-1">
+        <h1 className="text-2xl font-extrabold tracking-tight">Planos & Subscrição</h1>
+        <p className="text-sm text-text-muted mt-1 font-medium">
           Gira o seu plano e aceda a mais funcionalidades.
         </p>
       </div>

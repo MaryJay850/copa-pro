@@ -1,8 +1,23 @@
 import type { Metadata, Viewport } from "next";
+import { DM_Sans, IBM_Plex_Sans } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
 import { ServiceWorkerRegister } from "@/components/sw-register";
 import { Toaster } from "sonner";
 import "./globals.css";
+
+const dmSans = DM_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+const ibmPlex = IBM_Plex_Sans({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  variable: "--font-body",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "CopaPro - Gestão de Ligas de Padel",
@@ -21,7 +36,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#2563eb",
+  themeColor: "#1e40af",
 };
 
 export default function RootLayout({
@@ -30,7 +45,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="pt" suppressHydrationWarning>
+    <html lang="pt" suppressHydrationWarning className={`${dmSans.variable} ${ibmPlex.variable}`}>
       <head>
         <script
           dangerouslySetInnerHTML={{

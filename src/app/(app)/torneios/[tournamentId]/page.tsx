@@ -42,11 +42,9 @@ export default async function TournamentPage({
   const adminUser = await isAdmin();
   const s = statusLabels[tournament.status] || statusLabels.DRAFT;
 
-  // Get current user info for player result submission
   const currentUserId = (session?.user as any)?.id ?? null;
   const currentPlayerId = (session?.user as any)?.playerId ?? null;
 
-  // Fetch pending submissions for all scheduled matches
   const allMatches = tournament.rounds.flatMap((r) => r.matches);
   const scheduledMatchIds = allMatches
     .filter((m) => m.status === "SCHEDULED")
@@ -71,63 +69,76 @@ export default async function TournamentPage({
       acc + r.matches.filter((m) => m.status === "FINISHED").length,
     0
   );
+  const progressPct = totalMatches > 0 ? Math.round((finishedMatches / totalMatches) * 100) : 0;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 animate-fade-in-up">
+      {/* Header */}
       <div>
-        <div className="flex items-center gap-2 text-sm text-text-muted mb-1">
-          <Link href="/ligas" className="hover:text-text">
-            Ligas
-          </Link>
-          <span>/</span>
-          <Link
-            href={`/ligas/${tournament.leagueId}`}
-            className="hover:text-text"
-          >
-            {tournament.league.name}
-          </Link>
-          <span>/</span>
-          <Link
-            href={`/ligas/${tournament.leagueId}/epocas/${tournament.seasonId}`}
-            className="hover:text-text"
-          >
-            {tournament.season.name}
-          </Link>
-          <span>/</span>
+        <div className="flex items-center gap-2 text-sm text-text-muted mb-2 font-medium">
+          <Link href="/ligas" className="hover:text-primary transition-colors">Ligas</Link>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          <Link href={`/ligas/${tournament.leagueId}`} className="hover:text-primary transition-colors">{tournament.league.name}</Link>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+          <Link href={`/ligas/${tournament.leagueId}/epocas/${tournament.seasonId}`} className="hover:text-primary transition-colors">{tournament.season.name}</Link>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
         </div>
-        <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-2xl font-bold">{tournament.name}</h1>
-          <Badge variant={s.variant}>{s.label}</Badge>
+
+        <div className="flex items-center gap-3 flex-wrap mb-3">
+          <h1 className="text-2xl font-extrabold tracking-tight">{tournament.name}</h1>
+          <Badge variant={s.variant} pulse={tournament.status === "RUNNING"}>
+            {s.label}
+          </Badge>
         </div>
-        <div className="flex gap-4 mt-2 text-sm text-text-muted flex-wrap">
+
+        {/* Metadata chips */}
+        <div className="flex gap-2 flex-wrap">
           {tournament.startDate && (
-            <span className="font-medium text-text">
-              {new Date(tournament.startDate).toLocaleDateString("pt-PT", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text bg-surface rounded-lg border border-border px-2.5 py-1.5">
+              <svg className="w-3.5 h-3.5 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              {new Date(tournament.startDate).toLocaleDateString("pt-PT", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
             </span>
           )}
-          <span>{tournament.teamSize === 1 ? "1v1" : "2v2"}</span>
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text bg-surface rounded-lg border border-border px-2.5 py-1.5">
+            <svg className="w-3.5 h-3.5 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            {tournament.teamSize === 1 ? "1v1" : "2v2"}
+          </span>
           {tournament.teamMode === "RANDOM_PER_ROUND" ? (
-            <span>Aleatórias por Ronda ({tournament.numberOfRounds || tournament.rounds.length} rondas)</span>
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text bg-surface rounded-lg border border-border px-2.5 py-1.5">
+              <svg className="w-3.5 h-3.5 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+              Aleatórias ({tournament.numberOfRounds || tournament.rounds.length} rondas)
+            </span>
           ) : (
-            <span>{tournament.teams.length} {tournament.teamSize === 1 ? "jogadores" : "equipas"}</span>
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text bg-surface rounded-lg border border-border px-2.5 py-1.5">
+              {tournament.teams.length} {tournament.teamSize === 1 ? "jogadores" : "equipas"}
+            </span>
           )}
-          <span>
-            {tournament.courtsCount}{" "}
-            {tournament.courtsCount === 1 ? "campo" : "campos"}
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text bg-surface rounded-lg border border-border px-2.5 py-1.5">
+            {tournament.courtsCount} {tournament.courtsCount === 1 ? "campo" : "campos"}
           </span>
-          <span>
-            {tournament.matchesPerPair === 1 ? "RR Simples" : "RR Duplo"}
-          </span>
-          <span>
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-text bg-surface rounded-lg border border-border px-2.5 py-1.5">
             {tournament.numberOfSets === 1 ? "1 Set" : tournament.numberOfSets === 2 ? "2 Sets" : "Melhor de 3"}
           </span>
-          <span>
-            {finishedMatches}/{totalMatches} jogos completos
-          </span>
         </div>
+
+        {/* Progress bar */}
+        {totalMatches > 0 && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="text-xs font-semibold text-text-muted">Progresso</span>
+              <span className="text-xs font-bold text-text tabular-nums">{finishedMatches}/{totalMatches} jogos ({progressPct}%)</span>
+            </div>
+            <div className="w-full bg-surface-hover rounded-full h-2.5 overflow-hidden">
+              <div
+                className="bg-gradient-to-r from-primary to-primary-light rounded-full h-2.5 transition-all duration-500"
+                style={{ width: `${progressPct}%` }}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Actions bar - only for admins and league managers */}
+      {/* Actions bar */}
       {canManage && (
         <TournamentActions
           tournamentId={tournament.id}
@@ -140,7 +151,7 @@ export default async function TournamentPage({
         />
       )}
 
-      {/* Player Swap - Admin only, when tournament has teams and is not finished */}
+      {/* Player Swap */}
       {adminUser && tournament.status !== "FINISHED" && tournament.teams.length > 0 && (
         <PlayerSwap
           tournamentId={tournament.id}
@@ -162,7 +173,7 @@ export default async function TournamentPage({
         />
       )}
 
-      {/* OCR Results Upload - for managers when tournament has pending matches */}
+      {/* OCR Results Upload */}
       {canManage && tournament.status !== "FINISHED" && tournament.rounds.length > 0 && (
         <OcrResultsUpload
           tournamentId={tournament.id}
@@ -197,7 +208,7 @@ export default async function TournamentPage({
         />
       )}
 
-      {/* Player Management - only for managers when inscriptions exist */}
+      {/* Player Management */}
       {canManage && tournament.inscriptions && tournament.inscriptions.length > 0 && (
         <PlayerManagement
           tournamentId={tournament.id}
@@ -211,8 +222,8 @@ export default async function TournamentPage({
           <CardHeader>
             <CardTitle>Equipas Aleatórias por Ronda</CardTitle>
           </CardHeader>
-          <div className="px-4 pb-4">
-            <p className="text-sm text-text-muted mb-3">
+          <div className="px-1 pb-1">
+            <p className="text-sm text-text-muted mb-3 font-medium">
               Cada ronda tem equipas diferentes geradas aleatoriamente.
               {tournament.numberOfRounds && ` ${tournament.numberOfRounds} rondas configuradas.`}
             </p>
@@ -222,12 +233,12 @@ export default async function TournamentPage({
                   const roundTeams = tournament.teams.filter((t: any) => t.roundId === round.id);
                   if (roundTeams.length === 0) return null;
                   return (
-                    <div key={round.id} className="border border-border rounded-lg p-3">
-                      <p className="text-sm font-medium mb-2">Ronda {round.index}</p>
+                    <div key={round.id} className="border border-border rounded-xl p-3">
+                      <p className="text-sm font-bold mb-2">Ronda {round.index}</p>
                       <div className="grid gap-1.5 sm:grid-cols-2">
                         {roundTeams.map((team: any) => (
-                          <div key={team.id} className="flex items-center gap-2 px-2 py-1 bg-surface-alt rounded text-xs">
-                            <span className="font-medium">{team.name}</span>
+                          <div key={team.id} className="flex items-center gap-2 px-2.5 py-1.5 bg-surface-alt rounded-lg text-xs font-medium">
+                            <span>{team.name}</span>
                           </div>
                         ))}
                       </div>
@@ -249,27 +260,32 @@ export default async function TournamentPage({
             {tournament.teams.map((team) => (
               <div
                 key={team.id}
-                className="flex items-center gap-2 px-3 py-2 bg-surface-alt rounded-lg text-sm"
+                className="flex items-center gap-3 px-3 py-2.5 bg-surface-alt rounded-xl text-sm"
               >
-                <span className="font-medium">{team.name}</span>
-                <span className="text-text-muted text-xs">
-                  {team.player1.nickname ||
-                    team.player1.fullName.split(" ")[0]}
-                  {team.player2 && (
-                    <>
-                      {" "}&amp;{" "}
-                      {team.player2.nickname ||
-                        team.player2.fullName.split(" ")[0]}
-                    </>
-                  )}
-                </span>
+                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs font-bold text-primary">
+                    {team.name.slice(0, 2).toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <span className="font-bold text-sm">{team.name}</span>
+                  <span className="text-text-muted text-xs ml-1.5">
+                    {team.player1.nickname || team.player1.fullName.split(" ")[0]}
+                    {team.player2 && (
+                      <>
+                        {" & "}
+                        {team.player2.nickname || team.player2.fullName.split(" ")[0]}
+                      </>
+                    )}
+                  </span>
+                </div>
               </div>
             ))}
           </div>
         </Card>
       )}
 
-      {/* Suplentes */}
+      {/* Inscriptions */}
       {tournament.inscriptions && tournament.inscriptions.length > 0 && (
         (() => {
           const suplentes = tournament.inscriptions.filter(
@@ -285,11 +301,11 @@ export default async function TournamentPage({
                 {tournament.inscriptions.map((insc: any, idx: number) => (
                   <div
                     key={insc.id}
-                    className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg text-sm ${
+                    className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm ${
                       insc.status === "DESISTIU" ? "bg-red-50 line-through text-text-muted" : "bg-surface-alt"
                     }`}
                   >
-                    <span className={insc.status === "DESISTIU" ? "text-text-muted" : "font-medium"}>
+                    <span className={insc.status === "DESISTIU" ? "text-text-muted" : "font-semibold"}>
                       {insc.player.nickname || insc.player.fullName.split(" ")[0]}
                     </span>
                     <Badge
@@ -313,7 +329,7 @@ export default async function TournamentPage({
         })()
       )}
 
-      {/* Schedule by rounds */}
+      {/* Schedule */}
       {tournament.rounds.length === 0 ? (
         <EmptyState
           title="Sem calendário"

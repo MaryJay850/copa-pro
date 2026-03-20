@@ -29,7 +29,6 @@ export function Modal({
 }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
 
-  // Close on Escape key
   useEffect(() => {
     if (!open) return;
 
@@ -43,7 +42,6 @@ export function Modal({
     return () => document.removeEventListener("keydown", handleKeyDown);
   }, [open, onClose]);
 
-  // Prevent body scroll when open
   useEffect(() => {
     if (open) {
       document.body.style.overflow = "hidden";
@@ -67,10 +65,9 @@ export function Modal({
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center"
+      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center animate-fade-in"
     >
-      <div className="bg-surface rounded-xl shadow-2xl max-w-md w-full mx-4 p-6 relative">
-        {/* Close button */}
+      <div className="bg-surface rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 relative animate-fade-in-up">
         <Button
           variant="ghost"
           size="sm"
@@ -81,15 +78,12 @@ export function Modal({
           <X className="w-4 h-4" />
         </Button>
 
-        {/* Title */}
-        <h2 className={`text-lg font-bold mb-4 pr-8 ${variantTitleColors[variant]}`}>
+        <h2 className={`text-lg font-bold mb-4 pr-8 tracking-tight ${variantTitleColors[variant]}`}>
           {title}
         </h2>
 
-        {/* Body */}
         <div className="text-sm text-text-muted mb-6">{children}</div>
 
-        {/* Actions */}
         {actions && (
           <div className="flex items-center justify-end gap-3">{actions}</div>
         )}

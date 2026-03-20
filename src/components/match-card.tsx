@@ -182,26 +182,27 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
   };
 
   return (
-    <div className="bg-white rounded-lg border border-border p-4 space-y-3">
+    <div className={`bg-surface rounded-2xl border p-4 space-y-3 transition-all duration-200 ${isFinished ? "border-border" : "border-border hover:border-primary/30 hover:shadow-sm"}`}>
       <div className="flex items-center justify-between">
-        <div className="text-xs text-text-muted">
+        <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
+          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
           {match.court?.name || "Sem campo"}
-        </div>
+        </span>
         {statusBadge()}
       </div>
 
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <div>
-            <div className="font-medium text-sm">{match.teamA.name}</div>
-            <div className="text-xs text-text-muted">
+            <div className="font-bold text-sm">{match.teamA.name}</div>
+            <div className="text-[11px] text-text-muted font-medium">
               {playerLabel(match.teamA.player1)}{match.teamA.player2 && ` & ${playerLabel(match.teamA.player2)}`}
             </div>
           </div>
-          <div className="text-lg font-bold text-text-muted">vs</div>
+          <div className="text-xs font-bold text-text-muted/50 px-2">VS</div>
           <div className="text-right">
-            <div className="font-medium text-sm">{match.teamB.name}</div>
-            <div className="text-xs text-text-muted">
+            <div className="font-bold text-sm">{match.teamB.name}</div>
+            <div className="text-[11px] text-text-muted font-medium">
               {playerLabel(match.teamB.player1)}{match.teamB.player2 && ` & ${playerLabel(match.teamB.player2)}`}
             </div>
           </div>

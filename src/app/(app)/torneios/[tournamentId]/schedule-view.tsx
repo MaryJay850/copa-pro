@@ -123,33 +123,28 @@ export function ScheduleView({
   return (
     <div className="space-y-4" id="schedule">
       {/* View toggle */}
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant={view === "list" ? "primary" : "ghost"}
+      <div className="flex items-center gap-1.5 bg-surface rounded-xl border border-border p-1 w-fit">
+        <button
+          className={`px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-200 ${view === "list" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-surface-hover"}`}
           onClick={() => setView("list")}
         >
           Lista
-        </Button>
-        <Button
-          size="sm"
-          variant={view === "calendar" ? "primary" : "ghost"}
+        </button>
+        <button
+          className={`px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-200 ${view === "calendar" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-surface-hover"}`}
           onClick={() => setView("calendar")}
         >
-          Calendario
-        </Button>
-        <Button
-          size="sm"
-          variant={view === "print" ? "primary" : "ghost"}
+          Calendário
+        </button>
+        <button
+          className={`px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-200 flex items-center gap-1.5 ${view === "print" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-surface-hover"}`}
           onClick={() => setView("print")}
         >
-          <span className="flex items-center gap-1.5">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-            </svg>
-            Folha de Resultados
-          </span>
-        </Button>
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+          </svg>
+          Folha de Resultados
+        </button>
       </div>
 
       {view === "calendar" ? (
@@ -302,37 +297,42 @@ export function ScheduleView({
           </Card>
         </div>
       ) : (
-        rounds.map((round) => (
-          <Card key={round.id}>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Ronda {round.index}</CardTitle>
-                <span className="text-xs text-text-muted">
-                  {
-                    round.matches.filter((m: any) => m.status === "FINISHED")
-                      .length
-                  }
-                  /{round.matches.length} jogos
-                </span>
+        rounds.map((round, rIdx) => {
+          const finished = round.matches.filter((m: any) => m.status === "FINISHED").length;
+          const total = round.matches.length;
+          return (
+            <Card key={round.id} className={`animate-fade-in-up stagger-${Math.min(rIdx + 1, 8)}`}>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                      <span className="text-sm font-extrabold text-primary">R{round.index}</span>
+                    </div>
+                    <CardTitle>Ronda {round.index}</CardTitle>
+                  </div>
+                  <span className="text-xs font-semibold text-text-muted tabular-nums">
+                    {finished}/{total} jogos
+                  </span>
+                </div>
+              </CardHeader>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {round.matches.map((match: any) => (
+                  <MatchCard
+                    key={match.id}
+                    match={match}
+                    numberOfSets={numberOfSets}
+                    canEdit={canManage}
+                    currentPlayerId={currentPlayerId}
+                    currentUserId={currentUserId}
+                    pendingSubmission={
+                      pendingSubmissionsMap?.[match.id] ?? null
+                    }
+                  />
+                ))}
               </div>
-            </CardHeader>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {round.matches.map((match: any) => (
-                <MatchCard
-                  key={match.id}
-                  match={match}
-                  numberOfSets={numberOfSets}
-                  canEdit={canManage}
-                  currentPlayerId={currentPlayerId}
-                  currentUserId={currentUserId}
-                  pendingSubmission={
-                    pendingSubmissionsMap?.[match.id] ?? null
-                  }
-                />
-              ))}
-            </div>
-          </Card>
-        ))
+            </Card>
+          );
+        })
       )}
     </div>
   );
