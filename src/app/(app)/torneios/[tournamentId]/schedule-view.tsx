@@ -38,6 +38,40 @@ export function ScheduleView({
   const [view, setView] = useState<"list" | "calendar" | "print">("list");
   const printRef = useRef<HTMLDivElement>(null);
 
+  // Get unique courts from all rounds
+  const allCourts = (() => {
+    const courtMap = new Map<string, string>();
+    for (const round of rounds) {
+      for (const match of round.matches) {
+        const courtId = match.court?.id || match.courtId || "";
+        const courtName = match.court?.name || `Campo ${courtId}`;
+        if (courtId && !courtMap.has(courtId)) {
+          courtMap.set(courtId, courtName);
+        }
+      }
+    }
+    return Array.from(courtMap.entries()).map(([id, name]) => ({ id, name }));
+  })();
+
+  const printStyles = `
+    @page { size: A4 landscape; margin: 10mm; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #000; margin: 0; padding: 0; }
+    .print-header { text-align: center; margin-bottom: 12px; }
+    .print-header h1 { font-size: 16px; margin: 0 0 2px 0; }
+    .print-header p { font-size: 11px; margin: 0; color: #444; }
+    .court-badge { display: inline-block; background: #333; color: #fff; padding: 2px 10px; border-radius: 4px; font-size: 13px; font-weight: bold; margin-top: 4px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #333; padding: 6px 8px; text-align: left; }
+    th { background-color: #e8e8e8; font-weight: bold; font-size: 10px; text-transform: uppercase; }
+    .vs-cell { text-align: center; font-weight: bold; color: #666; width: 30px; }
+    .set-cell { width: 60px; text-align: center; min-height: 24px; font-size: 14px; }
+    .team-cell { font-weight: 500; }
+    .tracking-widest { letter-spacing: 0.1em; color: #999; font-size: 13px; }
+    .match-code { font-family: 'Courier New', Courier, monospace; font-size: 10px; color: #666; text-align: center; }
+    .print-footer { margin-top: 12px; padding-top: 6px; border-top: 1px solid #ccc; display: flex; justify-content: space-between; font-size: 9px; color: #888; }
+    .page-break { page-break-before: always; margin-top: 20px; }
+  `;
+
   const handlePrint = () => {
     if (!printRef.current) return;
 
@@ -50,91 +84,7 @@ export function ScheduleView({
       <html>
       <head>
         <title>${tournamentName || "Torneio"} - Folha de Resultados</title>
-        <style>
-          @page {
-            size: A4 landscape;
-            margin: 10mm;
-          }
-          body {
-            font-family: Arial, Helvetica, sans-serif;
-            font-size: 11px;
-            color: #000;
-            margin: 0;
-            padding: 0;
-          }
-          .print-header {
-            text-align: center;
-            margin-bottom: 12px;
-          }
-          .print-header h1 {
-            font-size: 16px;
-            margin: 0 0 2px 0;
-          }
-          .print-header p {
-            font-size: 11px;
-            margin: 0;
-            color: #444;
-          }
-          table {
-            width: 100%;
-            border-collapse: collapse;
-          }
-          th, td {
-            border: 1px solid #333;
-            padding: 5px 8px;
-            text-align: left;
-          }
-          th {
-            background-color: #e8e8e8;
-            font-weight: bold;
-            font-size: 10px;
-            text-transform: uppercase;
-          }
-          .round-cell {
-            font-weight: bold;
-            vertical-align: middle;
-            text-align: center;
-            background-color: #f5f5f5;
-          }
-          .round-date {
-            font-size: 9px;
-            font-weight: normal;
-            color: #666;
-          }
-          .vs-cell {
-            text-align: center;
-            font-weight: bold;
-            color: #666;
-            width: 30px;
-          }
-          .set-cell {
-            width: 55px;
-            text-align: center;
-            min-height: 20px;
-          }
-          .team-cell {
-            font-weight: 500;
-          }
-          .tracking-widest {
-            letter-spacing: 0.1em;
-            color: #999;
-          }
-          .match-code {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 9px;
-            color: #666;
-            text-align: center;
-          }
-          .print-footer {
-            margin-top: 12px;
-            padding-top: 6px;
-            border-top: 1px solid #ccc;
-            display: flex;
-            justify-content: space-between;
-            font-size: 9px;
-            color: #888;
-          }
-        </style>
+        <style>${printStyles}</style>
       </head>
       <body>
         ${printContent}
@@ -221,128 +171,132 @@ export function ScheduleView({
             </span>
           </div>
 
-          {/* Printable table preview */}
+          {/* Printable tables - one page per court */}
           <Card>
             <div className="overflow-x-auto">
               <div ref={printRef}>
-                <div className="print-header text-center py-3 border-b border-border">
-                  <h1 className="text-lg font-bold">
-                    {seasonName && tournamentName
-                      ? `${seasonName} \u2014 ${tournamentName}`
-                      : tournamentName || "Torneio"}
-                  </h1>
-                  {startDate && (
-                    <p className="text-xs text-text-muted mt-0.5">
-                      {new Date(startDate).toLocaleDateString("pt-PT", {
-                        day: "2-digit",
-                        month: "long",
-                        year: "numeric",
-                      })}
-                    </p>
-                  )}
-                </div>
+                {(() => {
+                  // Build global match code map (sequential across all rounds)
+                  const matchCodeMap = new Map<string, string>();
+                  let matchSeq = 0;
+                  for (const round of rounds) {
+                    for (const match of round.matches) {
+                      matchSeq++;
+                      matchCodeMap.set(match.id, `M${String(matchSeq).padStart(2, "0")}`);
+                    }
+                  }
 
-                <table className="w-full text-sm border-collapse">
-                  <thead>
-                    <tr className="bg-surface-alt border-b-2 border-border">
-                      <th className="px-1 py-2 text-center text-xs font-bold uppercase tracking-wide border border-border w-12">
-                        Cod
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wide border border-border w-24">
-                        Ronda
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wide border border-border w-24">
-                        Campo
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wide border border-border">
-                        Equipa A
-                      </th>
-                      <th className="px-1 py-2 text-center text-xs font-bold uppercase tracking-wide border border-border w-10">
-                      </th>
-                      <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wide border border-border">
-                        Equipa B
-                      </th>
-                      {setHeaders.map((h) => (
-                        <th
-                          key={h}
-                          className="px-2 py-2 text-center text-xs font-bold uppercase tracking-wide border border-border w-16"
-                        >
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      let matchSeq = 0;
-                      return rounds.map((round) => {
-                      const matchCount = round.matches.length;
-                      return round.matches.map((match: any, idx: number) => {
-                        matchSeq++;
-                        const matchCode = `M${String(matchSeq).padStart(2, "0")}`;
-                        return (
-                        <tr
-                          key={match.id}
-                          className={`border border-border ${
-                            idx === matchCount - 1 ? "border-b-2 border-b-border" : ""
-                          } hover:bg-surface-alt/50 transition-colors`}
-                        >
-                          {/* Match code */}
-                          <td className="px-1 py-2 text-center border border-border font-mono text-xs text-text-muted match-code">
-                            {matchCode}
-                          </td>
-                          {/* Round cell - spans all matches in round */}
-                          {idx === 0 && (
-                            <td
-                              rowSpan={matchCount}
-                              className="px-3 py-2 font-bold text-center align-middle border border-border bg-surface-alt/30"
-                            >
-                              Ronda {round.index}
-                            </td>
+                  return allCourts.map((court, courtIdx) => {
+                    // Filter matches for this court
+                    const courtMatches: { match: any; roundIndex: number; matchCode: string }[] = [];
+                    for (const round of rounds) {
+                      for (const match of round.matches) {
+                        const matchCourtId = match.court?.id || match.courtId || "";
+                        if (matchCourtId === court.id) {
+                          courtMatches.push({
+                            match,
+                            roundIndex: round.index,
+                            matchCode: matchCodeMap.get(match.id) || "",
+                          });
+                        }
+                      }
+                    }
+
+                    return (
+                      <div key={court.id} className={courtIdx > 0 ? "page-break mt-8" : ""}>
+                        <div className="print-header text-center py-3 border-b border-border">
+                          <h1 className="text-lg font-bold">
+                            {seasonName && tournamentName
+                              ? `${seasonName} \u2014 ${tournamentName}`
+                              : tournamentName || "Torneio"}
+                          </h1>
+                          {startDate && (
+                            <p className="text-xs text-text-muted mt-0.5">
+                              {new Date(startDate).toLocaleDateString("pt-PT", {
+                                day: "2-digit",
+                                month: "long",
+                                year: "numeric",
+                              })}
+                            </p>
                           )}
-                          {/* Court */}
-                          <td className="px-3 py-2 border border-border text-text-muted">
-                            {match.court?.name || `Campo ${idx + 1}`}
-                          </td>
-                          {/* Team A */}
-                          <td className="px-3 py-2 border border-border font-medium">
-                            {getTeamName(match.teamA)}
-                          </td>
-                          {/* VS */}
-                          <td className="px-1 py-2 text-center border border-border text-text-muted font-bold text-xs">
-                            vs
-                          </td>
-                          {/* Team B */}
-                          <td className="px-3 py-2 border border-border font-medium">
-                            {getTeamName(match.teamB)}
-                          </td>
-                          {/* Set score columns */}
-                          {setHeaders.map((_, setIdx) => {
-                            const score = getSetScore(match, setIdx + 1);
-                            return (
-                            <td
-                              key={setIdx}
-                              className="px-2 py-2 text-center border border-border text-text-muted"
-                            >
-                              {score || <span className="tracking-widest">___ - ___</span>}
-                            </td>
-                          );
-                          })}
-                        </tr>
-                        );
-                      });
-                    });
-                    })()}
-                  </tbody>
-                </table>
+                          <div className="court-badge inline-block mt-1 px-3 py-0.5 bg-gray-800 text-white rounded text-sm font-bold">
+                            {court.name}
+                          </div>
+                        </div>
 
-                {/* Footer with tournament ID */}
-                {tournamentId && (
-                  <div className="print-footer flex justify-between text-[9px] text-text-muted mt-3 pt-2 border-t border-border">
-                    <span>Torneio: {tournamentId.slice(0, 8)}</span>
-                    <span>CopaPro</span>
-                  </div>
-                )}
+                        <table className="w-full text-sm border-collapse mt-2">
+                          <thead>
+                            <tr className="bg-surface-alt border-b-2 border-border">
+                              <th className="px-1 py-2 text-center text-xs font-bold uppercase tracking-wide border border-border w-12">
+                                Cod
+                              </th>
+                              <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wide border border-border w-24">
+                                Ronda
+                              </th>
+                              <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wide border border-border">
+                                Equipa A
+                              </th>
+                              <th className="px-1 py-2 text-center text-xs font-bold uppercase tracking-wide border border-border w-10">
+                              </th>
+                              <th className="px-3 py-2 text-left text-xs font-bold uppercase tracking-wide border border-border">
+                                Equipa B
+                              </th>
+                              {setHeaders.map((h) => (
+                                <th
+                                  key={h}
+                                  className="px-2 py-2 text-center text-xs font-bold uppercase tracking-wide border border-border w-20"
+                                >
+                                  {h}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {courtMatches.map((cm, idx) => {
+                              const score1 = getSetScore(cm.match, 1);
+                              const score2 = getSetScore(cm.match, 2);
+                              const score3 = getSetScore(cm.match, 3);
+                              return (
+                                <tr key={cm.match.id} className="border border-border hover:bg-surface-alt/50">
+                                  <td className="px-1 py-3 text-center border border-border font-mono text-xs text-text-muted match-code">
+                                    {cm.matchCode}
+                                  </td>
+                                  <td className="px-3 py-3 font-bold text-center border border-border bg-surface-alt/30">
+                                    R{cm.roundIndex}
+                                  </td>
+                                  <td className="px-3 py-3 border border-border font-medium">
+                                    {getTeamName(cm.match.teamA)}
+                                  </td>
+                                  <td className="px-1 py-3 text-center border border-border text-text-muted font-bold text-xs">
+                                    vs
+                                  </td>
+                                  <td className="px-3 py-3 border border-border font-medium">
+                                    {getTeamName(cm.match.teamB)}
+                                  </td>
+                                  {setHeaders.map((_, setIdx) => {
+                                    const score = [score1, score2, score3][setIdx];
+                                    return (
+                                      <td key={setIdx} className="px-2 py-3 text-center border border-border text-text-muted set-cell">
+                                        {score || <span className="tracking-widest">___ - ___</span>}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+
+                        {tournamentId && (
+                          <div className="print-footer flex justify-between text-[9px] text-text-muted mt-3 pt-2 border-t border-border">
+                            <span>Torneio: {tournamentId.slice(0, 8)} | {court.name}</span>
+                            <span>CopaPro</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </div>
           </Card>

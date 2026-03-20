@@ -177,6 +177,7 @@ export default async function TournamentPage({
             }))
           )}
           numberOfSets={tournament.numberOfSets}
+          courts={tournament.courts?.map((c: any) => ({ id: c.id, name: c.name })) || []}
         />
       )}
 

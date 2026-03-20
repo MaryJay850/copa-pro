@@ -193,6 +193,7 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData();
     const tournamentId = formData.get("tournamentId") as string;
+    const courtId = formData.get("courtId") as string | null;
 
     if (!tournamentId) {
       return NextResponse.json(
@@ -256,11 +257,15 @@ export async function POST(req: NextRequest) {
     }
 
     // Build match list with sequential codes (M01, M02, ...) matching the printed sheet
+    // If courtId is specified, only include matches from that court (per-court sheet)
     const allMatches: MatchInfo[] = [];
     let matchSeq = 0;
     for (const round of tournament.rounds) {
       for (const match of round.matches) {
         matchSeq++;
+        const matchCourtId = match.court?.id || match.courtId || "";
+        // If a specific court is selected, skip matches from other courts
+        if (courtId && matchCourtId !== courtId) continue;
         allMatches.push({
           id: match.id,
           matchCode: `M${String(matchSeq).padStart(2, "0")}`,
@@ -300,7 +305,12 @@ export async function POST(req: NextRequest) {
           ? "Cada jogo tem 2 sets. Preenche set1A, set1B, set2A, set2B. Set 3 é null (não há)."
           : "Cada jogo tem melhor de 3 sets. Preenche set1 e set2 sempre. Set 3 só se necessário (caso contrário null).";
 
-    const prompt = buildPrompt(setsInfo, matchListText);
+    // If a specific court was selected, add context to the prompt
+    const courtContext = courtId
+      ? `\nIMPORTANTE: Esta folha é especificamente do ${allMatches[0]?.courtName || "campo selecionado"}. Todos os resultados pertencem a este campo. A coluna "Campo" não existe na folha pois é do mesmo campo.`
+      : "";
+
+    const prompt = buildPrompt(setsInfo, matchListText + courtContext);
 
     // Try Anthropic first, fallback to OpenAI
     let responseText: string;

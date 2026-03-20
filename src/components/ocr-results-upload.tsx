@@ -16,10 +16,16 @@ interface MatchInfo {
   status: string;
 }
 
+interface CourtInfo {
+  id: string;
+  name: string;
+}
+
 interface OcrResultsUploadProps {
   tournamentId: string;
   matches: MatchInfo[];
   numberOfSets: number;
+  courts: CourtInfo[];
 }
 
 interface MatchedResult {
@@ -151,12 +157,14 @@ export function OcrResultsUpload({
   tournamentId,
   matches,
   numberOfSets,
+  courts,
 }: OcrResultsUploadProps) {
   const [phase, setPhase] = useState<Phase>("upload");
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [results, setResults] = useState<MatchedResult[]>([]);
   const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 });
+  const [selectedCourtId, setSelectedCourtId] = useState<string>("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const scheduledMatches = matches.filter((m) => m.status === "SCHEDULED");
@@ -196,6 +204,9 @@ export function OcrResultsUpload({
 
       const formData = new FormData();
       formData.append("tournamentId", tournamentId);
+      if (selectedCourtId) {
+        formData.append("courtId", selectedCourtId);
+      }
       for (let i = 0; i < processedFiles.length; i++) {
         formData.append("images", processedFiles[i], files[i].name);
       }
@@ -319,6 +330,7 @@ export function OcrResultsUpload({
     setFiles([]);
     setPreviews([]);
     setResults([]);
+    setSelectedCourtId("");
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -409,6 +421,25 @@ export function OcrResultsUpload({
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {files.length > 0 && courts.length > 0 && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Campo da foto (opcional)</label>
+                <select
+                  value={selectedCourtId}
+                  onChange={(e) => setSelectedCourtId(e.target.value)}
+                  className="w-full max-w-xs rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="">Todos os campos (detetar automaticamente)</option>
+                  {courts.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-text-muted mt-1">
+                  Se a folha é de um campo específico, selecione-o para melhor precisão.
+                </p>
               </div>
             )}
 
