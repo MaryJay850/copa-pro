@@ -46,36 +46,46 @@ interface MatchedResult {
 
 // Build the OCR prompt text (shared between providers)
 function buildPrompt(setsInfo: string, matchListText: string): string {
-  return `Tens de analisar foto(s) de uma folha de resultados impressa de um torneio de padel.
+  return `Analisa foto(s) de uma folha de resultados de padel com scores escritos à mão.
 
-ATENÇÃO À ORIENTAÇÃO DA FOTO:
-- A foto pode estar rodada (90°, 180°, 270°) ou inclinada. Roda mentalmente a imagem até que o texto fique legível na orientação correta.
-- A folha tem um cabeçalho no topo com o nome do torneio e data, seguido de uma tabela.
+ORIENTAÇÃO:
+- A foto pode estar rodada ou inclinada. Roda mentalmente até o texto ficar legível.
+- Procura o cabeçalho com o nome do torneio para identificar o topo da página.
 
-ESTRUTURA DA FOLHA:
-- É uma tabela impressa com estas colunas da esquerda para a direita: Cod | Ronda | Campo | Equipa A | (vs) | Equipa B | Set 1 | Set 2 | Set 3
-- A coluna "Cod" contém um código único por jogo (ex: M01, M02, M03...).
-- As colunas "Set 1", "Set 2", "Set 3" são onde os resultados são ESCRITOS À MÃO com caneta/lápis.
-- Os scores de cada set são escritos como dois números separados por um traço: "X - Y" onde X são os pontos da Equipa A e Y os pontos da Equipa B.
-- Exemplos de scores escritos à mão: "6-3", "4-6", "7-5", "6 - 4", "4 - 1"
+ESTRUTURA DA TABELA IMPRESSA:
+Colunas: Cod | Ronda | Campo | Equipa A | vs | Equipa B | Set 1 | Set 2 | Set 3
+- "Cod" = código do jogo (M01, M02, M03...)
+- Nas colunas Set, os resultados são ESCRITOS À MÃO (caneta/lápis)
+- Cada score é "X - Y" onde X = pontos Equipa A, Y = pontos Equipa B
+
+DICAS PARA LER NÚMEROS MANUSCRITOS:
+- Em padel, scores típicos são entre 0 e 7 (os mais comuns são 0,1,2,3,4,5,6,7)
+- Scores acima de 7 são raros mas possíveis (8, 9, 10 em tiebreak)
+- Números confusos comuns: 1 vs 7 (o 7 geralmente tem barra horizontal), 4 vs 9, 6 vs 0
+- O "4" manuscrito pode ter topo aberto ou fechado — se parecer um triângulo é 4, não 6
+- O "1" é um traço vertical simples, o "7" tem traço horizontal no topo
+- Se dois números formam um score impossível (ex: 6-6), verifica se leste bem — empates exatos são raros
+- Olha para o contexto: se numa linha lês "4 - 1", e na mesma coluna de outras linhas os números estão escritos de forma similar, usa isso para calibrar a leitura
+- Os números são escritos dentro de células/colunas da tabela — o número da ESQUERDA na célula do Set é da Equipa A, o da DIREITA é da Equipa B
 
 ${setsInfo}
 
-Estes são TODOS os jogos do torneio (usa isto para validar o que lês na foto):
+LISTA COMPLETA DE JOGOS DO TORNEIO (usa para validar):
 ${matchListText}
 
-REGRAS DE LEITURA:
-1. Primeiro identifica a orientação correta da foto e lê a tabela.
-2. Para cada linha, lê o código (M01, M02, etc.) na primeira coluna e usa-o para associar ao jogo correto.
-3. Lê os scores escritos à mão nas colunas Set. Cada score é um par de números "X-Y". Extrai X como pontos da Equipa A e Y como pontos da Equipa B.
-4. Se conseguires ler claramente os números, coloca confidence "high". Só coloca "low" se realmente não tiveres a certeza do que está escrito.
-5. Se a folha não tiver códigos, associa pelo número da ronda e nome do campo.
-6. Se não conseguires identificar a que jogo pertence, usa matchCode como string vazia "".
-7. Scores são números inteiros (0-99). Se leres algo que não é um número válido, coloca null.
-8. Ignora jogos marcados como [JÁ JOGADO] — não retornes resultados para esses.
-9. Se uma coluna de set estiver vazia (sem nada escrito à mão), coloca null para ambos os valores desse set.
+REGRAS:
+1. Identifica a orientação, depois lê linha a linha.
+2. Lê o código (M01, M02...) na coluna Cod para associar ao jogo.
+3. Para cada score manuscrito na coluna Set: extrai o número à esquerda do traço como pontos Equipa A, e à direita como pontos Equipa B.
+4. confidence = "high" se lês claramente. Só "low" se houver ambiguidade real.
+5. Sem código, associa por ronda + campo.
+6. Jogo não identificável: matchCode = "".
+7. Scores são inteiros 0-99. Se ilegível, coloca null.
+8. Ignora jogos marcados [JÁ JOGADO].
+9. Set sem nada escrito = null para ambos valores.
+10. IMPORTANTE: Analisa CADA IMAGEM enviada. Se forem múltiplas fotos, cada uma pode ter jogos diferentes. Combina todos os resultados de todas as imagens.
 
-Retorna APENAS um JSON válido (sem markdown, sem código, sem explicações) com este formato:
+Retorna APENAS JSON válido (sem markdown, sem \`\`\`, sem texto extra):
 {
   "results": [
     {
@@ -83,7 +93,7 @@ Retorna APENAS um JSON válido (sem markdown, sem código, sem explicações) co
       "roundIndex": 1,
       "courtName": "Campo 3",
       "set1A": 6, "set1B": 3,
-      "set2A": 4, "set2B": 6,
+      "set2A": null, "set2B": null,
       "set3A": null, "set3B": null,
       "confidence": "high"
     }
@@ -119,6 +129,7 @@ async function callAnthropic(
   const response = await anthropic.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 4096,
+    temperature: 0.1,
     messages: [
       {
         role: "user",
@@ -159,6 +170,7 @@ async function callOpenAI(
   const response = await openai.chat.completions.create({
     model: "gpt-4o",
     max_tokens: 4096,
+    temperature: 0.1,
     messages: [
       {
         role: "user",
