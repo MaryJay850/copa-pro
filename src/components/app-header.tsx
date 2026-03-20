@@ -24,7 +24,7 @@ export function AppHeader() {
   };
 
   return (
-    <header className="bg-surface/80 glass border-b border-border sticky top-0 z-50">
+    <header className="bg-surface border-b border-border sticky top-0 z-50 backdrop-blur-sm">
       <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2 group">
