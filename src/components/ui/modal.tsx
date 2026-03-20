@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { Button } from "./button";
 
@@ -28,6 +29,11 @@ export function Modal({
   variant = "default",
 }: ModalProps) {
   const overlayRef = useRef<HTMLDivElement>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -53,7 +59,7 @@ export function Modal({
     };
   }, [open]);
 
-  if (!open) return null;
+  if (!open || !mounted) return null;
 
   const handleOverlayClick = (e: React.MouseEvent) => {
     if (e.target === overlayRef.current) {
@@ -61,11 +67,11 @@ export function Modal({
     }
   };
 
-  return (
+  const modalContent = (
     <div
       ref={overlayRef}
       onClick={handleOverlayClick}
-      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center animate-fade-in"
+      className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center animate-fade-in"
     >
       <div className="bg-surface rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 relative animate-fade-in-up">
         <Button
@@ -90,4 +96,6 @@ export function Modal({
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
