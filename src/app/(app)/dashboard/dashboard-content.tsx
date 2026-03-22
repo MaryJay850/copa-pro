@@ -1,27 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { RankingTable } from "@/components/ranking-table";
 import { RecentResults } from "@/components/recent-results";
-import { AvailabilityCalendar } from "@/components/availability-calendar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { OnboardingTour } from "@/components/onboarding-tour";
-import { LeagueAvailabilityView } from "@/components/league-availability-view";
 import Link from "next/link";
-
-type FilterOption = {
-  id: string;
-  name: string;
-  seasons: {
-    id: string;
-    name: string;
-    isActive: boolean;
-    tournaments: { id: string; name: string; status: string }[];
-  }[];
-};
 
 type DashboardData = {
   league: { id: string; name: string } | null;
@@ -50,99 +36,14 @@ type DashboardData = {
 };
 
 export function DashboardContent({
-  filters,
   data,
-  selectedLeagueId,
-  selectedSeasonId,
-  selectedTournamentId,
 }: {
-  filters: FilterOption[];
   data: DashboardData;
-  selectedLeagueId?: string;
-  selectedSeasonId?: string;
-  selectedTournamentId?: string;
 }) {
-  const router = useRouter();
-
-  // Find selected league and season for cascading filters
-  const activeLeague =
-    filters.find((l) => l.id === selectedLeagueId) ??
-    filters.find((l) => l.id === data.league?.id) ??
-    filters[0];
-
-  const activeSeasons = activeLeague?.seasons ?? [];
-  const activeSeason =
-    activeSeasons.find((s) => s.id === selectedSeasonId) ??
-    activeSeasons.find((s) => s.id === data.season?.id) ??
-    activeSeasons.find((s) => s.isActive) ??
-    activeSeasons[0];
-
-  const activeTournaments = activeSeason?.tournaments ?? [];
-
-  const handleFilterChange = (key: string, value: string) => {
-    const params = new URLSearchParams();
-    if (key === "liga") {
-      if (value) params.set("liga", value);
-    } else if (key === "epoca") {
-      if (activeLeague) params.set("liga", activeLeague.id);
-      if (value) params.set("epoca", value);
-    } else if (key === "torneio") {
-      if (activeLeague) params.set("liga", activeLeague.id);
-      if (activeSeason) params.set("epoca", activeSeason.id);
-      if (value) params.set("torneio", value);
-    }
-    router.push(`/dashboard?${params.toString()}`);
-  };
-
-  const selectClass = "rounded-xl border border-border bg-surface px-3.5 py-2 text-sm font-medium transition-all duration-200 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 hover:border-primary/30 cursor-pointer";
 
   return (
     <div className="space-y-8 animate-fade-in-up">
       <OnboardingTour />
-
-      {/* Filter bar */}
-      <div className="flex flex-wrap gap-3 items-center bg-surface rounded-2xl border border-border p-4 shadow-[0_1px_3px_rgba(0,0,0,0.04)]">
-        <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-        </svg>
-
-        <select
-          value={activeLeague?.id ?? ""}
-          onChange={(e) => handleFilterChange("liga", e.target.value)}
-          className={selectClass}
-        >
-          <option value="">Todas as Ligas</option>
-          {filters.map((l) => (
-            <option key={l.id} value={l.id}>{l.name}</option>
-          ))}
-        </select>
-
-        <select
-          value={activeSeason?.id ?? ""}
-          onChange={(e) => handleFilterChange("epoca", e.target.value)}
-          className={selectClass}
-          disabled={!activeLeague}
-        >
-          <option value="">Todas as Épocas</option>
-          {activeSeasons.map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name} {s.isActive ? "(activa)" : ""}
-            </option>
-          ))}
-        </select>
-
-        <select
-          value={selectedTournamentId ?? ""}
-          onChange={(e) => handleFilterChange("torneio", e.target.value)}
-          className={selectClass}
-          disabled={!activeSeason}
-        >
-          <option value="">Todos os Torneios</option>
-          {activeTournaments.map((t) => (
-            <option key={t.id} value={t.id}>{t.name}</option>
-          ))}
-        </select>
-      </div>
 
       {!data.league ? (
         <Card className="text-center py-8">
@@ -325,17 +226,6 @@ export function DashboardContent({
             <RecentResults matches={data.recentMatches as any} />
           </section>
 
-          {/* Availability Calendar */}
-          <section>
-            <AvailabilityCalendar />
-          </section>
-
-          {/* League Availability */}
-          {data.league && (
-            <section>
-              <LeagueAvailabilityView leagueId={data.league.id} />
-            </section>
-          )}
         </>
       )}
     </div>
