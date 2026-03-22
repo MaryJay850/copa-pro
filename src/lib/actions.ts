@@ -4622,7 +4622,7 @@ export async function getScoreboardData(tournamentId: string) {
   // Check permission: admin or league manager
   const userId = (session.user as any).id;
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
-  const isAdminUser = user?.role === "ADMIN";
+  const isAdminUser = user?.role === "ADMINISTRADOR";
   const membership = await prisma.leagueMember.findFirst({
     where: { leagueId: tournament.leagueId, userId, role: "MANAGER", status: "APPROVED" },
   });
