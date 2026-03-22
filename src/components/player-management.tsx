@@ -23,9 +23,11 @@ interface Inscription {
 export function PlayerManagement({
   tournamentId,
   inscriptions,
+  readOnly = false,
 }: {
   tournamentId: string;
   inscriptions: Inscription[];
+  readOnly?: boolean;
 }) {
   const [loading, setLoading] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
@@ -78,36 +80,38 @@ export function PlayerManagement({
                     <Badge variant="info">Promovido</Badge>
                   )}
                 </div>
-                {confirmId === insc.playerId ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-red-600">Confirmar?</span>
+                {!readOnly && (
+                  confirmId === insc.playerId ? (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-red-600">Confirmar?</span>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleDesist(insc.playerId)}
+                        disabled={loading === insc.playerId}
+                        className="text-red-600 hover:bg-red-50 text-xs px-2 py-1"
+                      >
+                        {loading === insc.playerId ? "..." : "Sim"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setConfirmId(null)}
+                        className="text-xs px-2 py-1"
+                      >
+                        Não
+                      </Button>
+                    </div>
+                  ) : (
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => handleDesist(insc.playerId)}
-                      disabled={loading === insc.playerId}
-                      className="text-red-600 hover:bg-red-50 text-xs px-2 py-1"
+                      onClick={() => setConfirmId(insc.playerId)}
+                      className="text-red-500 hover:text-red-700 hover:bg-red-50 text-xs px-2 py-1"
                     >
-                      {loading === insc.playerId ? "..." : "Sim"}
+                      Desistir
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setConfirmId(null)}
-                      className="text-xs px-2 py-1"
-                    >
-                      Não
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setConfirmId(insc.playerId)}
-                    className="text-red-500 hover:text-red-700 hover:bg-red-50 text-xs px-2 py-1"
-                  >
-                    Desistir
-                  </Button>
+                  )
                 )}
               </div>
             ))}

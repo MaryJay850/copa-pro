@@ -221,7 +221,7 @@ export default async function TournamentPage({
             <ScheduleView
               rounds={tournament.rounds}
               numberOfSets={tournament.numberOfSets}
-              canManage={canManage}
+              canManage={canManage && tournament.status !== "FINISHED"}
               startDate={tournament.startDate ? tournament.startDate.toString() : null}
               currentPlayerId={currentPlayerId ?? undefined}
               currentUserId={currentUserId ?? undefined}
@@ -287,6 +287,7 @@ export default async function TournamentPage({
               <PlayerManagement
                 tournamentId={tournament.id}
                 inscriptions={tournament.inscriptions}
+                readOnly={tournament.status === "FINISHED"}
               />
             </div>
           </div>
@@ -299,6 +300,7 @@ export default async function TournamentPage({
           <PlayerManagement
             tournamentId={tournament.id}
             inscriptions={tournament.inscriptions}
+            readOnly={tournament.status === "FINISHED"}
           />
         </div>
       )}

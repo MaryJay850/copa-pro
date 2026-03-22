@@ -54,8 +54,21 @@ export function UsersTable({
 }) {
   const [showCreate, setShowCreate] = useState(false);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+
+  const filteredUsers = searchQuery.trim()
+    ? users.filter((u) => {
+        const q = searchQuery.toLowerCase();
+        return (
+          u.email.toLowerCase().includes(q) ||
+          u.phone?.toLowerCase().includes(q) ||
+          u.player?.fullName.toLowerCase().includes(q) ||
+          u.player?.nickname?.toLowerCase().includes(q)
+        );
+      })
+    : users;
 
   const handleRoleChange = (userId: string, role: string) => {
     startTransition(async () => {
@@ -88,8 +101,22 @@ export function UsersTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-text-muted">{users.length} utilizadores registados</p>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          <p className="text-sm text-text-muted whitespace-nowrap">{filteredUsers.length}/{users.length} utilizadores</p>
+          <div className="relative flex-1 max-w-sm">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Pesquisar por nome, email, telefone ou alcunha..."
+              className="w-full pl-9 pr-3 py-2 rounded-xl border border-border bg-surface text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+        </div>
         <Button size="sm" onClick={() => setShowCreate(!showCreate)}>
           {showCreate ? "Cancelar" : "+ Criar Utilizador"}
         </Button>
@@ -105,7 +132,7 @@ export function UsersTable({
       )}
 
       <div className="space-y-3">
-        {users.map((user) => (
+        {filteredUsers.map((user) => (
           <div key={user.id}>
             <Card className="flex flex-col sm:flex-row sm:items-center gap-3 p-4">
               <div className="flex-1 min-w-0">
