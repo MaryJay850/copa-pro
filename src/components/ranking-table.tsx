@@ -45,16 +45,16 @@ export function RankingTable({ rows }: { rows: RankingRow[] }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border text-left text-xs text-text-muted uppercase tracking-wide">
-              <th className="pb-2 pr-3 w-8">#</th>
-              <th className="pb-2 pr-3">Jogador</th>
-              <th className="pb-2 pr-3 text-center">Pts</th>
-              <th className="pb-2 pr-3 text-center">J</th>
-              <th className="pb-2 pr-3 text-center">V</th>
-              <th className="pb-2 pr-3 text-center">E</th>
-              <th className="pb-2 pr-3 text-center">D</th>
-              <th className="pb-2 pr-3 text-center">SG</th>
-              <th className="pb-2 pr-3 text-center">SP</th>
-              <th className="pb-2 text-center">Dif</th>
+              <th className="pb-2 pr-3 w-8" title="Posição no ranking">#</th>
+              <th className="pb-2 pr-3" title="Nome do jogador">Jogador</th>
+              <th className="pb-2 pr-3 text-center cursor-help" title="Pontos Totais &#10;Cálculo: (+2 pts por set ganho) + (+3 pts por vitória) + (+1 pt por empate)">Pts</th>
+              <th className="pb-2 pr-3 text-center cursor-help" title="Jogos disputados &#10;Total de jogos em que o jogador participou">J</th>
+              <th className="pb-2 pr-3 text-center cursor-help" title="Vitórias &#10;Jogos em que o jogador ganhou mais sets que o adversário">V</th>
+              <th className="pb-2 pr-3 text-center cursor-help" title="Empates &#10;Jogos em que ambos ganharam o mesmo número de sets">E</th>
+              <th className="pb-2 pr-3 text-center cursor-help" title="Derrotas &#10;Jogos em que o jogador perdeu mais sets que o adversário">D</th>
+              <th className="pb-2 pr-3 text-center cursor-help" title="Sets Ganhos &#10;Número total de sets ganhos em todos os jogos">SG</th>
+              <th className="pb-2 pr-3 text-center cursor-help" title="Sets Perdidos &#10;Número total de sets perdidos em todos os jogos">SP</th>
+              <th className="pb-2 text-center cursor-help" title="Diferença de Sets &#10;Cálculo: Sets Ganhos - Sets Perdidos">Dif</th>
             </tr>
           </thead>
           <tbody>
