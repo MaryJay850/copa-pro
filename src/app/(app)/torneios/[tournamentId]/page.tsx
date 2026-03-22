@@ -192,20 +192,6 @@ export default async function TournamentPage({
         />
       )}
 
-      {/* Placar de Jogo */}
-      {canManage && tournament.status !== "FINISHED" && tournament.rounds.length > 0 && (
-        <div>
-          <Link
-            href={`/torneios/${tournament.id}/placar`}
-            target="_blank"
-            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl font-semibold text-sm bg-amber-600 text-white hover:bg-amber-700 active:scale-[0.97] transition-all shadow"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="18" rx="2" strokeWidth="2"/><path d="M12 3v18M2 12h20" strokeWidth="2"/><path d="M7 8h2M15 8h2M7 16h2M15 16h2" strokeWidth="2" strokeLinecap="round"/></svg>
-            Placar de Jogo
-          </Link>
-        </div>
-      )}
-
       {/* Export Calendar */}
       {tournament.rounds.length > 0 && (
         <ExportCalendar

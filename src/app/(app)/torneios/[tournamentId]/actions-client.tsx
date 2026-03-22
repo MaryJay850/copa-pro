@@ -172,6 +172,15 @@ export function TournamentActions({
       </Button>
 
       {status !== "FINISHED" && (
+        <Link href={`/torneios/${tournamentId}/placar`} target="_blank">
+          <Button size="sm" variant="secondary">
+            <svg className="w-4 h-4 mr-1.5 inline-block" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="18" rx="2" strokeWidth="2"/><path d="M12 3v18M2 12h20" strokeWidth="2"/></svg>
+            Placar de Jogo
+          </Button>
+        </Link>
+      )}
+
+      {status !== "FINISHED" && (
         <Button onClick={() => setShowDeleteModal(true)} disabled={loading} size="sm" variant="danger">
           Eliminar Torneio
         </Button>
