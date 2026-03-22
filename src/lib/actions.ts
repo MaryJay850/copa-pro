@@ -4641,6 +4641,72 @@ export async function saveScoreboardMatch(
     set3A: number | null; set3B: number | null;
   }
 ): Promise<{ success: true } | { success: false; error: string }> {
-  // Delegates to existing saveMatchScore which handles validation, ranking, etc.
-  return saveMatchScore(matchId, scores);
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: {
+        tournament: { include: { season: true } },
+        teamA: true,
+        teamB: true,
+      },
+    });
+
+    if (!match) return { success: false, error: "Jogo não encontrado." };
+    await requireLeagueManager(match.tournament.leagueId);
+
+    const allowDraws = match.tournament.season.allowDraws;
+    const numberOfSets = match.tournament.numberOfSets;
+
+    const validationError = validateMatchScores(
+      scores.set1A, scores.set1B,
+      scores.set2A, scores.set2B,
+      scores.set3A, scores.set3B,
+      allowDraws,
+      numberOfSets
+    );
+
+    if (validationError) return { success: false, error: validationError };
+
+    const result = determineResult(
+      scores.set1A!, scores.set1B!,
+      scores.set2A, scores.set2B,
+      scores.set3A, scores.set3B,
+      allowDraws,
+      numberOfSets
+    );
+
+    const winnerTeamId =
+      result.resultType === "WIN_A" ? match.teamAId :
+      result.resultType === "WIN_B" ? match.teamBId :
+      null;
+
+    await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        ...scores,
+        status: "FINISHED",
+        resultType: result.resultType,
+        winnerTeamId,
+        playedAt: new Date(),
+      },
+    });
+
+    // Move tournament to RUNNING (but do NOT recalculate ranking —
+    // ranking is only recalculated when the tournament is finished/concluded)
+    await prisma.tournament.update({
+      where: { id: match.tournamentId },
+      data: { status: "RUNNING" },
+    });
+
+    logAudit("SAVE_MATCH_SCOREBOARD", "Match", matchId, { scores }).catch(() => {});
+    revalidatePath(`/torneios/${match.tournamentId}`);
+    return { success: true };
+  } catch (e) {
+    const msg = (e as Error).message || "";
+    if (msg.includes("Não autenticado") || msg.includes("Sem permissão") || msg.includes("Não é gestor") || msg.includes("PLAN_")) {
+      const { sanitizeError } = await import("./error-utils");
+      return { success: false, error: sanitizeError(e) };
+    }
+    return { success: false, error: "Erro ao guardar o resultado. Tente novamente." };
+  }
 }
