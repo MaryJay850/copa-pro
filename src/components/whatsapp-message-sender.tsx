@@ -10,17 +10,17 @@ const TEMPLATES = [
   {
     id: "reminder",
     label: "Lembrete de Jogo",
-    template: "\u{1F4E2} *Lembrete*\n\nN\u00E3o se esque\u00E7am dos jogos desta semana!\n\n_Consultem o calend\u00E1rio na plataforma._",
+    template: "📢 *Lembrete*\n\nNão se esqueçam dos jogos desta semana!\n\n_Consultem o calendário na plataforma._",
   },
   {
     id: "results",
     label: "Pedir Resultados",
-    template: "\u{1F4CB} *Resultados em falta*\n\nPor favor, submetam os resultados dos jogos j\u00E1 realizados.\n\n_Obrigado!_",
+    template: "📋 *Resultados em falta*\n\nPor favor, submetam os resultados dos jogos já realizados.\n\n_Obrigado!_",
   },
   {
     id: "availability",
     label: "Pedir Disponibilidade",
-    template: "\u{1F4C5} *Disponibilidade*\n\nIndiquem a vossa disponibilidade para a pr\u00F3xima semana na plataforma.\n\n_Obrigado!_",
+    template: "📅 *Disponibilidade*\n\nIndiquem a vossa disponibilidade para a próxima semana na plataforma.\n\n_Obrigado!_",
   },
   {
     id: "custom",
@@ -52,7 +52,7 @@ export function WhatsAppMessageSender({
 
   const handleSend = async () => {
     if (!message.trim()) {
-      toast.error("A mensagem n\u00E3o pode estar vazia.");
+      toast.error("A mensagem não pode estar vazia.");
       return;
     }
     if (!whatsappGroupId) {
@@ -115,7 +115,7 @@ export function WhatsAppMessageSender({
         {/* Preview formatted */}
         {message && (
           <div className="bg-emerald-50 dark:bg-emerald-950/30 rounded-lg p-3 text-xs">
-            <p className="text-[10px] text-text-muted mb-1 font-medium">Pr\u00E9-visualiza\u00E7\u00E3o:</p>
+            <p className="text-[10px] text-text-muted mb-1 font-medium">Pré-visualização:</p>
             <pre className="whitespace-pre-wrap text-text font-sans">{message}</pre>
           </div>
         )}

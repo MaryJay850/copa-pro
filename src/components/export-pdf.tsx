@@ -48,7 +48,7 @@ export function ExportPDF({
 
       // Subtitle
       doc.setFontSize(10);
-      doc.text("CopaPro - Gest\u00E3o de Ligas de Padel", 14, 36);
+      doc.text("CopaPro - Gestão de Ligas de Padel", 14, 36);
 
       // Table
       autoTable(doc, {

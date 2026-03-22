@@ -39,11 +39,11 @@ export function EditSeasonForm({
         startDate: startDate || null,
         endDate: endDate || null,
       });
-      toast.success("\u00C9poca atualizada!");
+      toast.success("Época atualizada!");
       setEditing(false);
       router.refresh();
     } catch (e: any) {
-      toast.error(e.message || "Erro ao atualizar \u00E9poca.");
+      toast.error(e.message || "Erro ao atualizar época.");
     }
     setSaving(false);
   };
@@ -52,10 +52,10 @@ export function EditSeasonForm({
     setSaving(true);
     try {
       const newSeason = await cloneSeason(seasonId);
-      toast.success("\u00C9poca duplicada com sucesso!");
+      toast.success("Época duplicada com sucesso!");
       router.push(`/ligas/${leagueId}/epocas/${newSeason.id}`);
     } catch (e: any) {
-      toast.error(e.message || "Erro ao duplicar \u00E9poca.");
+      toast.error(e.message || "Erro ao duplicar época.");
     }
     setSaving(false);
   };
@@ -64,10 +64,10 @@ export function EditSeasonForm({
     return (
       <div className="flex gap-2">
         <Button size="sm" variant="secondary" onClick={() => setEditing(true)}>
-          Editar \u00C9poca
+          Editar {currentName}
         </Button>
         <Button size="sm" variant="ghost" onClick={handleClone} disabled={saving}>
-          Duplicar \u00C9poca
+          Duplicar {currentName}
         </Button>
       </div>
     );
@@ -76,7 +76,7 @@ export function EditSeasonForm({
   return (
     <Card className="border-primary/30">
       <CardHeader>
-        <CardTitle className="text-sm">Editar \u00C9poca</CardTitle>
+        <CardTitle className="text-sm">Editar Época</CardTitle>
       </CardHeader>
       <div className="space-y-3">
         <div>
@@ -104,7 +104,7 @@ export function EditSeasonForm({
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-text-muted font-medium">Data In\u00EDcio</label>
+            <label className="text-xs text-text-muted font-medium">Data Início</label>
             <input
               type="date"
               value={startDate}
