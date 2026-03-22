@@ -4623,10 +4623,10 @@ export async function getScoreboardData(tournamentId: string) {
   const userId = (session.user as any).id;
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   const isAdminUser = user?.role === "ADMINISTRADOR";
-  const membership = await prisma.leagueMember.findFirst({
-    where: { leagueId: tournament.leagueId, userId, role: "MANAGER", status: "APPROVED" },
+  const manager = await prisma.leagueManager.findUnique({
+    where: { userId_leagueId: { userId, leagueId: tournament.leagueId } },
   });
-  if (!isAdminUser && !membership) {
+  if (!isAdminUser && !manager) {
     throw new Error("Sem permissão. Apenas administradores e gestores podem aceder ao placar.");
   }
 
