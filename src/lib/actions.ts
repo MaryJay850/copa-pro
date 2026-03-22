@@ -4588,3 +4588,59 @@ export async function updateUserPassword(data: {
   revalidatePath("/");
   return { success: true };
 }
+
+// ── Scoreboard (Placar de Jogo) ──
+
+export async function getScoreboardData(tournamentId: string) {
+  const session = await auth();
+  if (!session?.user) throw new Error("Não autenticado.");
+
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    include: {
+      league: true,
+      season: true,
+      courts: { orderBy: { name: "asc" } },
+      rounds: {
+        orderBy: { index: "asc" },
+        include: {
+          matches: {
+            orderBy: { slotIndex: "asc" },
+            include: {
+              teamA: { include: { player1: true, player2: true } },
+              teamB: { include: { player1: true, player2: true } },
+              court: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!tournament) throw new Error("Torneio não encontrado.");
+
+  // Check permission: admin or league manager
+  const userId = (session.user as any).id;
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+  const isAdminUser = user?.role === "ADMIN";
+  const membership = await prisma.leagueMember.findFirst({
+    where: { leagueId: tournament.leagueId, userId, role: "MANAGER", status: "APPROVED" },
+  });
+  if (!isAdminUser && !membership) {
+    throw new Error("Sem permissão. Apenas administradores e gestores podem aceder ao placar.");
+  }
+
+  return serialize(tournament);
+}
+
+export async function saveScoreboardMatch(
+  matchId: string,
+  scores: {
+    set1A: number | null; set1B: number | null;
+    set2A: number | null; set2B: number | null;
+    set3A: number | null; set3B: number | null;
+  }
+): Promise<{ success: true } | { success: false; error: string }> {
+  // Delegates to existing saveMatchScore which handles validation, ranking, etc.
+  return saveMatchScore(matchId, scores);
+}
