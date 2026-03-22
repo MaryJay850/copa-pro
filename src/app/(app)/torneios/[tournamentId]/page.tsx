@@ -208,146 +208,99 @@ export default async function TournamentPage({
         />
       )}
 
-      {/* Player Management */}
-      {canManage && tournament.inscriptions && tournament.inscriptions.length > 0 && (
-        <PlayerManagement
-          tournamentId={tournament.id}
-          inscriptions={tournament.inscriptions}
-        />
-      )}
+      {/* Main content: Schedule + Player Management side by side */}
+      <div className="flex gap-6 items-start">
+        {/* Schedule (left, takes most space) */}
+        <div className="flex-1 min-w-0">
+          {tournament.rounds.length === 0 ? (
+            <EmptyState
+              title="Sem calendário"
+              description="Gere o calendário para começar a registar resultados."
+            />
+          ) : (
+            <ScheduleView
+              rounds={tournament.rounds}
+              numberOfSets={tournament.numberOfSets}
+              canManage={canManage}
+              startDate={tournament.startDate ? tournament.startDate.toString() : null}
+              currentPlayerId={currentPlayerId ?? undefined}
+              currentUserId={currentUserId ?? undefined}
+              pendingSubmissionsMap={pendingSubmissionsMap}
+              tournamentName={tournament.name}
+              seasonName={tournament.season.name}
+              tournamentId={tournament.id}
+              teams={tournament.teams}
+              teamMode={tournament.teamMode}
+              numberOfRounds={tournament.numberOfRounds ?? undefined}
+            />
+          )}
 
-      {/* Teams overview */}
-      {tournament.teamMode === "RANDOM_PER_ROUND" ? (
-        <Card>
-          <CardHeader>
-            <CardTitle>Equipas Aleatórias por Ronda</CardTitle>
-          </CardHeader>
-          <div className="px-1 pb-1">
-            <p className="text-sm text-text-muted mb-3 font-medium">
-              Cada ronda tem equipas diferentes geradas aleatoriamente.
-              {tournament.numberOfRounds && ` ${tournament.numberOfRounds} rondas configuradas.`}
-            </p>
-            {tournament.rounds.length > 0 ? (
-              <div className="space-y-3">
-                {tournament.rounds.map((round: any) => {
-                  const roundTeams = tournament.teams.filter((t: any) => t.roundId === round.id);
-                  if (roundTeams.length === 0) return null;
-                  return (
-                    <div key={round.id} className="border border-border rounded-xl p-3">
-                      <p className="text-sm font-bold mb-2">Ronda {round.index}</p>
-                      <div className="grid gap-1.5 sm:grid-cols-2">
-                        {roundTeams.map((team: any) => (
-                          <div key={team.id} className="flex items-center gap-2 px-2.5 py-1.5 bg-surface-alt rounded-lg text-xs font-medium">
-                            <span>{team.name}</span>
-                          </div>
-                        ))}
+          {/* Inscriptions */}
+          {tournament.inscriptions && tournament.inscriptions.length > 0 && (
+            (() => {
+              const suplentes = tournament.inscriptions.filter(
+                (i: any) => i.status === "SUPLENTE" || i.status === "PROMOVIDO" || i.status === "DESISTIU"
+              );
+              if (suplentes.length === 0) return null;
+              return (
+                <Card className="mt-6">
+                  <CardHeader>
+                    <CardTitle>Inscrições</CardTitle>
+                  </CardHeader>
+                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                    {tournament.inscriptions.map((insc: any, idx: number) => (
+                      <div
+                        key={insc.id}
+                        className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm ${
+                          insc.status === "DESISTIU" ? "bg-red-50 line-through text-text-muted" : "bg-surface-alt"
+                        }`}
+                      >
+                        <span className={insc.status === "DESISTIU" ? "text-text-muted" : "font-semibold"}>
+                          {insc.player.nickname || insc.player.fullName.split(" ")[0]}
+                        </span>
+                        <Badge
+                          variant={
+                            insc.status === "TITULAR" ? "success"
+                              : insc.status === "PROMOVIDO" ? "success"
+                              : insc.status === "SUPLENTE" ? "warning"
+                              : "default"
+                          }
+                        >
+                          {insc.status === "TITULAR" ? "Titular"
+                            : insc.status === "PROMOVIDO" ? "Promovido"
+                            : insc.status === "SUPLENTE" ? `Suplente #${idx - tournament.inscriptions.filter((x: any) => x.status === "TITULAR" || x.status === "PROMOVIDO").length + 1}`
+                            : "Desistiu"}
+                        </Badge>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-text-muted">Equipas serão geradas ao publicar o calendário.</p>
-            )}
-          </div>
-        </Card>
-      ) : (
-        <Card>
-          <CardHeader>
-            <CardTitle>Equipas</CardTitle>
-          </CardHeader>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {tournament.teams.map((team) => (
-              <div
-                key={team.id}
-                className="flex items-center gap-3 px-3 py-2.5 bg-surface-alt rounded-xl text-sm"
-              >
-                <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                  <span className="text-xs font-bold text-primary">
-                    {team.name.slice(0, 2).toUpperCase()}
-                  </span>
-                </div>
-                <div>
-                  <span className="font-bold text-sm">{team.name}</span>
-                  <span className="text-text-muted text-xs ml-1.5">
-                    {team.player1.nickname || team.player1.fullName.split(" ")[0]}
-                    {team.player2 && (
-                      <>
-                        {" & "}
-                        {team.player2.nickname || team.player2.fullName.split(" ")[0]}
-                      </>
-                    )}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      )}
-
-      {/* Inscriptions */}
-      {tournament.inscriptions && tournament.inscriptions.length > 0 && (
-        (() => {
-          const suplentes = tournament.inscriptions.filter(
-            (i: any) => i.status === "SUPLENTE" || i.status === "PROMOVIDO" || i.status === "DESISTIU"
-          );
-          if (suplentes.length === 0) return null;
-          return (
-            <Card>
-              <CardHeader>
-                <CardTitle>Inscrições</CardTitle>
-              </CardHeader>
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {tournament.inscriptions.map((insc: any, idx: number) => (
-                  <div
-                    key={insc.id}
-                    className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm ${
-                      insc.status === "DESISTIU" ? "bg-red-50 line-through text-text-muted" : "bg-surface-alt"
-                    }`}
-                  >
-                    <span className={insc.status === "DESISTIU" ? "text-text-muted" : "font-semibold"}>
-                      {insc.player.nickname || insc.player.fullName.split(" ")[0]}
-                    </span>
-                    <Badge
-                      variant={
-                        insc.status === "TITULAR" ? "success"
-                          : insc.status === "PROMOVIDO" ? "success"
-                          : insc.status === "SUPLENTE" ? "warning"
-                          : "default"
-                      }
-                    >
-                      {insc.status === "TITULAR" ? "Titular"
-                        : insc.status === "PROMOVIDO" ? "Promovido"
-                        : insc.status === "SUPLENTE" ? `Suplente #${idx - tournament.inscriptions.filter((x: any) => x.status === "TITULAR" || x.status === "PROMOVIDO").length + 1}`
-                        : "Desistiu"}
-                    </Badge>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </Card>
-          );
-        })()
-      )}
+                </Card>
+              );
+            })()
+          )}
+        </div>
 
-      {/* Schedule */}
-      {tournament.rounds.length === 0 ? (
-        <EmptyState
-          title="Sem calendário"
-          description="Gere o calendário para começar a registar resultados."
-        />
-      ) : (
-        <ScheduleView
-          rounds={tournament.rounds}
-          numberOfSets={tournament.numberOfSets}
-          canManage={canManage}
-          startDate={tournament.startDate ? tournament.startDate.toString() : null}
-          currentPlayerId={currentPlayerId ?? undefined}
-          currentUserId={currentUserId ?? undefined}
-          pendingSubmissionsMap={pendingSubmissionsMap}
-          tournamentName={tournament.name}
-          seasonName={tournament.season.name}
-          tournamentId={tournament.id}
-        />
+        {/* Player Management (right sidebar) */}
+        {canManage && tournament.inscriptions && tournament.inscriptions.length > 0 && (
+          <div className="w-80 flex-shrink-0 hidden lg:block">
+            <div className="sticky top-20">
+              <PlayerManagement
+                tournamentId={tournament.id}
+                inscriptions={tournament.inscriptions}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Player Management mobile (below on small screens) */}
+      {canManage && tournament.inscriptions && tournament.inscriptions.length > 0 && (
+        <div className="lg:hidden">
+          <PlayerManagement
+            tournamentId={tournament.id}
+            inscriptions={tournament.inscriptions}
+          />
+        </div>
       )}
     </div>
   );

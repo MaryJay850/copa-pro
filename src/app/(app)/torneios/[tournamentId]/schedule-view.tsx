@@ -23,6 +23,9 @@ export function ScheduleView({
   tournamentName,
   seasonName,
   tournamentId,
+  teams,
+  teamMode,
+  numberOfRounds,
 }: {
   rounds: ScheduleRound[];
   numberOfSets: number;
@@ -34,8 +37,11 @@ export function ScheduleView({
   tournamentName?: string;
   seasonName?: string;
   tournamentId?: string;
+  teams?: any[];
+  teamMode?: string;
+  numberOfRounds?: number;
 }) {
-  const [view, setView] = useState<"list" | "calendar" | "print">("list");
+  const [view, setView] = useState<"generated" | "list" | "calendar" | "print">("generated");
   const printRef = useRef<HTMLDivElement>(null);
 
   // Get unique courts from all rounds
@@ -125,6 +131,12 @@ export function ScheduleView({
       {/* View toggle */}
       <div className="flex items-center gap-1.5 bg-surface rounded-xl border border-border p-1 w-fit">
         <button
+          className={`px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-200 ${view === "generated" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-surface-hover"}`}
+          onClick={() => setView("generated")}
+        >
+          Gerado
+        </button>
+        <button
           className={`px-3.5 py-2 text-xs font-semibold rounded-lg transition-all duration-200 ${view === "list" ? "bg-primary text-white shadow-sm" : "text-text-muted hover:text-text hover:bg-surface-hover"}`}
           onClick={() => setView("list")}
         >
@@ -147,7 +159,76 @@ export function ScheduleView({
         </button>
       </div>
 
-      {view === "calendar" ? (
+      {view === "generated" ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>
+              {teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT"
+                ? "Equipas Aleatórias por Ronda"
+                : "Equipas"}
+            </CardTitle>
+          </CardHeader>
+          <div className="px-1 pb-1">
+            {teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" ? (
+              <>
+                <p className="text-sm text-text-muted mb-3 font-medium">
+                  Cada ronda tem equipas diferentes geradas aleatoriamente.
+                  {numberOfRounds && ` ${numberOfRounds} rondas configuradas.`}
+                </p>
+                {rounds.length > 0 ? (
+                  <div className="space-y-3">
+                    {rounds.map((round) => {
+                      const roundTeams = (teams || []).filter((t: any) => t.roundId === round.id);
+                      if (roundTeams.length === 0) return null;
+                      return (
+                        <div key={round.id} className="border border-border rounded-xl p-3">
+                          <p className="text-sm font-bold mb-2">Ronda {round.index}</p>
+                          <div className="grid gap-1.5 sm:grid-cols-2">
+                            {roundTeams.map((team: any) => (
+                              <div key={team.id} className="flex items-center gap-2 px-2.5 py-1.5 bg-surface-alt rounded-lg text-xs font-medium">
+                                <span>{team.name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-sm text-text-muted">Equipas serão geradas ao publicar o calendário.</p>
+                )}
+              </>
+            ) : (
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {(teams || []).map((team: any) => (
+                  <div
+                    key={team.id}
+                    className="flex items-center gap-3 px-3 py-2.5 bg-surface-alt rounded-xl text-sm"
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                      <span className="text-xs font-bold text-primary">
+                        {team.name.slice(0, 2).toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-sm">{team.name}</span>
+                      <span className="text-text-muted text-xs ml-1.5">
+                        {team.player1?.nickname || team.player1?.fullName?.split(" ")[0]}
+                        {team.player2 && (
+                          <>
+                            {" & "}
+                            {team.player2.nickname || team.player2.fullName?.split(" ")[0]}
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Card>
+      ) : view === "calendar" ? (
         <MatchCalendar rounds={rounds} startDate={startDate} />
       ) : view === "print" ? (
         <div className="space-y-4">
