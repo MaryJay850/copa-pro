@@ -8,9 +8,8 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InviteLinkCard } from "@/components/invite-link-card";
 import { CreateSeasonForm } from "./create-season-form";
-import { WhatsAppGroupButton } from "./whatsapp-group-button";
-import { WhatsAppMessageSender } from "@/components/whatsapp-message-sender";
 import { EditLeagueForm } from "./edit-league-form";
+import { WhatsAppManagementModal } from "./whatsapp-management-modal";
 import { ActivityLog } from "@/components/activity-log";
 import { DeleteLeagueButton } from "./delete-league-button";
 import { notFound } from "next/navigation";
@@ -47,6 +46,13 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
                   </span>
                 </Button>
               </Link>
+              {adminUser && (
+                <WhatsAppManagementModal
+                  leagueId={leagueId}
+                  hasGroup={!!league.whatsappGroupId}
+                  whatsappGroupId={league.whatsappGroupId}
+                />
+              )}
             </div>
           )}
         </div>
@@ -61,36 +67,16 @@ export default async function LeaguePage({ params }: { params: Promise<{ leagueI
         )}
       </div>
 
-      {/* Manager tools */}
+      {/* Invite players */}
       {canManage && (
         <Card>
           <CardHeader>
-            <CardTitle>Ferramentas de Gestão</CardTitle>
+            <CardTitle className="flex items-center gap-2">
+              <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+              Convidar Jogadores
+            </CardTitle>
           </CardHeader>
-          <div className="space-y-5">
-            <div>
-              <h3 className="text-sm font-semibold text-text mb-2 flex items-center gap-2">
-                <svg className="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                WhatsApp
-              </h3>
-              <div className="flex items-center gap-3">
-                <WhatsAppGroupButton leagueId={leagueId} hasGroup={!!league.whatsappGroupId} />
-                {league.whatsappGroupId && (
-                  <span className="text-xs text-text-muted">
-                    ID: <code className="bg-surface-hover px-1.5 py-0.5 rounded-md font-mono text-[10px]">{league.whatsappGroupId}</code>
-                  </span>
-                )}
-              </div>
-            </div>
-            <WhatsAppMessageSender leagueId={leagueId} whatsappGroupId={league.whatsappGroupId} />
-            <div className="pt-2 border-t border-border-light">
-              <h3 className="text-sm font-semibold text-text mb-2 flex items-center gap-2">
-                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
-                Convidar Jogadores
-              </h3>
-              <InviteLinkCard leagueId={leagueId} invites={invites} />
-            </div>
-          </div>
+          <InviteLinkCard leagueId={leagueId} invites={invites} />
         </Card>
       )}
 
