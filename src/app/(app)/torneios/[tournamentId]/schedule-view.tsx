@@ -70,10 +70,10 @@ export function ScheduleView({
     th, td { border: 1px solid #333; padding: 6px 8px; text-align: left; }
     th { background-color: #e8e8e8; font-weight: bold; font-size: 10px; text-transform: uppercase; }
     .vs-cell { text-align: center; font-weight: bold; color: #666; width: 30px; }
-    .set-cell { width: 60px; text-align: center; min-height: 24px; font-size: 14px; }
+    .set-cell { width: 90px; text-align: center; min-height: 28px; font-size: 16px; }
+    .set-dash { font-size: 18px; font-weight: bold; color: #000; letter-spacing: 0; }
     .team-cell { font-weight: 500; }
-    .tracking-widest { letter-spacing: 0.1em; color: #999; font-size: 13px; }
-    .match-code { font-family: 'Courier New', Courier, monospace; font-size: 10px; color: #666; text-align: center; }
+    .match-code { font-family: 'Courier New', Courier, monospace; font-size: 11px; color: #000; font-weight: bold; text-align: center; }
     .print-footer { margin-top: 12px; padding-top: 6px; border-top: 1px solid #ccc; display: flex; justify-content: space-between; font-size: 9px; color: #888; }
     .page-break { page-break-before: always; margin-top: 20px; }
   `;
@@ -320,7 +320,7 @@ export function ScheduleView({
                               {setHeaders.map((h) => (
                                 <th
                                   key={h}
-                                  className="px-2 py-2 text-center text-xs font-bold uppercase tracking-wide border border-border w-20"
+                                  className="px-2 py-2 text-center text-xs font-bold uppercase tracking-wide border border-border w-28"
                                 >
                                   {h}
                                 </th>
@@ -334,7 +334,7 @@ export function ScheduleView({
                               const score3 = getSetScore(cm.match, 3);
                               return (
                                 <tr key={cm.match.id} className="border border-border hover:bg-surface-alt/50">
-                                  <td className="px-1 py-3 text-center border border-border font-mono text-xs text-text-muted match-code">
+                                  <td className="px-1 py-3 text-center border border-border font-mono text-xs text-black font-bold match-code">
                                     {cm.matchCode}
                                   </td>
                                   <td className="px-3 py-3 font-bold text-center border border-border bg-surface-alt/30">
@@ -352,8 +352,8 @@ export function ScheduleView({
                                   {setHeaders.map((_, setIdx) => {
                                     const score = [score1, score2, score3][setIdx];
                                     return (
-                                      <td key={setIdx} className="px-2 py-3 text-center border border-border text-text-muted set-cell">
-                                        {score || <span className="tracking-widest">___ - ___</span>}
+                                      <td key={setIdx} className="px-2 py-4 text-center border border-border set-cell">
+                                        {score || <span className="set-dash">—</span>}
                                       </td>
                                     );
                                   })}
