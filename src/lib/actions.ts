@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "./db";
-import { generateRoundRobinPairings, generateRandomTeams, generateAllRoundTeams, type TeamRef } from "./scheduling";
+import { generateRoundRobinPairings, generateRandomTeams, generateAllRoundTeams, optimizeMatchAssignments, type TeamRef } from "./scheduling";
 import { computeMatchContribution, validateMatchScores, determineResult } from "./ranking";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
@@ -588,12 +588,16 @@ export async function generateSchedule(tournamentId: string) {
       const groupATeams = generateAllRoundTeams(groupA, numRounds, seed + "_A");
       const groupBTeams = generateAllRoundTeams(groupB, numRounds, seed + "_B");
 
+      // Optimize match assignments for each group separately
+      const optimizedA = optimizeMatchAssignments(groupATeams);
+      const optimizedB = optimizeMatchAssignments(groupBTeams);
+
       for (let r = 0; r < numRounds; r++) {
         const round = await prisma.round.create({
           data: { tournamentId, index: r + 1 },
         });
 
-        // Create teams and matches for Group A
+        // Create teams for Group A
         const groupATeamIds: string[] = [];
         for (const pair of groupATeams[r]) {
           const p1Name = playerMap.get(pair.player1Id) || "?";
@@ -608,7 +612,7 @@ export async function generateSchedule(tournamentId: string) {
           groupATeamIds.push(team.id);
         }
 
-        // Create teams and matches for Group B
+        // Create teams for Group B
         const groupBTeamIds: string[] = [];
         for (const pair of groupBTeams[r]) {
           const p1Name = playerMap.get(pair.player1Id) || "?";
@@ -623,24 +627,28 @@ export async function generateSchedule(tournamentId: string) {
           groupBTeamIds.push(team.id);
         }
 
-        // Create matches: Group A uses first half of courts, Group B uses second half
+        // Create matches using optimized assignments
         let slotIndex = 0;
-        for (let m = 0; m < Math.floor(groupATeamIds.length / 2); m++) {
+        const matchesA = optimizedA[r];
+        for (let m = 0; m < matchesA.length; m++) {
+          const { teamAIndex, teamBIndex } = matchesA[m];
           const courtId = courts[m % courtsPerGroup]?.id || null;
           await prisma.match.create({
             data: {
               tournamentId, roundId: round.id, courtId, slotIndex: slotIndex++,
-              teamAId: groupATeamIds[m * 2], teamBId: groupATeamIds[m * 2 + 1],
+              teamAId: groupATeamIds[teamAIndex], teamBId: groupATeamIds[teamBIndex],
               status: "SCHEDULED", resultType: "UNDECIDED",
             },
           });
         }
-        for (let m = 0; m < Math.floor(groupBTeamIds.length / 2); m++) {
+        const matchesB = optimizedB[r];
+        for (let m = 0; m < matchesB.length; m++) {
+          const { teamAIndex, teamBIndex } = matchesB[m];
           const courtId = courts[courtsPerGroup + (m % courtsPerGroup)]?.id || courts[m % courts.length]?.id || null;
           await prisma.match.create({
             data: {
               tournamentId, roundId: round.id, courtId, slotIndex: slotIndex++,
-              teamAId: groupBTeamIds[m * 2], teamBId: groupBTeamIds[m * 2 + 1],
+              teamAId: groupBTeamIds[teamAIndex], teamBId: groupBTeamIds[teamBIndex],
               status: "SCHEDULED", resultType: "UNDECIDED",
             },
           });
@@ -750,6 +758,9 @@ export async function generateSchedule(tournamentId: string) {
       playerMap.set(p.id, p.nickname || p.fullName);
     }
 
+    // Optimize match assignments to maximize opponent variety across rounds
+    const optimizedAssignments = optimizeMatchAssignments(allRoundTeams);
+
     for (let r = 0; r < allRoundTeams.length; r++) {
       const round = await prisma.round.create({
         data: { tournamentId, index: r + 1 },
@@ -776,9 +787,10 @@ export async function generateSchedule(tournamentId: string) {
         roundTeamIds.push({ id: team.id, index: t });
       }
 
-      // Create matches for this round: pair teams[0] vs teams[1], teams[2] vs teams[3], etc.
-      // Respect courtsCount for slot assignment
-      for (let m = 0; m < Math.floor(roundTeamIds.length / 2); m++) {
+      // Use optimized match assignments (minimizes repeated opponents)
+      const matchAssignments = optimizedAssignments[r];
+      for (let m = 0; m < matchAssignments.length; m++) {
+        const { teamAIndex, teamBIndex } = matchAssignments[m];
         const courtId = courts[m % courts.length]?.id || null;
         await prisma.match.create({
           data: {
@@ -786,8 +798,8 @@ export async function generateSchedule(tournamentId: string) {
             roundId: round.id,
             courtId,
             slotIndex: m,
-            teamAId: roundTeamIds[m * 2].id,
-            teamBId: roundTeamIds[m * 2 + 1].id,
+            teamAId: roundTeamIds[teamAIndex].id,
+            teamBId: roundTeamIds[teamBIndex].id,
             status: "SCHEDULED",
             resultType: "UNDECIDED",
           },
@@ -940,6 +952,9 @@ export async function forceRegenerateSchedule(tournamentId: string) {
       playerMap.set(p.id, p.nickname || p.fullName);
     }
 
+    // Optimize match assignments to maximize opponent variety across rounds
+    const optimizedAssignments = optimizeMatchAssignments(allRoundTeams);
+
     for (let r = 0; r < allRoundTeams.length; r++) {
       const round = await prisma.round.create({
         data: { tournamentId, index: r + 1 },
@@ -965,7 +980,10 @@ export async function forceRegenerateSchedule(tournamentId: string) {
         roundTeamIds.push({ id: team.id, index: t });
       }
 
-      for (let m = 0; m < Math.floor(roundTeamIds.length / 2); m++) {
+      // Use optimized match assignments (minimizes repeated opponents)
+      const matchAssignments = optimizedAssignments[r];
+      for (let m = 0; m < matchAssignments.length; m++) {
+        const { teamAIndex, teamBIndex } = matchAssignments[m];
         const courtId = courts[m % courts.length]?.id || null;
         await prisma.match.create({
           data: {
@@ -973,8 +991,8 @@ export async function forceRegenerateSchedule(tournamentId: string) {
             roundId: round.id,
             courtId,
             slotIndex: m,
-            teamAId: roundTeamIds[m * 2].id,
-            teamBId: roundTeamIds[m * 2 + 1].id,
+            teamAId: roundTeamIds[teamAIndex].id,
+            teamBId: roundTeamIds[teamBIndex].id,
             status: "SCHEDULED",
             resultType: "UNDECIDED",
           },

@@ -198,6 +198,134 @@ export function generateAllRoundTeams(
 }
 
 /**
+ * Optimize match assignments within each round to maximize opponent variety.
+ *
+ * After teams are generated (via 1-factorization), we need to decide
+ * which team plays which team. Instead of sequential pairing (team0 vs team1),
+ * this uses a greedy algorithm that minimizes repeated opponent encounters.
+ *
+ * For each round:
+ * 1. Build an "opponent history" matrix tracking how many times each player
+ *    has faced each other player as an opponent.
+ * 2. For each possible team-vs-team pairing, calculate a "repetition cost"
+ *    (sum of existing opponent encounters between the 4 players).
+ * 3. Use minimum-weight matching to find the optimal assignment.
+ *
+ * This ensures players face the widest variety of opponents across rounds.
+ */
+export function optimizeMatchAssignments(
+  roundTeams: { player1Id: string; player2Id: string }[][],
+): { teamAIndex: number; teamBIndex: number }[][] {
+  // Track how many times each pair of players has been opponents
+  const opponentCount = new Map<string, number>();
+
+  function opponentKey(a: string, b: string): string {
+    return a < b ? `${a}|${b}` : `${b}|${a}`;
+  }
+
+  function getOpponentCost(
+    team1: { player1Id: string; player2Id: string },
+    team2: { player1Id: string; player2Id: string }
+  ): number {
+    // Cost = sum of existing opponent encounters between all cross-team pairs
+    // Heavy penalty (100x) when any pair would exceed 2 encounters
+    const pairs = [
+      [team1.player1Id, team2.player1Id],
+      [team1.player1Id, team2.player2Id],
+      [team1.player2Id, team2.player1Id],
+      [team1.player2Id, team2.player2Id],
+    ];
+    let cost = 0;
+    for (const [a, b] of pairs) {
+      const count = opponentCount.get(opponentKey(a, b)) ?? 0;
+      if (count >= 2) {
+        // Strong penalty to avoid exceeding 2 encounters
+        cost += 100;
+      } else {
+        cost += count;
+      }
+    }
+    return cost;
+  }
+
+  function recordOpponents(
+    team1: { player1Id: string; player2Id: string },
+    team2: { player1Id: string; player2Id: string }
+  ): void {
+    const pairs = [
+      [team1.player1Id, team2.player1Id],
+      [team1.player1Id, team2.player2Id],
+      [team1.player2Id, team2.player1Id],
+      [team1.player2Id, team2.player2Id],
+    ];
+    for (const [a, b] of pairs) {
+      const key = opponentKey(a, b);
+      opponentCount.set(key, (opponentCount.get(key) ?? 0) + 1);
+    }
+  }
+
+  const result: { teamAIndex: number; teamBIndex: number }[][] = [];
+
+  for (const teams of roundTeams) {
+    const numTeams = teams.length;
+    const numMatches = Math.floor(numTeams / 2);
+
+    // Greedy minimum-cost matching
+    // For small N (typically 4-8 teams per round), brute force is fine
+    const indices = Array.from({ length: numTeams }, (_, i) => i);
+    let bestAssignment: { teamAIndex: number; teamBIndex: number }[] = [];
+    let bestCost = Infinity;
+
+    // Generate all possible perfect matchings using recursive approach
+    function findBestMatching(
+      available: number[],
+      current: { teamAIndex: number; teamBIndex: number }[],
+      currentCost: number
+    ): void {
+      if (current.length === numMatches) {
+        if (currentCost < bestCost) {
+          bestCost = currentCost;
+          bestAssignment = [...current];
+        }
+        return;
+      }
+
+      // Prune: if current cost already >= best, skip
+      if (currentCost >= bestCost) return;
+
+      if (available.length < 2) return;
+
+      // Pick the first available team, try pairing with each remaining
+      const first = available[0];
+      const rest = available.slice(1);
+
+      for (let i = 0; i < rest.length; i++) {
+        const second = rest[i];
+        const pairCost = getOpponentCost(teams[first], teams[second]);
+        const remaining = [...rest.slice(0, i), ...rest.slice(i + 1)];
+
+        findBestMatching(
+          remaining,
+          [...current, { teamAIndex: first, teamBIndex: second }],
+          currentCost + pairCost
+        );
+      }
+    }
+
+    findBestMatching(indices, [], 0);
+
+    // Record the chosen opponents
+    for (const match of bestAssignment) {
+      recordOpponents(teams[match.teamAIndex], teams[match.teamBIndex]);
+    }
+
+    result.push(bestAssignment);
+  }
+
+  return result;
+}
+
+/**
  * Generate random teams from a list of players.
  * Requires even number of players.
  */
