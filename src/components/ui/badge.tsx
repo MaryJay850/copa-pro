@@ -2,18 +2,18 @@ type BadgeVariant = "default" | "success" | "warning" | "danger" | "info";
 
 const variantStyles: Record<BadgeVariant, string> = {
   default: "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
-  success: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400",
-  warning: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-  danger: "bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400",
-  info: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+  success: "bg-[rgba(30,202,184,0.15)] text-[#1ecab8] dark:bg-[rgba(30,202,184,0.2)] dark:text-[#3dd6c7]",
+  warning: "bg-[rgba(251,182,36,0.15)] text-[#d9a020] dark:bg-[rgba(251,182,36,0.2)] dark:text-[#fbb624]",
+  danger: "bg-[rgba(249,59,122,0.15)] text-[#f93b7a] dark:bg-[rgba(249,59,122,0.2)] dark:text-[#fb6b9d]",
+  info: "bg-[rgba(87,102,218,0.15)] text-[#5766da] dark:bg-[rgba(87,102,218,0.2)] dark:text-[#7b87e2]",
 };
 
 const dotColors: Record<BadgeVariant, string> = {
   default: "bg-gray-400",
-  success: "bg-emerald-500",
-  warning: "bg-amber-500",
-  danger: "bg-red-500",
-  info: "bg-blue-500",
+  success: "bg-[#1ecab8]",
+  warning: "bg-[#fbb624]",
+  danger: "bg-[#f93b7a]",
+  info: "bg-[#5766da]",
 };
 
 export function Badge({
