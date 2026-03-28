@@ -106,6 +106,11 @@ export async function createLeague(formData: FormData) {
 }
 
 export async function getLeagues() {
+  const session = await auth();
+  const userId = (session?.user as any)?.id as string | undefined;
+  const userRole = (session?.user as any)?.role as string | undefined;
+  const isUserAdmin = userRole === "ADMINISTRADOR";
+
   const result = await prisma.league.findMany({
     where: { isActive: true },
     orderBy: { createdAt: "desc" },
@@ -117,9 +122,17 @@ export async function getLeagues() {
         orderBy: { createdAt: "desc" },
         select: { id: true, name: true },
       },
+      managers: userId ? { where: { userId }, select: { id: true } } : false,
     },
   });
-  return serialize(result);
+
+  return serialize(
+    result.map((l) => ({
+      ...l,
+      canManage: isUserAdmin || ((l as any).managers?.length > 0),
+      managers: undefined, // strip raw managers from response
+    }))
+  );
 }
 
 export async function getLeague(id: string) {
