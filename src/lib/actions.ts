@@ -356,6 +356,7 @@ export async function createTournament(data: {
   courtNames?: string[];
   clubId?: string;
   courtIds?: string[];
+  courtGroupLabels?: Record<string, string>;
   matchesPerPair: number;
   numberOfSets: number;
   teamSize?: number;
@@ -410,7 +411,11 @@ export async function createTournament(data: {
   if (data.courtIds && data.courtIds.length > 0) {
     for (const courtId of data.courtIds) {
       await prisma.tournamentCourt.create({
-        data: { tournamentId: tournament.id, courtId },
+        data: {
+          tournamentId: tournament.id,
+          courtId,
+          groupLabel: data.courtGroupLabels?.[courtId] || null,
+        },
       });
     }
   } else {
@@ -601,7 +606,25 @@ export async function generateSchedule(tournamentId: string) {
 
     const seed = tournament.randomSeed || "default";
     const subMode = tournament.rankedSplitSubMode || "fixed";
-    const courtsPerGroup = Math.max(1, Math.floor(courts.length / 2));
+
+    // Use groupLabel from tournamentCourts if available, otherwise split courts in half
+    const tcWithLabels = tournament.tournamentCourts.filter((tc) => tc.groupLabel === "A" || tc.groupLabel === "B");
+    let groupACourts: typeof courts;
+    let groupBCourts: typeof courts;
+    if (tcWithLabels.length > 0) {
+      groupACourts = tournament.tournamentCourts.filter((tc) => tc.groupLabel === "A").map((tc) => tc.court);
+      groupBCourts = tournament.tournamentCourts.filter((tc) => tc.groupLabel === "B").map((tc) => tc.court);
+      // Fallback: unassigned courts split evenly
+      const unassigned = courts.filter((c) => !groupACourts.some((gc) => gc.id === c.id) && !groupBCourts.some((gc) => gc.id === c.id));
+      for (let i = 0; i < unassigned.length; i++) {
+        if (groupACourts.length <= groupBCourts.length) groupACourts.push(unassigned[i]);
+        else groupBCourts.push(unassigned[i]);
+      }
+    } else {
+      const courtsPerGroup = Math.max(1, Math.floor(courts.length / 2));
+      groupACourts = courts.slice(0, courtsPerGroup);
+      groupBCourts = courts.slice(courtsPerGroup);
+    }
 
     if (subMode === "per_round") {
       // ── Per-round mode: generate different teams each round for each group ──
@@ -648,12 +671,12 @@ export async function generateSchedule(tournamentId: string) {
           groupBTeamIds.push(team.id);
         }
 
-        // Create matches using optimized assignments
+        // Create matches using optimized assignments with group-specific courts
         let slotIndex = 0;
         const matchesA = optimizedA[r];
         for (let m = 0; m < matchesA.length; m++) {
           const { teamAIndex, teamBIndex } = matchesA[m];
-          const courtId = courts[m % courtsPerGroup]?.id || null;
+          const courtId = groupACourts[m % groupACourts.length]?.id || null;
           await prisma.match.create({
             data: {
               tournamentId, roundId: round.id, courtId, slotIndex: slotIndex++,
@@ -665,7 +688,7 @@ export async function generateSchedule(tournamentId: string) {
         const matchesB = optimizedB[r];
         for (let m = 0; m < matchesB.length; m++) {
           const { teamAIndex, teamBIndex } = matchesB[m];
-          const courtId = courts[courtsPerGroup + (m % courtsPerGroup)]?.id || courts[m % courts.length]?.id || null;
+          const courtId = groupBCourts[m % groupBCourts.length]?.id || null;
           await prisma.match.create({
             data: {
               tournamentId, roundId: round.id, courtId, slotIndex: slotIndex++,
@@ -711,9 +734,9 @@ export async function generateSchedule(tournamentId: string) {
         groupBTeamRefs.push({ id: team.id, index: i });
       }
 
-      // Generate round-robin pairings for each group
-      const pairingsA = generateRoundRobinPairings(groupATeamRefs, courtsPerGroup, tournament.matchesPerPair, seed + "_A");
-      const pairingsB = generateRoundRobinPairings(groupBTeamRefs, courtsPerGroup, tournament.matchesPerPair, seed + "_B");
+      // Generate round-robin pairings for each group using group-specific court counts
+      const pairingsA = generateRoundRobinPairings(groupATeamRefs, groupACourts.length, tournament.matchesPerPair, seed + "_A");
+      const pairingsB = generateRoundRobinPairings(groupBTeamRefs, groupBCourts.length, tournament.matchesPerPair, seed + "_B");
 
       // Merge pairings into combined rounds
       const maxRound = Math.max(
@@ -731,7 +754,7 @@ export async function generateSchedule(tournamentId: string) {
 
       for (const p of pairingsA) {
         const roundId = roundMap.get(p.roundIndex)!;
-        const courtId = courts[p.courtIndex]?.id || null;
+        const courtId = groupACourts[p.courtIndex]?.id || null;
         await prisma.match.create({
           data: {
             tournamentId, roundId, courtId, slotIndex: p.slotIndex,
@@ -743,7 +766,7 @@ export async function generateSchedule(tournamentId: string) {
 
       for (const p of pairingsB) {
         const roundId = roundMap.get(p.roundIndex)!;
-        const courtId = courts[courtsPerGroup + p.courtIndex]?.id || courts[p.courtIndex % courts.length]?.id || null;
+        const courtId = groupBCourts[p.courtIndex]?.id || null;
         await prisma.match.create({
           data: {
             tournamentId, roundId, courtId, slotIndex: p.slotIndex + 100, // offset to avoid collision

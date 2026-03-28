@@ -54,6 +54,7 @@ export function TournamentWizard({
       courtNames?: string[];
       clubId?: string;
       courtIds?: string[];
+      courtGroupLabels?: Record<string, string>;
     };
   };
 }) {
@@ -91,6 +92,7 @@ export function TournamentWizard({
   const [clubId, setClubId] = useState<string>(editMode?.initialData.clubId ?? "");
   const [clubCourts, setClubCourts] = useState<ClubCourt[]>([]);
   const [selectedCourtIds, setSelectedCourtIds] = useState<string[]>(editMode?.initialData.courtIds ?? []);
+  const [courtGroupLabels, setCourtGroupLabels] = useState<Record<string, string>>(editMode?.initialData.courtGroupLabels ?? {});
 
   // Step 2 — ordered selection
   const [players] = useState<Player[]>(existingPlayers);
@@ -318,6 +320,7 @@ export function TournamentWizard({
         courtNames: selectedCourtIds.length > 0 ? derivedCourtNames : courtNames,
         clubId: clubId || undefined,
         courtIds: selectedCourtIds.length > 0 ? selectedCourtIds : undefined,
+        courtGroupLabels: teamMode === "RANKED_SPLIT" && Object.keys(courtGroupLabels).length > 0 ? courtGroupLabels : undefined,
         matchesPerPair,
         numberOfSets,
         teamSize,
@@ -541,6 +544,35 @@ export function TournamentWizard({
             <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs px-3 py-2 rounded-lg">
               Capacidade: <strong>{maxTitulars} jogadores titulares</strong> ({effectiveCourtsCount} {effectiveCourtsCount === 1 ? "campo" : "campos"} &times; {playersPerSide * 2} jogadores/campo)
             </div>
+
+            {/* Court group assignment for RANKED_SPLIT */}
+            {teamMode === "RANKED_SPLIT" && selectedCourtIds.length >= 2 && (
+              <div>
+                <FieldLabel label="Campos por Grupo" tooltip="Atribua cada campo a um grupo. A distribuicao deve ser equilibrada em qualidade." />
+                <div className="space-y-1.5 mt-1">
+                  {clubCourts.filter((c) => selectedCourtIds.includes(c.id)).map((court) => {
+                    const qualityColor = court.quality === "GOOD" ? "text-green-600" : court.quality === "MEDIUM" ? "text-amber-600" : "text-red-600";
+                    return (
+                      <div key={court.id} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-border">
+                        <span className="text-sm font-medium flex-1">{court.name}</span>
+                        <span className={`text-xs font-semibold ${qualityColor}`}>
+                          {court.quality === "GOOD" ? "Bom" : court.quality === "MEDIUM" ? "Medio" : "Mau"}
+                        </span>
+                        <select
+                          value={courtGroupLabels[court.id] || ""}
+                          onChange={(e) => setCourtGroupLabels((prev) => ({ ...prev, [court.id]: e.target.value }))}
+                          className="rounded-lg border border-border px-2 py-1 text-xs font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                          <option value="">Auto</option>
+                          <option value="A">Grupo A</option>
+                          <option value="B">Grupo B</option>
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             <div>
               <FieldLabel label="Formato" tooltip="Simples: cada par joga uma vez. Duplo: cada par joga duas vezes (ida e volta)." />
