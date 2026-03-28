@@ -55,6 +55,14 @@ export function TournamentWizard({
       clubId?: string;
       courtIds?: string[];
       courtGroupLabels?: Record<string, string>;
+      format?: string;
+      numberOfGroups?: number;
+      teamsAdvancing?: number;
+      hasQuarterFinals?: boolean;
+      hasSemiFinals?: boolean;
+      hasThirdPlace?: boolean;
+      knockoutSets?: number;
+      tiebreakerCriteria?: string;
     };
   };
 }) {
