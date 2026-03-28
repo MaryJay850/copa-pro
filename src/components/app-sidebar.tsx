@@ -115,9 +115,6 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
         items: [
           { href: "/dashboard", label: "Painel", icon: icons.dashboard },
           { href: "/ligas", label: "As Minhas Ligas", icon: icons.leagues },
-          ...(playerId
-            ? [{ href: `/jogadores/${playerId}`, label: "Estatisticas", icon: icons.stats }]
-            : []),
         ],
       },
     ];
