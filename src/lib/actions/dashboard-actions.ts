@@ -16,6 +16,8 @@ const EMPTY_RESULT = {
   rankings: [] as any[],
   myRecentMatches: [] as any[],
   activeTournaments: [] as any[],
+  headToHead: [] as any[],
+  allTournaments: [] as any[],
 };
 
 export async function getMyDashboardData() {
@@ -48,7 +50,7 @@ export async function getMyDashboardData() {
 
   let userLeagues = memberships.map((m) => m.league);
 
-  // If no memberships, also check if user is a league manager
+  // If no memberships, check if league manager
   if (userLeagues.length === 0) {
     const managed = await prisma.leagueManager.findMany({
       where: { userId },
@@ -67,7 +69,7 @@ export async function getMyDashboardData() {
     userLeagues = managed.map((m) => m.league);
   }
 
-  // Fallback for admins: pick any active league
+  // Fallback for admins
   if (userLeagues.length === 0) {
     const anyLeague = await prisma.league.findFirst({
       where: { isActive: true, seasons: { some: { isActive: true } } },
@@ -98,7 +100,7 @@ export async function getMyDashboardData() {
     });
   }
 
-  // My ranking entry for this season
+  // My ranking entry
   const myRanking = playerId
     ? await prisma.seasonRankingEntry.findFirst({
         where: { seasonId: activeSeason.id, playerId },
@@ -151,8 +153,15 @@ export async function getMyDashboardData() {
       })
     : [];
 
-  // Active tournaments
-  const activeTournaments = await prisma.tournament.findMany({
+  // All tournaments in this season (for selector)
+  const allTournaments = await prisma.tournament.findMany({
+    where: { seasonId: activeSeason.id },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, name: true, status: true },
+  });
+
+  // Active tournaments with progress
+  const activeTournamentsFull = await prisma.tournament.findMany({
     where: {
       seasonId: activeSeason.id,
       status: { in: ["RUNNING", "PUBLISHED"] },
@@ -162,7 +171,7 @@ export async function getMyDashboardData() {
   });
 
   const tournamentsWithProgress = await Promise.all(
-    activeTournaments.map(async (t) => {
+    activeTournamentsFull.map(async (t) => {
       const finishedCount = await prisma.match.count({
         where: { tournamentId: t.id, status: "FINISHED" },
       });
@@ -176,6 +185,59 @@ export async function getMyDashboardData() {
       };
     })
   );
+
+  // Head-to-head stats
+  let headToHead: { opponentName: string; played: number; wins: number; losses: number }[] = [];
+  if (playerId) {
+    const allMatches = await prisma.match.findMany({
+      where: {
+        status: "FINISHED",
+        tournament: { seasonId: activeSeason.id },
+        OR: [
+          { teamA: { OR: [{ player1Id: playerId }, { player2Id: playerId }] } },
+          { teamB: { OR: [{ player1Id: playerId }, { player2Id: playerId }] } },
+        ],
+      },
+      include: {
+        teamA: { include: { player1: true, player2: true } },
+        teamB: { include: { player1: true, player2: true } },
+      },
+    });
+
+    const h2h = new Map<string, { name: string; wins: number; losses: number; draws: number }>();
+    for (const m of allMatches) {
+      const isTeamA = m.teamA.player1Id === playerId || m.teamA.player2Id === playerId;
+      const opponentTeam = isTeamA ? m.teamB : m.teamA;
+      const opponents = [opponentTeam.player1];
+      if (opponentTeam.player2) opponents.push(opponentTeam.player2);
+
+      for (const opp of opponents) {
+        if (!h2h.has(opp.id)) {
+          h2h.set(opp.id, { name: opp.nickname || opp.fullName, wins: 0, losses: 0, draws: 0 });
+        }
+        const record = h2h.get(opp.id)!;
+        if (isTeamA) {
+          if (m.resultType === "WIN_A") record.wins++;
+          else if (m.resultType === "WIN_B") record.losses++;
+          else if (m.resultType === "DRAW") record.draws++;
+        } else {
+          if (m.resultType === "WIN_B") record.wins++;
+          else if (m.resultType === "WIN_A") record.losses++;
+          else if (m.resultType === "DRAW") record.draws++;
+        }
+      }
+    }
+
+    headToHead = [...h2h.entries()]
+      .map(([, data]) => ({
+        opponentName: data.name,
+        played: data.wins + data.losses + data.draws,
+        wins: data.wins,
+        losses: data.losses,
+      }))
+      .sort((a, b) => b.played - a.played)
+      .slice(0, 5);
+  }
 
   const winRate =
     myRanking && myRanking.matchesPlayed > 0
@@ -207,5 +269,7 @@ export async function getMyDashboardData() {
     rankings,
     myRecentMatches,
     activeTournaments: tournamentsWithProgress,
+    headToHead,
+    allTournaments,
   });
 }
