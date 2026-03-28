@@ -109,7 +109,15 @@ export async function getLeagues() {
   const result = await prisma.league.findMany({
     where: { isActive: true },
     orderBy: { createdAt: "desc" },
-    include: { _count: { select: { seasons: true } } },
+    include: {
+      _count: { select: { seasons: true, memberships: true, tournaments: true } },
+      seasons: {
+        where: { isActive: true },
+        take: 1,
+        orderBy: { createdAt: "desc" },
+        select: { id: true, name: true },
+      },
+    },
   });
   return serialize(result);
 }
