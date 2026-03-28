@@ -94,6 +94,22 @@ export function TournamentWizard({
   const [selectedCourtIds, setSelectedCourtIds] = useState<string[]>(editMode?.initialData.courtIds ?? []);
   const [courtGroupLabels, setCourtGroupLabels] = useState<Record<string, string>>(editMode?.initialData.courtGroupLabels ?? {});
 
+  // GROUP_KNOCKOUT config
+  const [tournamentFormat, setTournamentFormat] = useState<"ROUND_ROBIN" | "GROUP_KNOCKOUT">(
+    (editMode?.initialData.format as any) ?? "ROUND_ROBIN"
+  );
+  const [numberOfGroups, setNumberOfGroups] = useState(editMode?.initialData.numberOfGroups ?? 2);
+  const [teamsAdvancing, setTeamsAdvancing] = useState(editMode?.initialData.teamsAdvancing ?? 1);
+  const [hasQuarterFinals, setHasQuarterFinals] = useState(editMode?.initialData.hasQuarterFinals ?? false);
+  const [hasSemiFinals, setHasSemiFinals] = useState(editMode?.initialData.hasSemiFinals ?? false);
+  const [hasThirdPlace, setHasThirdPlace] = useState(editMode?.initialData.hasThirdPlace ?? false);
+  const [knockoutSets, setKnockoutSets] = useState(editMode?.initialData.knockoutSets ?? 1);
+  const [tiebreakerCriteria, setTiebreakerCriteria] = useState<string[]>(
+    editMode?.initialData.tiebreakerCriteria
+      ? JSON.parse(editMode.initialData.tiebreakerCriteria)
+      : ["POINTS", "HEAD_TO_HEAD", "SETS_DIFF", "GAMES_DIFF", "SETS_WON", "GAMES_WON", "RANDOM"]
+  );
+
   // Step 2 — ordered selection
   const [players] = useState<Player[]>(existingPlayers);
   const [selectionOrder, setSelectionOrder] = useState<string[]>(
@@ -320,7 +336,17 @@ export function TournamentWizard({
         courtNames: selectedCourtIds.length > 0 ? derivedCourtNames : courtNames,
         clubId: clubId || undefined,
         courtIds: selectedCourtIds.length > 0 ? selectedCourtIds : undefined,
-        courtGroupLabels: teamMode === "RANKED_SPLIT" && Object.keys(courtGroupLabels).length > 0 ? courtGroupLabels : undefined,
+        courtGroupLabels: (teamMode === "RANKED_SPLIT" || tournamentFormat === "GROUP_KNOCKOUT") && Object.keys(courtGroupLabels).length > 0 ? courtGroupLabels : undefined,
+        format: tournamentFormat,
+        ...(tournamentFormat === "GROUP_KNOCKOUT" ? {
+          numberOfGroups,
+          teamsAdvancing,
+          hasQuarterFinals,
+          hasSemiFinals,
+          hasThirdPlace,
+          knockoutSets,
+          tiebreakerCriteria: JSON.stringify(tiebreakerCriteria),
+        } : {}),
         matchesPerPair,
         numberOfSets,
         teamSize,
@@ -571,6 +597,122 @@ export function TournamentWizard({
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Tournament Format */}
+            <div>
+              <FieldLabel label="Tipo de Torneio" tooltip="Round Robin: todos jogam contra todos. Fase de Grupos + Eliminatorias: grupos com classificacao seguida de eliminatorias." />
+              <div className="flex gap-3 mt-1">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="radio" checked={tournamentFormat === "ROUND_ROBIN"} onChange={() => setTournamentFormat("ROUND_ROBIN")} className="text-primary focus:ring-primary" />
+                  Round Robin
+                </label>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="radio" checked={tournamentFormat === "GROUP_KNOCKOUT"} onChange={() => setTournamentFormat("GROUP_KNOCKOUT")} className="text-primary focus:ring-primary" />
+                  Fase de Grupos + Eliminatorias
+                </label>
+              </div>
+            </div>
+
+            {/* GROUP_KNOCKOUT configuration */}
+            {tournamentFormat === "GROUP_KNOCKOUT" && (
+              <div className="bg-purple-50 border border-purple-200 rounded-lg px-4 py-3 space-y-3">
+                <p className="text-sm text-purple-800 font-semibold">Configuracao de Grupos + Eliminatorias</p>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs font-semibold text-purple-700">Numero de Grupos</label>
+                    <select value={numberOfGroups} onChange={(e) => setNumberOfGroups(parseInt(e.target.value))} className="mt-1 w-full rounded-lg border border-purple-200 bg-white px-3 py-1.5 text-sm">
+                      {[2, 3, 4, 6, 8].map((n) => <option key={n} value={n}>{n} grupos</option>)}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-purple-700">Equipas que avancam por grupo</label>
+                    <select value={teamsAdvancing} onChange={(e) => setTeamsAdvancing(parseInt(e.target.value))} className="mt-1 w-full rounded-lg border border-purple-200 bg-white px-3 py-1.5 text-sm">
+                      {[1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Validation */}
+                {(() => {
+                  const total = numberOfGroups * teamsAdvancing;
+                  const validTotals = [2, 4, 8];
+                  const isValid = validTotals.includes(total);
+                  const needsSF = total >= 4;
+                  const needsQF = total >= 8;
+                  return (
+                    <>
+                      {!isValid && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 text-xs px-3 py-2 rounded-lg">
+                          Configuracao invalida: {numberOfGroups} grupos &times; {teamsAdvancing} equipas = {total}. O total deve ser 2, 4 ou 8.
+                        </div>
+                      )}
+                      {isValid && (
+                        <div className="space-y-2">
+                          <div className="bg-green-50 border border-green-200 text-green-700 text-xs px-3 py-2 rounded-lg">
+                            {total} equipas avancam para eliminatorias
+                            {needsQF && " (Quartos + Semi + Final)"}
+                            {!needsQF && needsSF && " (Semi + Final)"}
+                            {!needsQF && !needsSF && " (Final)"}
+                          </div>
+
+                          <div className="flex flex-wrap gap-3">
+                            {needsQF && (
+                              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                <input type="checkbox" checked={hasQuarterFinals} onChange={(e) => setHasQuarterFinals(e.target.checked)} className="text-primary focus:ring-primary rounded" />
+                                Quartos de Final
+                              </label>
+                            )}
+                            {needsSF && (
+                              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                                <input type="checkbox" checked={hasSemiFinals} onChange={(e) => setHasSemiFinals(e.target.checked)} className="text-primary focus:ring-primary rounded" />
+                                Semi-Finais
+                              </label>
+                            )}
+                            <label className="flex items-center gap-2 text-xs cursor-pointer">
+                              <input type="checkbox" checked={hasThirdPlace} onChange={(e) => setHasThirdPlace(e.target.checked)} className="text-primary focus:ring-primary rounded" />
+                              3o/4o Lugar
+                            </label>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-semibold text-purple-700">Sets nas Eliminatorias</label>
+                            <div className="flex gap-3 mt-1">
+                              {[1, 2, 3].map((n) => (
+                                <label key={n} className="flex items-center gap-2 text-xs cursor-pointer">
+                                  <input type="radio" checked={knockoutSets === n} onChange={() => setKnockoutSets(n)} className="text-primary focus:ring-primary" />
+                                  {n === 1 ? "1 Set" : n === 2 ? "2 Sets" : "Melhor de 3"}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="text-xs font-semibold text-purple-700">Criterios de Desempate (por ordem de prioridade)</label>
+                            <div className="space-y-1 mt-1">
+                              {tiebreakerCriteria.map((c, i) => {
+                                const labels: Record<string, string> = {
+                                  POINTS: "Pontos", HEAD_TO_HEAD: "Confronto Direto", SETS_DIFF: "Diferenca de Sets",
+                                  GAMES_DIFF: "Diferenca de Games", SETS_WON: "Sets Ganhos", GAMES_WON: "Games Ganhos", RANDOM: "Sorteio",
+                                };
+                                return (
+                                  <div key={c} className="flex items-center gap-2 text-xs bg-white rounded-lg border border-purple-100 px-2 py-1">
+                                    <span className="text-purple-400 font-bold w-4">{i + 1}.</span>
+                                    <span className="flex-1">{labels[c] || c}</span>
+                                    <button disabled={i === 0} onClick={() => { const arr = [...tiebreakerCriteria]; [arr[i-1], arr[i]] = [arr[i], arr[i-1]]; setTiebreakerCriteria(arr); }} className="text-purple-400 hover:text-purple-600 disabled:opacity-30">&uarr;</button>
+                                    <button disabled={i === tiebreakerCriteria.length - 1} onClick={() => { const arr = [...tiebreakerCriteria]; [arr[i], arr[i+1]] = [arr[i+1], arr[i]]; setTiebreakerCriteria(arr); }} className="text-purple-400 hover:text-purple-600 disabled:opacity-30">&darr;</button>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             )}
 

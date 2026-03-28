@@ -357,6 +357,14 @@ export async function createTournament(data: {
   clubId?: string;
   courtIds?: string[];
   courtGroupLabels?: Record<string, string>;
+  format?: string;
+  numberOfGroups?: number;
+  teamsAdvancing?: number;
+  hasQuarterFinals?: boolean;
+  hasSemiFinals?: boolean;
+  hasThirdPlace?: boolean;
+  knockoutSets?: number;
+  tiebreakerCriteria?: string;
   matchesPerPair: number;
   numberOfSets: number;
   teamSize?: number;
@@ -396,6 +404,7 @@ export async function createTournament(data: {
       startDate: data.startDate ? new Date(data.startDate + "T00:00:00") : null,
       courtsCount: data.courtIds?.length ?? data.courtsCount,
       clubId: data.clubId || null,
+      format: data.format || "ROUND_ROBIN",
       matchesPerPair: data.matchesPerPair,
       numberOfSets: data.numberOfSets,
       teamSize,
@@ -403,6 +412,15 @@ export async function createTournament(data: {
       randomSeed: data.randomSeed || null,
       numberOfRounds: data.numberOfRounds || null,
       rankedSplitSubMode: data.rankedSplitSubMode || null,
+      // GROUP_KNOCKOUT config
+      numberOfGroups: data.numberOfGroups || null,
+      teamsAdvancing: data.teamsAdvancing || null,
+      hasQuarterFinals: data.hasQuarterFinals ?? false,
+      hasSemiFinals: data.hasSemiFinals ?? false,
+      hasThirdPlace: data.hasThirdPlace ?? false,
+      knockoutSets: data.knockoutSets || null,
+      tiebreakerCriteria: data.tiebreakerCriteria || null,
+      currentPhase: data.format === "GROUP_KNOCKOUT" ? "GROUPS" : "GROUPS",
       status: "DRAFT",
     },
   });
