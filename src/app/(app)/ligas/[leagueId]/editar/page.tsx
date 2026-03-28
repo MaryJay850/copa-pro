@@ -51,7 +51,7 @@ export default async function EditLeaguePage({ params }: { params: Promise<{ lea
             <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
-            Informacoes Gerais
+            Informações Gerais
           </CardTitle>
         </CardHeader>
         <EditLeagueForm leagueId={leagueId} currentName={league.name} currentLocation={league.location} />
@@ -74,7 +74,7 @@ export default async function EditLeaguePage({ params }: { params: Promise<{ lea
             </Link>
           </div>
         </CardHeader>
-        <p className="text-sm text-text-muted">Gerir jogadores, aprovar pedidos de adesao e atribuir funcoes.</p>
+        <p className="text-sm text-text-muted">Gerir jogadores, aprovar pedidos de adesão e atribuir funções.</p>
       </Card>
 
       {/* ─── Clubs & Courts ─── */}
@@ -118,12 +118,12 @@ export default async function EditLeaguePage({ params }: { params: Promise<{ lea
             <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
             </svg>
-            Epocas
+            Épocas
           </CardTitle>
         </CardHeader>
         {adminUser && <div className="mb-4"><CreateSeasonForm leagueId={league.id} /></div>}
         {league.seasons.length === 0 ? (
-          <p className="text-sm text-text-muted">Sem epocas criadas.</p>
+          <p className="text-sm text-text-muted">Sem épocas criadas.</p>
         ) : (
           <div className="space-y-2">
             {league.seasons.map((season) => (
@@ -177,7 +177,7 @@ export default async function EditLeaguePage({ params }: { params: Promise<{ lea
               Zona Perigosa
             </CardTitle>
           </CardHeader>
-          <p className="text-sm text-text-muted mb-4">Acoes irreversiveis. Tenha cuidado.</p>
+          <p className="text-sm text-text-muted mb-4">Ações irreversíveis. Tenha cuidado.</p>
           <DeleteLeagueButton leagueId={leagueId} leagueName={league.name} />
         </Card>
       )}

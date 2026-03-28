@@ -35,12 +35,12 @@ export default async function LigasPage() {
               <thead>
                 <tr className="bg-surface-hover border-b border-border text-left text-xs text-text-muted uppercase tracking-wider font-semibold">
                   <th className="px-5 py-3">Liga</th>
-                  <th className="px-5 py-3 text-center">Epoca Ativa</th>
-                  <th className="px-5 py-3 text-center">Epocas</th>
+                  <th className="px-5 py-3 text-center">Época Ativa</th>
+                  <th className="px-5 py-3 text-center">Épocas</th>
                   <th className="px-5 py-3 text-center">Torneios</th>
                   <th className="px-5 py-3 text-center">Membros</th>
                   <th className="px-5 py-3 text-center">Estado</th>
-                  <th className="px-5 py-3 text-right">Acoes</th>
+                  <th className="px-5 py-3 text-right">Ações</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

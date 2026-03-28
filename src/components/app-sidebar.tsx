@@ -121,7 +121,7 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
 
     if (isManager) {
       sections.push({
-        title: "GESTAO",
+        title: "GESTÃO",
         items: [
           { href: "/gestor", label: "Ligas & Torneios", icon: icons.management },
         ],
@@ -130,15 +130,15 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
 
     if (isAdmin) {
       sections.push({
-        title: "ADMINISTRACAO",
+        title: "ADMINISTRAÇÃO",
         items: [
-          { href: "/admin", label: "Visao Geral", icon: icons.admin },
+          { href: "/admin", label: "Visão Geral", icon: icons.admin },
           { href: "/admin/utilizadores", label: "Utilizadores", icon: icons.users },
           { href: "/admin/ligas", label: "Ligas", icon: icons.leagues },
           { href: "/admin/analytics", label: "Analytics", icon: icons.analytics },
           { href: "/admin/planos", label: "Planos", icon: icons.plans },
           { href: "/admin/auditoria", label: "Auditoria", icon: icons.audit },
-          { href: "/admin/configuracoes", label: "Configuracoes", icon: icons.config },
+          { href: "/admin/configuracoes", label: "Configurações", icon: icons.config },
         ],
       });
     }
@@ -270,7 +270,7 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
                 <span className="flex-shrink-0" style={{ opacity: isActive("/planos") ? 1 : 0.7 }}>
                   {icons.plans}
                 </span>
-                {!collapsed && <span>Planos & Subscricao</span>}
+                {!collapsed && <span>Planos & Subscrição</span>}
               </Link>
             </li>
             <li>

@@ -162,19 +162,19 @@ export function ProfileContent({ profile }: { profile: ProfileData }) {
                   : "text-text hover:bg-surface-hover"
               }`}
             >
-              Definicoes
+              Definições
             </button>
           </Card>
 
           {/* Personal Information */}
           <Card className="py-5 px-5">
-            <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Informacao Pessoal</h3>
+            <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Informação Pessoal</h3>
             <div className="space-y-3">
               <div>
                 <p className="text-xs text-text-muted font-medium">Sobre</p>
                 <p className="text-sm text-text mt-0.5">
                   {profile.player?.level
-                    ? `Jogador de padel de nivel ${profile.player.level.toLowerCase()}.`
+                    ? `Jogador de padel de nível ${profile.player.level.toLowerCase()}.`
                     : "Jogador de padel registado na plataforma CopaPro."}
                 </p>
               </div>
@@ -260,7 +260,7 @@ export function ProfileContent({ profile }: { profile: ProfileData }) {
                             type="text"
                             value={nickname}
                             onChange={(e) => setNickname(e.target.value)}
-                            placeholder="Ex: Ze, Manel..."
+                            placeholder="Ex: Zé, Manel..."
                             className={inputClass}
                           />
                         </div>
@@ -293,7 +293,7 @@ export function ProfileContent({ profile }: { profile: ProfileData }) {
                       <div className="grid gap-5 sm:grid-cols-2">
                         <div>
                           <label className="block text-xs font-semibold text-text-muted mb-1.5">
-                            Nivel
+                            Nível
                           </label>
                           <select
                             value={level}
@@ -341,7 +341,7 @@ export function ProfileContent({ profile }: { profile: ProfileData }) {
 
                   <div className="flex justify-end pt-2">
                     <Button type="submit" disabled={savingProfile}>
-                      {savingProfile ? "A guardar..." : "Guardar Alteracoes"}
+                      {savingProfile ? "A guardar..." : "Guardar Alterações"}
                     </Button>
                   </div>
                 </form>
@@ -379,7 +379,7 @@ export function ProfileContent({ profile }: { profile: ProfileData }) {
                         onChange={(e) => setNewPassword(e.target.value)}
                         required
                         minLength={6}
-                        placeholder="Minimo 6 caracteres"
+                        placeholder="Mínimo 6 caracteres"
                         className={inputClass}
                       />
                     </div>
