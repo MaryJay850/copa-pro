@@ -782,6 +782,31 @@ export async function generateSchedule(tournamentId: string) {
     // Optimize match assignments to maximize opponent variety across rounds
     const optimizedAssignments = optimizeMatchAssignments(allRoundTeams);
 
+    // Build match-player info for court optimization
+    const courtsHaveQuality = courts.some((c: any) => c.quality && c.quality !== "GOOD");
+    let courtAssignments: string[][] | null = null;
+    if (courtsHaveQuality && courts.length > 1) {
+      const matchInfoPerRound: { player1IdA: string; player2IdA?: string; player1IdB: string; player2IdB?: string }[][] = [];
+      for (let r = 0; r < allRoundTeams.length; r++) {
+        const roundPairs = allRoundTeams[r];
+        const assignments = optimizedAssignments[r];
+        const roundMatchInfo: { player1IdA: string; player2IdA?: string; player1IdB: string; player2IdB?: string }[] = [];
+        for (const { teamAIndex, teamBIndex } of assignments) {
+          const tA = roundPairs[teamAIndex];
+          const tB = roundPairs[teamBIndex];
+          roundMatchInfo.push({
+            player1IdA: tA.player1Id, player2IdA: tA.player2Id,
+            player1IdB: tB.player1Id, player2IdB: tB.player2Id,
+          });
+        }
+        matchInfoPerRound.push(roundMatchInfo);
+      }
+      courtAssignments = optimizeCourtAssignments(
+        matchInfoPerRound,
+        courts.map((c: any) => ({ id: c.id, quality: c.quality || "GOOD" }))
+      );
+    }
+
     for (let r = 0; r < allRoundTeams.length; r++) {
       const round = await prisma.round.create({
         data: { tournamentId, index: r + 1 },
@@ -812,7 +837,10 @@ export async function generateSchedule(tournamentId: string) {
       const matchAssignments = optimizedAssignments[r];
       for (let m = 0; m < matchAssignments.length; m++) {
         const { teamAIndex, teamBIndex } = matchAssignments[m];
-        const courtId = courts[m % courts.length]?.id || null;
+        // Use court quality optimization if available, otherwise cyclic
+        const courtId = courtAssignments
+          ? courtAssignments[r]?.[m] || courts[m % courts.length]?.id || null
+          : courts[m % courts.length]?.id || null;
         await prisma.match.create({
           data: {
             tournamentId,
@@ -983,6 +1011,31 @@ export async function forceRegenerateSchedule(tournamentId: string) {
     // Optimize match assignments to maximize opponent variety across rounds
     const optimizedAssignments = optimizeMatchAssignments(allRoundTeams);
 
+    // Build match-player info for court optimization
+    const courtsHaveQuality2 = courts.some((c: any) => c.quality && c.quality !== "GOOD");
+    let courtAssignments2: string[][] | null = null;
+    if (courtsHaveQuality2 && courts.length > 1) {
+      const matchInfoPerRound: { player1IdA: string; player2IdA?: string; player1IdB: string; player2IdB?: string }[][] = [];
+      for (let r = 0; r < allRoundTeams.length; r++) {
+        const roundPairs = allRoundTeams[r];
+        const assignments = optimizedAssignments[r];
+        const roundMatchInfo: { player1IdA: string; player2IdA?: string; player1IdB: string; player2IdB?: string }[] = [];
+        for (const { teamAIndex, teamBIndex } of assignments) {
+          const tA = roundPairs[teamAIndex];
+          const tB = roundPairs[teamBIndex];
+          roundMatchInfo.push({
+            player1IdA: tA.player1Id, player2IdA: tA.player2Id,
+            player1IdB: tB.player1Id, player2IdB: tB.player2Id,
+          });
+        }
+        matchInfoPerRound.push(roundMatchInfo);
+      }
+      courtAssignments2 = optimizeCourtAssignments(
+        matchInfoPerRound,
+        courts.map((c: any) => ({ id: c.id, quality: c.quality || "GOOD" }))
+      );
+    }
+
     for (let r = 0; r < allRoundTeams.length; r++) {
       const round = await prisma.round.create({
         data: { tournamentId, index: r + 1 },
@@ -1012,7 +1065,9 @@ export async function forceRegenerateSchedule(tournamentId: string) {
       const matchAssignments = optimizedAssignments[r];
       for (let m = 0; m < matchAssignments.length; m++) {
         const { teamAIndex, teamBIndex } = matchAssignments[m];
-        const courtId = courts[m % courts.length]?.id || null;
+        const courtId = courtAssignments2
+          ? courtAssignments2[r]?.[m] || courts[m % courts.length]?.id || null
+          : courts[m % courts.length]?.id || null;
         await prisma.match.create({
           data: {
             tournamentId,
