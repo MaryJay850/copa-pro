@@ -256,7 +256,7 @@ export function DashboardContent({ data }: { data: MyDashboardData | null }) {
           {/* Liga selector */}
           <Card className="py-4 px-4">
             <label className="text-[11px] font-bold text-text-muted uppercase tracking-wider">Liga</label>
-            <p className="text-sm font-semibold text-text mt-1">{activeLeague.name}</p>
+            <Link href={`/ligas/${activeLeague.id}`} className="text-sm font-semibold text-text mt-1 hover:text-primary transition-colors block">{activeLeague.name}</Link>
           </Card>
 
           {/* Torneio info */}

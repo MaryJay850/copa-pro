@@ -34,7 +34,7 @@ export default function AppLayout({
         }`}
       >
         <AppTopbar onMenuToggle={toggleSidebar} />
-        <main className="p-4 lg:p-8 max-w-[1400px]">
+        <main className="p-4 lg:p-8">
           {children}
         </main>
       </div>
