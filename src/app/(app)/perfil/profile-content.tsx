@@ -102,21 +102,20 @@ export function ProfileContent({ profile }: { profile: ProfileData }) {
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* ─── Top Header Card ─── */}
-      <Card className="p-0 overflow-hidden">
+      <div className="rounded-lg shadow-card bg-surface border border-border overflow-hidden">
         {/* Gradient banner */}
-        <div className="h-24 bg-gradient-to-r from-primary via-[#7c6fe0] to-[#a78bfa] relative">
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIi8+PC9zdmc+')] opacity-50" />
-        </div>
+        <div className="h-28" style={{ background: "linear-gradient(to right, #5766da, #7c6fe0, #a78bfa)" }} />
 
-        <div className="px-6 pb-6 -mt-10">
-          <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-            {/* Avatar */}
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-primary-light flex items-center justify-center flex-shrink-0 shadow-lg border-4 border-surface">
-              <span className="text-2xl font-extrabold text-white">{initials}</span>
-            </div>
+        <div className="px-6 pb-6 relative">
+          {/* Avatar overlapping banner */}
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg border-4 border-surface absolute -top-10 left-6" style={{ background: "linear-gradient(to bottom right, #5766da, #8b9cf7)" }}>
+            <span className="text-2xl font-extrabold text-white">{initials}</span>
+          </div>
 
+          {/* Content below avatar */}
+          <div className="pt-14 flex flex-col sm:flex-row sm:items-center gap-4">
             {/* Name & Role */}
-            <div className="flex-1 sm:pb-1">
+            <div className="flex-1">
               <h1 className="text-xl font-extrabold tracking-tight">{displayName}</h1>
               <div className="flex items-center gap-2 mt-1">
                 {profile.player?.nickname && (
@@ -127,7 +126,7 @@ export function ProfileContent({ profile }: { profile: ProfileData }) {
             </div>
 
             {/* Quick stats */}
-            <div className="flex items-center gap-6 sm:pb-1">
+            <div className="flex items-center gap-6">
               {profile.player && (
                 <div className="text-center">
                   <p className="text-2xl font-extrabold text-primary">{profile.player.eloRating}</p>
@@ -137,7 +136,7 @@ export function ProfileContent({ profile }: { profile: ProfileData }) {
               {profile.player?.level && (
                 <div className="text-center">
                   <p className="text-sm font-bold text-text">{profile.player.level}</p>
-                  <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Nivel</p>
+                  <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Nível</p>
                 </div>
               )}
               <div className="text-center">
@@ -147,7 +146,7 @@ export function ProfileContent({ profile }: { profile: ProfileData }) {
             </div>
           </div>
         </div>
-      </Card>
+      </div>
 
       {/* ─── Body: Sidebar + Content ─── */}
       <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
@@ -301,11 +300,11 @@ export function ProfileContent({ profile }: { profile: ProfileData }) {
                             onChange={(e) => setLevel(e.target.value)}
                             className={inputClass}
                           >
-                            <option value="">Nao definido</option>
+                            <option value="">Não definido</option>
                             <option value="Iniciante">Iniciante</option>
-                            <option value="Intermedio">Intermedio</option>
-                            <option value="Avancado">Avancado</option>
-                            <option value="Competicao">Competicao</option>
+                            <option value="Intermédio">Intermédio</option>
+                            <option value="Avançado">Avançado</option>
+                            <option value="Competição">Competição</option>
                           </select>
                         </div>
                       </div>
