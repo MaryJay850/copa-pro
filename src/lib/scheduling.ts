@@ -326,6 +326,122 @@ export function optimizeMatchAssignments(
 }
 
 /**
+ * Optimize court assignments for matches across rounds based on court quality.
+ *
+ * Rules:
+ * - GOOD courts: no player plays more than 2x on the same court
+ * - MEDIUM courts: no player plays more than 1x on the same court
+ * - BAD courts: no player plays more than 1x (relaxable to 2x if impossible)
+ *
+ * Uses greedy minimum-cost matching per round:
+ * 1. Track how many times each player has played on each court
+ * 2. For each possible match-to-court assignment, calculate cost
+ * 3. Find optimal assignment via brute force (small N, typically 2-4 courts)
+ */
+export function optimizeCourtAssignments(
+  roundMatches: { player1IdA: string; player2IdA?: string; player1IdB: string; player2IdB?: string }[][],
+  courts: { id: string; quality: "GOOD" | "MEDIUM" | "BAD" }[]
+): string[][] {
+  // Track per-player-per-court usage count
+  const courtUsage = new Map<string, number>(); // "playerId|courtId" -> count
+
+  function usageKey(playerId: string, courtId: string): string {
+    return `${playerId}|${courtId}`;
+  }
+
+  function getPlayerCourtCount(playerId: string, courtId: string): number {
+    return courtUsage.get(usageKey(playerId, courtId)) ?? 0;
+  }
+
+  function getAssignmentCost(
+    match: { player1IdA: string; player2IdA?: string; player1IdB: string; player2IdB?: string },
+    court: { id: string; quality: "GOOD" | "MEDIUM" | "BAD" }
+  ): number {
+    const players = [match.player1IdA, match.player1IdB];
+    if (match.player2IdA) players.push(match.player2IdA);
+    if (match.player2IdB) players.push(match.player2IdB);
+
+    let cost = 0;
+    for (const pid of players) {
+      const count = getPlayerCourtCount(pid, court.id);
+      if (court.quality === "BAD") {
+        if (count >= 2) cost += 10000; // Absolutely forbidden: >2x on BAD
+        else if (count >= 1) cost += 100; // Strong penalty: 2nd time on BAD
+      } else if (court.quality === "MEDIUM") {
+        if (count >= 1) cost += 50; // Penalty: 2nd time on MEDIUM
+      } else {
+        // GOOD
+        if (count >= 2) cost += 50; // Penalty: 3rd time on GOOD
+        else cost += count; // Small cost for 2nd time
+      }
+    }
+    return cost;
+  }
+
+  function recordAssignment(
+    match: { player1IdA: string; player2IdA?: string; player1IdB: string; player2IdB?: string },
+    courtId: string
+  ): void {
+    const players = [match.player1IdA, match.player1IdB];
+    if (match.player2IdA) players.push(match.player2IdA);
+    if (match.player2IdB) players.push(match.player2IdB);
+    for (const pid of players) {
+      const key = usageKey(pid, courtId);
+      courtUsage.set(key, (courtUsage.get(key) ?? 0) + 1);
+    }
+  }
+
+  const result: string[][] = [];
+
+  for (const matches of roundMatches) {
+    const numMatches = matches.length;
+    const availableCourts = courts.slice(0, Math.max(numMatches, courts.length));
+
+    // Brute force: try all permutations of court assignments
+    let bestAssignment: string[] = [];
+    let bestCost = Infinity;
+
+    function findBestAssignment(
+      matchIdx: number,
+      usedCourts: Set<string>,
+      current: string[],
+      currentCost: number
+    ): void {
+      if (matchIdx === numMatches) {
+        if (currentCost < bestCost) {
+          bestCost = currentCost;
+          bestAssignment = [...current];
+        }
+        return;
+      }
+
+      if (currentCost >= bestCost) return; // Prune
+
+      for (const court of availableCourts) {
+        if (usedCourts.has(court.id)) continue;
+        const cost = getAssignmentCost(matches[matchIdx], court);
+        usedCourts.add(court.id);
+        current.push(court.id);
+        findBestAssignment(matchIdx + 1, usedCourts, current, currentCost + cost);
+        current.pop();
+        usedCourts.delete(court.id);
+      }
+    }
+
+    findBestAssignment(0, new Set(), [], 0);
+
+    // Record the chosen assignments
+    for (let i = 0; i < bestAssignment.length; i++) {
+      recordAssignment(matches[i], bestAssignment[i]);
+    }
+
+    result.push(bestAssignment);
+  }
+
+  return result;
+}
+
+/**
  * Generate random teams from a list of players.
  * Requires even number of players.
  */

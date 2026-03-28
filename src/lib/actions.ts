@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "./db";
-import { generateRoundRobinPairings, generateRandomTeams, generateAllRoundTeams, optimizeMatchAssignments, type TeamRef } from "./scheduling";
+import { generateRoundRobinPairings, generateRandomTeams, generateAllRoundTeams, optimizeMatchAssignments, optimizeCourtAssignments, type TeamRef } from "./scheduling";
 import { computeMatchContribution, validateMatchScores, determineResult } from "./ranking";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
