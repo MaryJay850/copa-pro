@@ -3,7 +3,7 @@
 import { prisma } from "../db";
 import { requireLeagueManager } from "../auth-guards";
 import { revalidatePath } from "next/cache";
-import type { CourtQuality } from "../../../generated/prisma";
+import type { CourtQuality } from "../../../generated/prisma/enums";
 
 // ── Club CRUD ──
 
