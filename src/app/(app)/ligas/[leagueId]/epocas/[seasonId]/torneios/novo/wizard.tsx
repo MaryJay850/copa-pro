@@ -8,7 +8,10 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, FieldLabel } from "@/components/ui/tooltip";
 import { createTournament, generateSchedule, updateTournament, updateTournamentBasic, getPlayersWithRanking } from "@/lib/actions";
+import { getClubsForLeague, getAvailableCourtsForClub } from "@/lib/actions/club-actions";
 import { sanitizeError } from "@/lib/error-utils";
+
+type ClubCourt = { id: string; name: string; quality: "GOOD" | "MEDIUM" | "BAD"; orderIndex: number };
 
 interface Player {
   id: string;
@@ -49,6 +52,8 @@ export function TournamentWizard({
       teams: { name: string; player1Id: string; player2Id: string | null }[];
       selectedPlayerIds: string[];
       courtNames?: string[];
+      clubId?: string;
+      courtIds?: string[];
     };
   };
 }) {
@@ -80,6 +85,13 @@ export function TournamentWizard({
   const [rankingData, setRankingData] = useState<{ playerId: string; name: string; points: number }[]>([]);
   const [rankingLoaded, setRankingLoaded] = useState(false);
 
+  // Club & Court selection
+  const [clubs, setClubs] = useState<{ id: string; name: string }[]>([]);
+  const [clubsLoaded, setClubsLoaded] = useState(false);
+  const [clubId, setClubId] = useState<string>(editMode?.initialData.clubId ?? "");
+  const [clubCourts, setClubCourts] = useState<ClubCourt[]>([]);
+  const [selectedCourtIds, setSelectedCourtIds] = useState<string[]>(editMode?.initialData.courtIds ?? []);
+
   // Step 2 — ordered selection
   const [players] = useState<Player[]>(existingPlayers);
   const [selectionOrder, setSelectionOrder] = useState<string[]>(
@@ -95,7 +107,8 @@ export function TournamentWizard({
   // Derived values
   const selectedPlayerIds = new Set(selectionOrder);
   const playersPerSide = teamSize;
-  const maxTitulars = courtsCount * 2 * playersPerSide;
+  const effectiveCourtsCount = selectedCourtIds.length > 0 ? selectedCourtIds.length : courtsCount;
+  const maxTitulars = effectiveCourtsCount * 2 * playersPerSide;
   const titularIds = selectionOrder.slice(0, maxTitulars);
   const suplenteIds = selectionOrder.slice(maxTitulars);
   const titularPlayers = titularIds.map((id) => players.find((p) => p.id === id)!).filter(Boolean);
@@ -124,6 +137,47 @@ export function TournamentWizard({
       return next.slice(0, count);
     });
   }, []);
+
+  const loadClubs = useCallback(async () => {
+    if (clubsLoaded) return;
+    try {
+      const data = await getClubsForLeague(leagueId);
+      setClubs(data.map((c: any) => ({ id: c.id, name: c.name })));
+      setClubsLoaded(true);
+      // Auto-select first club if only one and none selected
+      if (data.length === 1 && !clubId) {
+        setClubId(data[0].id);
+        const courts = await getAvailableCourtsForClub(data[0].id);
+        setClubCourts(courts);
+      }
+    } catch {}
+  }, [leagueId, clubsLoaded, clubId]);
+
+  const handleClubChange = async (newClubId: string) => {
+    setClubId(newClubId);
+    setSelectedCourtIds([]);
+    if (newClubId) {
+      try {
+        const courts = await getAvailableCourtsForClub(newClubId);
+        setClubCourts(courts);
+      } catch {
+        setClubCourts([]);
+      }
+    } else {
+      setClubCourts([]);
+    }
+  };
+
+  const toggleCourtSelection = (courtId: string) => {
+    setSelectedCourtIds((prev) =>
+      prev.includes(courtId)
+        ? prev.filter((id) => id !== courtId)
+        : [...prev, courtId]
+    );
+  };
+
+  // Load clubs on mount
+  useState(() => { loadClubs(); });
 
   const togglePlayer = (id: string) => {
     setSelectionOrder((prev) => {
@@ -254,11 +308,16 @@ export function TournamentWizard({
       const effectiveTeamMode = teamSize === 1 ? "FIXED_TEAMS" : teamMode;
       const needsRounds = teamMode === "RANDOM_PER_ROUND" || (teamMode === "RANKED_SPLIT" && rankedSplitSubMode === "per_round");
       const needsSeed = ["RANDOM_TEAMS", "RANDOM_PER_ROUND", "RANKED_SPLIT"].includes(teamMode);
+      // Derive court names from selected club courts for backward compat
+      const selectedCourts = clubCourts.filter((c) => selectedCourtIds.includes(c.id));
+      const derivedCourtNames = selectedCourts.map((c) => c.name);
       const payload = {
         name,
         startDate: startDate || undefined,
-        courtsCount,
-        courtNames,
+        courtsCount: selectedCourtIds.length > 0 ? selectedCourtIds.length : courtsCount,
+        courtNames: selectedCourtIds.length > 0 ? derivedCourtNames : courtNames,
+        clubId: clubId || undefined,
+        courtIds: selectedCourtIds.length > 0 ? selectedCourtIds : undefined,
         matchesPerPair,
         numberOfSets,
         teamSize,
@@ -425,26 +484,62 @@ export function TournamentWizard({
               </div>
             </div>
 
+            {/* Club & Court Selection */}
             <div>
-              <FieldLabel label="Número de Campos" tooltip="Quantos campos disponíveis para jogar em simultâneo. Mais campos = mais jogos por ronda." htmlFor="courts-count" />
-              <select id="courts-count" value={courtsCount} onChange={(e) => handleCourtsCountChange(parseInt(e.target.value))} className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20">
-                {[1, 2, 3, 4, 5, 6].map((n) => (
-                  <option key={n} value={n}>{n} {n === 1 ? "campo" : "campos"}</option>
+              <FieldLabel label="Clube" tooltip="Selecione o clube onde o torneio sera realizado. Os campos do clube ficam disponiveis para selecao." htmlFor="club-select" />
+              <select
+                id="club-select"
+                value={clubId}
+                onChange={(e) => handleClubChange(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+              >
+                <option value="">Selecionar clube...</option>
+                {clubs.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
                 ))}
               </select>
+              {clubsLoaded && clubs.length === 0 && (
+                <p className="text-xs text-amber-600 mt-1">
+                  Nenhum clube configurado. <a href={`/ligas/${leagueId}/clubes`} className="underline font-medium">Criar clube</a>
+                </p>
+              )}
             </div>
 
-            <div className="space-y-2">
-              <FieldLabel label="Nomes dos Campos" tooltip="Nome identificador de cada campo. Ex: Campo Central, Campo 2" />
-              {courtNames.slice(0, courtsCount).map((cn, i) => (
-                <input key={i} value={cn} onChange={(e) => setCourtNames((prev) => { const next = [...prev]; next[i] = e.target.value; return next; })}
-                  className="w-full rounded-lg border border-border bg-white px-3 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  placeholder={`Campo ${i + 1}`} />
-              ))}
-            </div>
+            {clubId && clubCourts.length > 0 && (
+              <div>
+                <FieldLabel label="Campos" tooltip="Selecione os campos que serao usados neste torneio. A qualidade afeta a distribuicao dos jogos." />
+                <div className="space-y-1.5 mt-1">
+                  {clubCourts.map((court) => {
+                    const isSelected = selectedCourtIds.includes(court.id);
+                    const qualityColor = court.quality === "GOOD" ? "text-green-600" : court.quality === "MEDIUM" ? "text-amber-600" : "text-red-600";
+                    const qualityLabel = court.quality === "GOOD" ? "Bom" : court.quality === "MEDIUM" ? "Medio" : "Mau";
+                    return (
+                      <label
+                        key={court.id}
+                        className={`flex items-center gap-3 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                          isSelected ? "border-primary bg-primary/5" : "border-border hover:bg-surface-alt/50"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleCourtSelection(court.id)}
+                          className="text-primary focus:ring-primary rounded"
+                        />
+                        <span className="text-sm font-medium flex-1">{court.name}</span>
+                        <span className={`text-xs font-semibold ${qualityColor}`}>{qualityLabel}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                {selectedCourtIds.length === 0 && (
+                  <p className="text-xs text-amber-600 mt-1">Selecione pelo menos 1 campo.</p>
+                )}
+              </div>
+            )}
 
             <div className="bg-blue-50 border border-blue-200 text-blue-800 text-xs px-3 py-2 rounded-lg">
-              Capacidade: <strong>{maxTitulars} jogadores titulares</strong> ({courtsCount} {courtsCount === 1 ? "campo" : "campos"} × {playersPerSide * 2} jogadores/campo)
+              Capacidade: <strong>{maxTitulars} jogadores titulares</strong> ({effectiveCourtsCount} {effectiveCourtsCount === 1 ? "campo" : "campos"} &times; {playersPerSide * 2} jogadores/campo)
             </div>
 
             <div>
@@ -728,7 +823,7 @@ export function TournamentWizard({
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Nome</span><span className="font-medium">{name}</span></div>
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Data</span><span className="font-medium">{startDate ? new Date(startDate + "T00:00:00").toLocaleDateString("pt-PT", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }) : "—"}</span></div>
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Modo de Jogo</span><span className="font-medium">{teamSize === 1 ? "Individual (1v1)" : "Pares (2v2)"}</span></div>
-            <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Campos</span><span className="font-medium">{courtNames.slice(0, courtsCount).join(", ")}</span></div>
+            <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Campos</span><span className="font-medium">{selectedCourtIds.length > 0 ? clubCourts.filter((c) => selectedCourtIds.includes(c.id)).map((c) => c.name).join(", ") : courtNames.slice(0, courtsCount).join(", ")}</span></div>
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Formato</span><span className="font-medium">{matchesPerPair === 1 ? "RR Simples" : "RR Duplo"}</span></div>
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Sets</span><span className="font-medium">{numberOfSets === 1 ? "1 Set" : numberOfSets === 2 ? "2 Sets" : "Melhor de 3"}</span></div>
             {teamSize === 2 && <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Modo Equipas</span><span className="font-medium">{teamModeLabel(teamMode)}</span></div>}

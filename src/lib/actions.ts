@@ -354,6 +354,8 @@ export async function createTournament(data: {
   startDate?: string;
   courtsCount: number;
   courtNames?: string[];
+  clubId?: string;
+  courtIds?: string[];
   matchesPerPair: number;
   numberOfSets: number;
   teamSize?: number;
@@ -391,7 +393,8 @@ export async function createTournament(data: {
       seasonId: data.seasonId,
       name: data.name,
       startDate: data.startDate ? new Date(data.startDate + "T00:00:00") : null,
-      courtsCount: data.courtsCount,
+      courtsCount: data.courtIds?.length ?? data.courtsCount,
+      clubId: data.clubId || null,
       matchesPerPair: data.matchesPerPair,
       numberOfSets: data.numberOfSets,
       teamSize,
@@ -403,14 +406,23 @@ export async function createTournament(data: {
     },
   });
 
-  // Create courts with custom names
-  for (let i = 0; i < data.courtsCount; i++) {
-    await prisma.court.create({
-      data: {
-        tournamentId: tournament.id,
-        name: data.courtNames?.[i] || `Campo ${i + 1}`,
-      },
-    });
+  // Create TournamentCourt junctions (new model) or legacy courts
+  if (data.courtIds && data.courtIds.length > 0) {
+    for (const courtId of data.courtIds) {
+      await prisma.tournamentCourt.create({
+        data: { tournamentId: tournament.id, courtId },
+      });
+    }
+  } else {
+    // Legacy: create courts per tournament (backward compat)
+    for (let i = 0; i < data.courtsCount; i++) {
+      await prisma.court.create({
+        data: {
+          tournamentId: tournament.id,
+          name: data.courtNames?.[i] || `Campo ${i + 1}`,
+        },
+      });
+    }
   }
 
   // Create teams
@@ -514,7 +526,13 @@ export async function createTournament(data: {
 export async function generateSchedule(tournamentId: string) {
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    include: { teams: true, courts: true, rounds: true, matches: true },
+    include: {
+      teams: true,
+      courts: true,
+      rounds: true,
+      matches: true,
+      tournamentCourts: { include: { court: true }, orderBy: { court: { orderIndex: "asc" } } },
+    },
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
@@ -534,7 +552,10 @@ export async function generateSchedule(tournamentId: string) {
     await prisma.team.deleteMany({ where: { tournamentId } });
   }
 
-  const courts = tournament.courts;
+  // Use tournamentCourts (new model) if available, otherwise legacy courts
+  const courts = tournament.tournamentCourts.length > 0
+    ? tournament.tournamentCourts.map((tc) => tc.court)
+    : tournament.courts;
 
   if (tournament.teamMode === "RANKED_SPLIT") {
     // ── RANKED_SPLIT: divide players by ranking, generate schedule per group ──
@@ -910,7 +931,11 @@ export async function generateSchedule(tournamentId: string) {
 export async function forceRegenerateSchedule(tournamentId: string) {
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    include: { teams: true, courts: true },
+    include: {
+      teams: true,
+      courts: true,
+      tournamentCourts: { include: { court: true }, orderBy: { court: { orderIndex: "asc" } } },
+    },
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
@@ -925,7 +950,10 @@ export async function forceRegenerateSchedule(tournamentId: string) {
     await prisma.team.deleteMany({ where: { tournamentId } });
   }
 
-  const courts = tournament.courts;
+  // Use tournamentCourts (new model) if available, otherwise legacy courts
+  const courts = tournament.tournamentCourts.length > 0
+    ? tournament.tournamentCourts.map((tc) => tc.court)
+    : tournament.courts;
 
   if (tournament.teamMode === "RANDOM_PER_ROUND") {
     // Re-use the same logic as generateSchedule for RANDOM_PER_ROUND
