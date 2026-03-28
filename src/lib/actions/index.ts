@@ -8,3 +8,4 @@ export * from "./audit-actions";
 export * from "./notification-actions";
 export * from "./club-actions";
 export * from "./group-knockout-actions";
+export * from "./dashboard-actions";
