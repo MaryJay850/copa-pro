@@ -14,6 +14,7 @@ import { PlayerManagement } from "@/components/player-management";
 import { ExportCalendar } from "@/components/export-calendar";
 import { PlayerSwap } from "./player-swap";
 import { OcrResultsUpload } from "@/components/ocr-results-upload";
+import { GroupKnockoutSection } from "./group-knockout-section";
 
 const statusLabels: Record<
   string,
@@ -205,6 +206,16 @@ export default async function TournamentPage({
               roundIndex: r.index,
             }))
           )}
+        />
+      )}
+
+      {/* GROUP_KNOCKOUT: Standings & Bracket */}
+      {tournament.format === "GROUP_KNOCKOUT" && (
+        <GroupKnockoutSection
+          tournamentId={tournament.id}
+          tournament={tournament}
+          canManage={canManage}
+          finishedMatches={finishedMatches}
         />
       )}
 
