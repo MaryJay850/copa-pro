@@ -1237,7 +1237,11 @@ export async function saveMatchScore(
     await requireLeagueManager(match.tournament.leagueId);
 
     const allowDraws = match.tournament.season.allowDraws;
-    const numberOfSets = match.tournament.numberOfSets;
+    // Use knockoutSets for elimination matches if configured
+    const isKnockoutMatch = match.bracketPhase && match.bracketPhase !== "GROUP";
+    const numberOfSets = (isKnockoutMatch && match.tournament.knockoutSets)
+      ? match.tournament.knockoutSets
+      : match.tournament.numberOfSets;
 
     // Validate scores
     const validationError = validateMatchScores(
@@ -1289,6 +1293,14 @@ export async function saveMatchScore(
     updateEloAfterMatch(matchId).catch((err) =>
       console.error("[ELO] Erro ao atualizar ratings:", (err as Error).message)
     );
+
+    // Progress knockout bracket if this is an elimination match
+    if (match.bracketPhase && match.bracketPhase !== "GROUP" && winnerTeamId) {
+      const { progressBracket } = await import("./actions/group-knockout-actions");
+      progressBracket(matchId).catch((err) =>
+        console.error("[BRACKET] Erro ao progredir bracket:", (err as Error).message)
+      );
+    }
 
     logAudit("SAVE_MATCH", "Match", matchId, { scores }).catch(() => {});
 
