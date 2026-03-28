@@ -34,6 +34,12 @@ enum SubscriptionPlan {
   CLUB
 }
 
+enum CourtQuality {
+  GOOD
+  MEDIUM
+  BAD
+}
+
 // ── Auth Models ──
 
 model User {
@@ -140,6 +146,7 @@ model League {
   managers    LeagueManager[]
   memberships LeagueMembership[]
   invites     LeagueInvite[]
+  clubs       Club[]
 
   @@map("leagues")
 }
@@ -184,12 +191,13 @@ model Tournament {
   id             String    @id @default(cuid())
   leagueId       String
   seasonId       String
+  clubId         String?
   name           String
   startDate      DateTime?
-  format         String    @default("ROUND_ROBIN")
+  format         String    @default("ROUND_ROBIN") // "ROUND_ROBIN" | "GROUP_KNOCKOUT"
   teamMode       String    @default("FIXED_TEAMS")
   teamSize       Int       @default(2)
-  courtsCount    Int       @default(1)
+  courtsCount    Int       @default(1) // Kept for backward compat, derived from tournamentCourts
   matchesPerPair Int       @default(1)
   numberOfSets   Int       @default(1)
   status         String    @default("DRAFT")
@@ -198,13 +206,30 @@ model Tournament {
   rankedSplitSubMode  String?   // "fixed" or "per_round" — only used when teamMode = RANKED_SPLIT
   createdAt           DateTime  @default(now())
 
-  league       League                  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  season       Season                  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
-  teams        Team[]
-  courts       Court[]
-  rounds       Round[]
-  matches      Match[]
-  inscriptions TournamentInscription[]
+  // ── GROUP_KNOCKOUT config ──
+  numberOfGroups     Int?
+  teamsPerGroup      Int?
+  teamsAdvancing     Int?
+  hasQuarterFinals   Boolean   @default(false)
+  hasSemiFinals      Boolean   @default(false)
+  hasThirdPlace      Boolean   @default(false)
+  knockoutSets       Int?      // Sets in knockout phase (can differ from group phase)
+  tiebreakerCriteria String?   // JSON array: ["HEAD_TO_HEAD","SETS_DIFF","GAMES_DIFF","SETS_WON","GAMES_WON","RANDOM"]
+  pointsWin          Int       @default(3)
+  pointsDraw         Int       @default(1)
+  pointsLoss         Int       @default(0)
+  currentPhase       String    @default("GROUPS") // "GROUPS" | "KNOCKOUT" | "FINISHED"
+
+  league           League                  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  season           Season                  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  club             Club?                   @relation(fields: [clubId], references: [id])
+  teams            Team[]
+  courts           Court[]                 // Legacy relation — kept for backward compat
+  tournamentCourts TournamentCourt[]
+  rounds           Round[]
+  matches          Match[]
+  inscriptions     TournamentInscription[]
+  groups           TournamentGroup[]
 
   @@map("tournaments")
 }
@@ -218,25 +243,32 @@ model Team {
   isRandomGenerated Boolean @default(false)
   roundId           String?
 
-  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  player1    Player     @relation("Player1", fields: [player1Id], references: [id])
-  player2    Player?    @relation("Player2", fields: [player2Id], references: [id])
-  round      Round?     @relation(fields: [roundId], references: [id], onDelete: SetNull)
-  matchesAsA Match[]    @relation("TeamA")
-  matchesAsB Match[]    @relation("TeamB")
-  matchesWon Match[]    @relation("Winner")
+  tournament   Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player1      Player           @relation("Player1", fields: [player1Id], references: [id])
+  player2      Player?          @relation("Player2", fields: [player2Id], references: [id])
+  round        Round?           @relation(fields: [roundId], references: [id], onDelete: SetNull)
+  matchesAsA   Match[]          @relation("TeamA")
+  matchesAsB   Match[]          @relation("TeamB")
+  matchesWon   Match[]          @relation("Winner")
+  groupEntries TeamGroupEntry[]
 
   @@map("teams")
 }
 
 model Court {
-  id           String @id @default(cuid())
-  tournamentId String
+  id           String        @id @default(cuid())
+  clubId       String?
+  tournamentId String?       // Legacy — kept for backward compat during migration
   name         String
+  quality      CourtQuality  @default(GOOD)
+  isAvailable  Boolean       @default(true)
+  orderIndex   Int           @default(0)
 
-  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
-  matches    Match[]
-  timeSlots  CourtTimeSlot[]
+  club             Club?             @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  tournament       Tournament?       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  tournamentCourts TournamentCourt[]
+  matches          Match[]
+  timeSlots        CourtTimeSlot[]
 
   @@map("courts")
 }
@@ -439,6 +471,61 @@ model PlanPrice {
 
   @@unique([plan, interval])
   @@map("plan_prices")
+}
+
+// ── Club & Tournament Courts ──
+
+model Club {
+  id        String   @id @default(cuid())
+  leagueId  String
+  name      String
+  createdAt DateTime @default(now())
+
+  league      League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  courts      Court[]
+  tournaments Tournament[]
+
+  @@map("clubs")
+}
+
+model TournamentCourt {
+  id           String  @id @default(cuid())
+  tournamentId String
+  courtId      String
+  groupLabel   String? // "A", "B" for group assignment; "QF", "SF", "FINAL", "THIRD_PLACE" for knockout
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  court      Court      @relation(fields: [courtId], references: [id])
+
+  @@unique([tournamentId, courtId])
+  @@map("tournament_courts")
+}
+
+// ── Tournament Groups (GROUP_KNOCKOUT format) ──
+
+model TournamentGroup {
+  id           String @id @default(cuid())
+  tournamentId String
+  name         String // "Grupo A", "Grupo B", etc.
+  index        Int
+
+  tournament Tournament       @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  entries    TeamGroupEntry[]
+
+  @@unique([tournamentId, index])
+  @@map("tournament_groups")
+}
+
+model TeamGroupEntry {
+  id      String @id @default(cuid())
+  groupId String
+  teamId  String
+
+  group TournamentGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  team  Team            @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, teamId])
+  @@map("team_group_entries")
 }
 
 // ── Court Time Slots ──

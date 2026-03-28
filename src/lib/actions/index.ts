@@ -6,3 +6,4 @@
 export * from "../actions";
 export * from "./audit-actions";
 export * from "./notification-actions";
+export * from "./club-actions";
