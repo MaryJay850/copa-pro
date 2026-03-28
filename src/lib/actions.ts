@@ -140,6 +140,13 @@ export async function getLeague(id: string) {
     where: { id },
     include: {
       seasons: { orderBy: { createdAt: "desc" } },
+      _count: {
+        select: {
+          seasons: true,
+          memberships: true,
+          tournaments: true,
+        },
+      },
     },
   });
   return serialize(result);
