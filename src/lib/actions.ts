@@ -1258,6 +1258,82 @@ export async function getTournament(id: string) {
 
 // ── Match scoring ──
 
+export async function setMatchEvent(
+  matchId: string,
+  event: string,
+  eventNote?: string | null
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { tournament: { include: { season: true } } },
+    });
+    if (!match) return { success: false, error: "Jogo não encontrado." };
+    await requireLeagueManager(match.tournament.leagueId);
+
+    const validEvents = ["NONE", "WALKOVER_A", "WALKOVER_B", "CANCELLED", "INJURY", "POSTPONED"];
+    if (!validEvents.includes(event)) return { success: false, error: "Evento inválido." };
+
+    // For WALKOVER: auto-fill score and mark FINISHED
+    if (event === "WALKOVER_A" || event === "WALKOVER_B") {
+      const winnerTeamId = event === "WALKOVER_A" ? match.teamAId : match.teamBId;
+      await prisma.match.update({
+        where: { id: matchId },
+        data: {
+          event,
+          eventNote: eventNote || null,
+          set1A: event === "WALKOVER_A" ? 7 : 0,
+          set1B: event === "WALKOVER_A" ? 0 : 7,
+          set2A: null,
+          set2B: null,
+          set3A: null,
+          set3B: null,
+          status: "FINISHED",
+          resultType: event === "WALKOVER_A" ? "WIN_A" : "WIN_B",
+          winnerTeamId,
+          playedAt: new Date(),
+        },
+      });
+      await recomputeSeasonRanking(match.tournament.seasonId);
+    } else if (event === "CANCELLED") {
+      // Cancelled: clear scores, keep SCHEDULED, won't count for ranking
+      await prisma.match.update({
+        where: { id: matchId },
+        data: {
+          event,
+          eventNote: eventNote || null,
+          set1A: null, set1B: null,
+          set2A: null, set2B: null,
+          set3A: null, set3B: null,
+          status: "SCHEDULED",
+          resultType: "UNDECIDED",
+          winnerTeamId: null,
+          playedAt: null,
+        },
+      });
+      await recomputeSeasonRanking(match.tournament.seasonId);
+    } else if (event === "NONE") {
+      // Remove event, reset to clean state
+      await prisma.match.update({
+        where: { id: matchId },
+        data: { event: "NONE", eventNote: null },
+      });
+    } else {
+      // INJURY, POSTPONED: just mark the event
+      await prisma.match.update({
+        where: { id: matchId },
+        data: { event, eventNote: eventNote || null },
+      });
+    }
+
+    logAudit("SET_MATCH_EVENT", "Match", matchId, { event, eventNote }).catch(() => {});
+    revalidatePath(`/torneios/${match.tournamentId}`);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Erro ao definir evento." };
+  }
+}
+
 export async function startMatch(matchId: string) {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
@@ -1744,6 +1820,7 @@ export async function recomputeSeasonRanking(seasonId: string) {
         teamBId: m.teamBId,
         teamA: { player1Id: m.teamA.player1Id, player2Id: m.teamA.player2Id },
         teamB: { player1Id: m.teamB.player1Id, player2Id: m.teamB.player2Id },
+        event: (m as any).event || "NONE",
       },
       season.allowDraws,
       pointConfig

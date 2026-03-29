@@ -38,6 +38,7 @@ export interface MatchData {
   teamBId: string;
   teamA: { player1Id: string; player2Id: string | null };
   teamB: { player1Id: string; player2Id: string | null };
+  event?: string; // NONE | WALKOVER_A | WALKOVER_B | CANCELLED | etc.
 }
 
 export interface PlayerDelta {
@@ -107,6 +108,8 @@ export function computeMatchContribution(
   pointConfig: PointConfig = DEFAULT_POINT_CONFIG
 ): PlayerDelta[] {
   if (match.status !== "FINISHED") return [];
+  // Skip cancelled matches — they don't count for ranking
+  if (match.event === "CANCELLED") return [];
 
   const sets = parseSets(match);
   const { setsA, setsB } = countSetsWon(sets);

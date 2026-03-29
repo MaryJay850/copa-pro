@@ -317,6 +317,10 @@ model Match {
   winnerTeamId String?
   playedAt     DateTime?
 
+  // Match events (WO, cancelled, injury, etc.)
+  event     String  @default("NONE") // NONE | WALKOVER_A | WALKOVER_B | CANCELLED | INJURY | POSTPONED
+  eventNote String?
+
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   round      Round      @relation(fields: [roundId], references: [id], onDelete: Cascade)
   court      Court?     @relation(fields: [courtId], references: [id])

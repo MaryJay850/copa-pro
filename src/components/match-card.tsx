@@ -4,7 +4,7 @@ import { ScoreInput } from "./ui/score-input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { toast } from "sonner";
-import { saveMatchScore, resetMatch, startMatch, submitMatchResult, confirmMatchResult, rejectMatchResult } from "@/lib/actions";
+import { saveMatchScore, resetMatch, startMatch, setMatchEvent, submitMatchResult, confirmMatchResult, rejectMatchResult } from "@/lib/actions";
 
 interface MatchCardProps {
   match: {
@@ -18,6 +18,8 @@ interface MatchCardProps {
     set3B: number | null;
     status: string;
     resultType: string;
+    event?: string;
+    eventNote?: string | null;
     court: { name: string } | null;
     teamA: {
       id: string;
@@ -66,8 +68,30 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
   const [submitted, setSubmitted] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
 
+  const [showEventMenu, setShowEventMenu] = useState(false);
+
   const isFinished = match.status === "FINISHED";
   const isInProgress = match.status === "IN_PROGRESS";
+  const matchEvent = match.event || "NONE";
+
+  const eventLabels: Record<string, { label: string; color: string }> = {
+    WALKOVER_A: { label: "WO", color: "bg-amber-100 text-amber-700" },
+    WALKOVER_B: { label: "WO", color: "bg-amber-100 text-amber-700" },
+    CANCELLED: { label: "Cancelado", color: "bg-gray-100 text-gray-600" },
+    INJURY: { label: "Lesão", color: "bg-red-100 text-red-700" },
+    POSTPONED: { label: "Adiado", color: "bg-blue-100 text-blue-700" },
+  };
+
+  const handleSetEvent = async (event: string) => {
+    setSaving(true);
+    try {
+      await setMatchEvent(match.id, event);
+      setShowEventMenu(false);
+    } catch (e: any) {
+      setError(e.message || "Erro ao definir evento.");
+    }
+    setSaving(false);
+  };
 
   // Determine if current player is in one of the teams
   const isInTeamA = currentPlayerId && (
@@ -173,6 +197,15 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
     if (isInProgress) {
       return <Badge variant="info" pulse>Em curso</Badge>;
     }
+    // Event badges
+    if (matchEvent !== "NONE" && eventLabels[matchEvent]) {
+      const ev = eventLabels[matchEvent];
+      return (
+        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${ev.color}`} title={match.eventNote || undefined}>
+          {ev.label}
+        </span>
+      );
+    }
     switch (match.resultType) {
       case "WIN_A":
         return <Badge variant="success">Vitoria {match.teamA.name}</Badge>;
@@ -227,7 +260,7 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
           </div>
           {error && <p className="text-xs text-danger">{error}</p>}
 
-          <div className="flex gap-2 pt-1">
+          <div className="flex gap-2 pt-1 flex-wrap">
             <Button size="sm" onClick={handleSave} disabled={saving}>
               {saving ? "A guardar..." : "Guardar"}
             </Button>
@@ -236,6 +269,41 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
                 Repor
               </Button>
             )}
+            {/* Event dropdown */}
+            <div className="relative">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setShowEventMenu(!showEventMenu)}
+                className="text-xs text-text-muted"
+                title="Marcar evento (WO, cancelamento, etc.)"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </Button>
+              {showEventMenu && (
+                <div className="absolute right-0 top-full mt-1 z-10 bg-surface rounded-lg border border-border shadow-lg py-1 min-w-[160px]">
+                  {[
+                    { value: "WALKOVER_A", label: `WO ${match.teamA.name}` },
+                    { value: "WALKOVER_B", label: `WO ${match.teamB.name}` },
+                    { value: "CANCELLED", label: "Cancelar jogo" },
+                    { value: "INJURY", label: "Lesão" },
+                    { value: "POSTPONED", label: "Adiar" },
+                    ...(matchEvent !== "NONE" ? [{ value: "NONE", label: "Remover evento" }] : []),
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => handleSetEvent(opt.value)}
+                      disabled={saving}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-surface-hover transition-colors disabled:opacity-50"
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </>
       ) : isFinished ? (
