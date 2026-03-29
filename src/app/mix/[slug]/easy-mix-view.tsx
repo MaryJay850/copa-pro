@@ -178,9 +178,9 @@ export function EasyMixView({ tournament }: { tournament: any }) {
         </div>
 
         {/* Schedule by rounds */}
-        {tournament.rounds.map((round: any) => (
+        {tournament.rounds.map((round: any, rIdx: number) => (
           <div key={round.id} className="bg-surface rounded-xl border border-border p-5">
-            <h3 className="text-sm font-bold mb-3">Ronda {round.index + 1}</h3>
+            <h3 className="text-sm font-bold mb-3">Ronda {rIdx + 1}</h3>
             <div className="grid gap-3 sm:grid-cols-2">
               {round.matches.map((match: any) => {
                 const isFinished = match.status === "FINISHED";
