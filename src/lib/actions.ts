@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "./db";
-import { generateRoundRobinPairings, generateRandomTeams, generateAllRoundTeams, optimizeMatchAssignments, optimizeCourtAssignments, type TeamRef } from "./scheduling";
+import { generateRoundRobinPairings, generateRandomTeams, generateAllRoundTeams, optimizeMatchAssignments, optimizeCourtAssignments, generateAmericanoRound1, generateNextAmericanoRound as generateNextAmericanoRoundAlgo, type TeamRef } from "./scheduling";
 import { computeMatchContribution, validateMatchScores, determineResult } from "./ranking";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
@@ -435,7 +435,7 @@ export async function createTournament(data: {
   }
 
   // Plan check: random teams requires Pro+
-  if (data.teamMode === "RANDOM_TEAMS" || data.teamMode === "RANDOM_PER_ROUND" || data.teamMode === "RANKED_SPLIT") {
+  if (data.teamMode === "RANDOM_TEAMS" || data.teamMode === "RANDOM_PER_ROUND" || data.teamMode === "RANKED_SPLIT" || data.teamMode === "AMERICANO") {
     await requireFeature("RANDOM_TEAMS_SEED");
   }
 
@@ -616,8 +616,8 @@ export async function generateSchedule(tournamentId: string) {
   // Delete existing schedule and per-round teams
   await prisma.match.deleteMany({ where: { tournamentId } });
   await prisma.round.deleteMany({ where: { tournamentId } });
-  // For RANDOM_PER_ROUND or RANKED_SPLIT, also delete previously generated teams
-  if (tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "RANKED_SPLIT") {
+  // For RANDOM_PER_ROUND, RANKED_SPLIT, or AMERICANO, also delete previously generated teams
+  if (tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "RANKED_SPLIT" || tournament.teamMode === "AMERICANO") {
     await prisma.team.deleteMany({ where: { tournamentId } });
   }
 
@@ -840,6 +840,79 @@ export async function generateSchedule(tournamentId: string) {
         });
       }
     }
+  } else if (tournament.teamMode === "AMERICANO") {
+    // ── AMERICANO: generate only round 1, subsequent rounds depend on results ──
+    const inscriptions = await prisma.tournamentInscription.findMany({
+      where: { tournamentId, status: "TITULAR" },
+      orderBy: { orderIndex: "asc" },
+    });
+    const playerIds = inscriptions.map((ins) => ins.playerId);
+
+    if (playerIds.length < 4 || playerIds.length % 2 !== 0) {
+      throw new Error("É necessário um número par de jogadores titulares (mínimo 4) para o formato Americano.");
+    }
+
+    const seed = tournament.randomSeed || "default";
+
+    // Get player names
+    const playerMap = new Map<string, string>();
+    const dbPlayers = await prisma.player.findMany({
+      where: { id: { in: playerIds } },
+      select: { id: true, fullName: true, nickname: true },
+    });
+    for (const p of dbPlayers) {
+      playerMap.set(p.id, p.nickname || p.fullName);
+    }
+
+    // Generate round 1
+    const round1 = generateAmericanoRound1(playerIds, courts.length, seed);
+
+    const round = await prisma.round.create({
+      data: { tournamentId, index: 1 },
+    });
+
+    for (let m = 0; m < round1.matches.length; m++) {
+      const match = round1.matches[m];
+      const p1Name = playerMap.get(match.team1[0]) || "?";
+      const p2Name = playerMap.get(match.team1[1]) || "?";
+      const teamA = await prisma.team.create({
+        data: {
+          tournamentId,
+          name: `${p1Name} & ${p2Name}`,
+          player1Id: match.team1[0],
+          player2Id: match.team1[1],
+          isRandomGenerated: true,
+          roundId: round.id,
+        },
+      });
+
+      const p3Name = playerMap.get(match.team2[0]) || "?";
+      const p4Name = playerMap.get(match.team2[1]) || "?";
+      const teamB = await prisma.team.create({
+        data: {
+          tournamentId,
+          name: `${p3Name} & ${p4Name}`,
+          player1Id: match.team2[0],
+          player2Id: match.team2[1],
+          isRandomGenerated: true,
+          roundId: round.id,
+        },
+      });
+
+      const courtId = courts[match.courtIndex % courts.length]?.id || null;
+      await prisma.match.create({
+        data: {
+          tournamentId,
+          roundId: round.id,
+          courtId,
+          slotIndex: m,
+          teamAId: teamA.id,
+          teamBId: teamB.id,
+          status: "SCHEDULED",
+          resultType: "UNDECIDED",
+        },
+      });
+    }
   } else if (tournament.teamMode === "RANDOM_PER_ROUND") {
     // ── RANDOM_PER_ROUND: generate unique teams per round ──
     const inscriptions = await prisma.tournamentInscription.findMany({
@@ -1060,8 +1133,8 @@ export async function forceRegenerateSchedule(tournamentId: string) {
   await prisma.match.deleteMany({ where: { tournamentId } });
   await prisma.round.deleteMany({ where: { tournamentId } });
 
-  // For RANDOM_PER_ROUND, also delete per-round teams before regenerating
-  if (tournament.teamMode === "RANDOM_PER_ROUND") {
+  // For RANDOM_PER_ROUND or AMERICANO, also delete per-round teams before regenerating
+  if (tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "AMERICANO") {
     await prisma.team.deleteMany({ where: { tournamentId } });
   }
 
@@ -1070,7 +1143,71 @@ export async function forceRegenerateSchedule(tournamentId: string) {
     ? tournament.tournamentCourts.map((tc) => tc.court)
     : tournament.courts;
 
-  if (tournament.teamMode === "RANDOM_PER_ROUND") {
+  if (tournament.teamMode === "AMERICANO") {
+    // Re-use generateSchedule logic for Americano (regenerates round 1 only)
+    const inscriptions = await prisma.tournamentInscription.findMany({
+      where: { tournamentId, status: "TITULAR" },
+      orderBy: { orderIndex: "asc" },
+    });
+    const playerIds = inscriptions.map((ins) => ins.playerId);
+
+    if (playerIds.length < 4 || playerIds.length % 2 !== 0) {
+      throw new Error("É necessário um número par de jogadores titulares (mínimo 4).");
+    }
+
+    const seed = tournament.randomSeed || "default";
+    const playerMap = new Map<string, string>();
+    const dbPlayers = await prisma.player.findMany({
+      where: { id: { in: playerIds } },
+      select: { id: true, fullName: true, nickname: true },
+    });
+    for (const p of dbPlayers) {
+      playerMap.set(p.id, p.nickname || p.fullName);
+    }
+
+    const round1 = generateAmericanoRound1(playerIds, courts.length, seed);
+    const round = await prisma.round.create({
+      data: { tournamentId, index: 1 },
+    });
+
+    for (let m = 0; m < round1.matches.length; m++) {
+      const match = round1.matches[m];
+      const teamA = await prisma.team.create({
+        data: {
+          tournamentId,
+          name: `${playerMap.get(match.team1[0]) || "?"} & ${playerMap.get(match.team1[1]) || "?"}`,
+          player1Id: match.team1[0], player2Id: match.team1[1],
+          isRandomGenerated: true, roundId: round.id,
+        },
+      });
+      const teamB = await prisma.team.create({
+        data: {
+          tournamentId,
+          name: `${playerMap.get(match.team2[0]) || "?"} & ${playerMap.get(match.team2[1]) || "?"}`,
+          player1Id: match.team2[0], player2Id: match.team2[1],
+          isRandomGenerated: true, roundId: round.id,
+        },
+      });
+      const courtId = courts[match.courtIndex % courts.length]?.id || null;
+      await prisma.match.create({
+        data: {
+          tournamentId, roundId: round.id, courtId, slotIndex: m,
+          teamAId: teamA.id, teamBId: teamB.id,
+          status: "SCHEDULED", resultType: "UNDECIDED",
+        },
+      });
+    }
+
+    await prisma.tournament.update({
+      where: { id: tournamentId },
+      data: { status: "PUBLISHED" },
+    });
+
+    revalidatePath(`/torneios/${tournamentId}`);
+    const generatedRounds = await prisma.round.count({ where: { tournamentId } });
+    const generatedMatches = await prisma.match.count({ where: { tournamentId } });
+    return { roundCount: generatedRounds, matchCount: generatedMatches };
+  } else if (tournament.teamMode === "RANDOM_PER_ROUND") {
     // Re-use the same logic as generateSchedule for RANDOM_PER_ROUND
     const inscriptions = await prisma.tournamentInscription.findMany({
       where: { tournamentId, status: "TITULAR" },
@@ -1222,6 +1359,254 @@ export async function forceRegenerateSchedule(tournamentId: string) {
   const generatedRounds = await prisma.round.count({ where: { tournamentId } });
   const generatedMatches = await prisma.match.count({ where: { tournamentId } });
   return { roundCount: generatedRounds, matchCount: generatedMatches };
+}
+
+// ── Americano: compute individual standings ──
+
+export async function getAmericanoStandings(tournamentId: string) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    include: {
+      rounds: {
+        include: {
+          matches: {
+            include: {
+              teamA: { include: { player1: true, player2: true } },
+              teamB: { include: { player1: true, player2: true } },
+            },
+          },
+        },
+        orderBy: { index: "asc" },
+      },
+    },
+  });
+
+  if (!tournament) throw new Error("Torneio não encontrado.");
+
+  const playerStats = new Map<string, {
+    id: string;
+    name: string;
+    points: number;
+    matches: number;
+    wins: number;
+    setsWon: number;
+    setsLost: number;
+  }>();
+
+  // Initialize all players from inscriptions
+  const inscriptions = await prisma.tournamentInscription.findMany({
+    where: { tournamentId, status: "TITULAR" },
+    include: { player: true },
+  });
+
+  for (const insc of inscriptions) {
+    playerStats.set(insc.playerId, {
+      id: insc.playerId,
+      name: insc.player.nickname || insc.player.fullName,
+      points: 0,
+      matches: 0,
+      wins: 0,
+      setsWon: 0,
+      setsLost: 0,
+    });
+  }
+
+  // Points config: 2 points per set won, 3 bonus for match victory
+  const POINTS_PER_SET = 2;
+  const BONUS_WIN = 3;
+
+  for (const round of tournament.rounds) {
+    for (const match of round.matches) {
+      if (match.status !== "FINISHED") continue;
+
+      const teamAPlayerIds = [match.teamA.player1Id, match.teamA.player2Id].filter(Boolean) as string[];
+      const teamBPlayerIds = [match.teamB.player1Id, match.teamB.player2Id].filter(Boolean) as string[];
+
+      // Count sets won by each side
+      let setsWonA = 0;
+      let setsWonB = 0;
+      const sets = [
+        [match.set1A, match.set1B],
+        [match.set2A, match.set2B],
+        [match.set3A, match.set3B],
+      ];
+      for (const [a, b] of sets) {
+        if (a !== null && b !== null) {
+          if (a > b) setsWonA++;
+          else if (b > a) setsWonB++;
+        }
+      }
+
+      const isWinA = match.resultType === "WIN_A";
+      const isWinB = match.resultType === "WIN_B";
+
+      // Update stats for team A players
+      for (const pid of teamAPlayerIds) {
+        const stat = playerStats.get(pid);
+        if (!stat) continue;
+        stat.matches++;
+        stat.setsWon += setsWonA;
+        stat.setsLost += setsWonB;
+        stat.points += setsWonA * POINTS_PER_SET;
+        if (isWinA) {
+          stat.wins++;
+          stat.points += BONUS_WIN;
+        }
+      }
+
+      // Update stats for team B players
+      for (const pid of teamBPlayerIds) {
+        const stat = playerStats.get(pid);
+        if (!stat) continue;
+        stat.matches++;
+        stat.setsWon += setsWonB;
+        stat.setsLost += setsWonA;
+        stat.points += setsWonB * POINTS_PER_SET;
+        if (isWinB) {
+          stat.wins++;
+          stat.points += BONUS_WIN;
+        }
+      }
+    }
+  }
+
+  // Sort: points desc, wins desc, set difference desc
+  const standings = [...playerStats.values()].sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (b.wins !== a.wins) return b.wins - a.wins;
+    return (b.setsWon - b.setsLost) - (a.setsWon - a.setsLost);
+  });
+
+  return standings;
+}
+
+// ── Americano: generate next round ──
+
+export async function generateNextAmericanoRoundAction(tournamentId: string) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    include: {
+      rounds: {
+        include: { matches: true },
+        orderBy: { index: "asc" },
+      },
+      teams: true,
+      courts: true,
+      tournamentCourts: { include: { court: true }, orderBy: { court: { orderIndex: "asc" } } },
+    },
+  });
+
+  if (!tournament) throw new Error("Torneio não encontrado.");
+  await requireLeagueManager(tournament.leagueId);
+
+  if (tournament.teamMode !== "AMERICANO") {
+    throw new Error("Este torneio não é do formato Americano.");
+  }
+
+  const maxRounds = tournament.numberOfRounds || 999;
+  const currentRoundCount = tournament.rounds.length;
+
+  if (currentRoundCount >= maxRounds) {
+    throw new Error("Todas as rondas já foram geradas.");
+  }
+
+  // Verify all matches in current round are FINISHED
+  const lastRound = tournament.rounds[tournament.rounds.length - 1];
+  if (!lastRound) throw new Error("Não há rondas existentes.");
+
+  const allFinished = lastRound.matches.every((m) => m.status === "FINISHED");
+  if (!allFinished) {
+    throw new Error("Todos os jogos da ronda atual devem estar terminados antes de gerar a próxima ronda.");
+  }
+
+  // Get player IDs
+  const inscriptions = await prisma.tournamentInscription.findMany({
+    where: { tournamentId, status: "TITULAR" },
+    orderBy: { orderIndex: "asc" },
+  });
+  const playerIds = inscriptions.map((ins) => ins.playerId);
+
+  // Get player names
+  const playerMap = new Map<string, string>();
+  const dbPlayers = await prisma.player.findMany({
+    where: { id: { in: playerIds } },
+    select: { id: true, fullName: true, nickname: true },
+  });
+  for (const p of dbPlayers) {
+    playerMap.set(p.id, p.nickname || p.fullName);
+  }
+
+  // Compute current standings
+  const standings = await getAmericanoStandings(tournamentId);
+
+  // Build previous pairings from all existing teams
+  const previousPairings: [string, string][] = [];
+  for (const team of tournament.teams) {
+    if (team.player1Id && team.player2Id) {
+      previousPairings.push([team.player1Id, team.player2Id]);
+    }
+  }
+
+  const courts = tournament.tournamentCourts.length > 0
+    ? tournament.tournamentCourts.map((tc) => tc.court)
+    : tournament.courts;
+
+  const nextRoundIndex = currentRoundCount + 1;
+  const result = generateNextAmericanoRoundAlgo(
+    playerIds,
+    courts.length,
+    standings.map((s) => ({ playerId: s.id, points: s.points })),
+    previousPairings,
+    nextRoundIndex
+  );
+
+  // Create round
+  const round = await prisma.round.create({
+    data: { tournamentId, index: nextRoundIndex },
+  });
+
+  // Create teams and matches
+  for (let m = 0; m < result.matches.length; m++) {
+    const matchDef = result.matches[m];
+    const teamA = await prisma.team.create({
+      data: {
+        tournamentId,
+        name: `${playerMap.get(matchDef.team1[0]) || "?"} & ${playerMap.get(matchDef.team1[1]) || "?"}`,
+        player1Id: matchDef.team1[0],
+        player2Id: matchDef.team1[1],
+        isRandomGenerated: true,
+        roundId: round.id,
+      },
+    });
+
+    const teamB = await prisma.team.create({
+      data: {
+        tournamentId,
+        name: `${playerMap.get(matchDef.team2[0]) || "?"} & ${playerMap.get(matchDef.team2[1]) || "?"}`,
+        player1Id: matchDef.team2[0],
+        player2Id: matchDef.team2[1],
+        isRandomGenerated: true,
+        roundId: round.id,
+      },
+    });
+
+    const courtId = courts[matchDef.courtIndex % courts.length]?.id || null;
+    await prisma.match.create({
+      data: {
+        tournamentId,
+        roundId: round.id,
+        courtId,
+        slotIndex: m,
+        teamAId: teamA.id,
+        teamBId: teamB.id,
+        status: "SCHEDULED",
+        resultType: "UNDECIDED",
+      },
+    });
+  }
+
+  revalidatePath(`/torneios/${tournamentId}`);
+  return { success: true, roundIndex: nextRoundIndex };
 }
 
 export async function getTournament(id: string) {
@@ -1975,8 +2360,8 @@ export async function finishTournament(tournamentId: string) {
     .map((r) => r.id);
 
   if (emptyRoundIds.length > 0) {
-    // For RANDOM_PER_ROUND: delete teams linked to empty rounds
-    if (tournament.teamMode === "RANDOM_PER_ROUND") {
+    // For RANDOM_PER_ROUND/AMERICANO: delete teams linked to empty rounds
+    if (tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "AMERICANO") {
       await prisma.team.deleteMany({
         where: { roundId: { in: emptyRoundIds } },
       });
@@ -2267,7 +2652,7 @@ export async function updateTournament(data: {
           name: t.name,
           player1Id: t.player1Id,
           player2Id: t.player2Id || null,
-          isRandomGenerated: data.teamMode === "RANDOM_TEAMS" || data.teamMode === "RANDOM_PER_ROUND" || data.teamMode === "RANKED_SPLIT",
+          isRandomGenerated: data.teamMode === "RANDOM_TEAMS" || data.teamMode === "RANDOM_PER_ROUND" || data.teamMode === "RANKED_SPLIT" || data.teamMode === "AMERICANO",
         },
       });
     }

@@ -445,6 +445,128 @@ export function optimizeCourtAssignments(
  * Generate random teams from a list of players.
  * Requires even number of players.
  */
+// ── Americano Format ──
+
+export interface AmericanoRoundResult {
+  matches: {
+    team1: [string, string]; // player IDs
+    team2: [string, string]; // player IDs
+    courtIndex: number;
+  }[];
+}
+
+/**
+ * Generate Round 1 of an Americano tournament.
+ * Random pairing of players into teams, then teams into matches.
+ */
+export function generateAmericanoRound1(
+  playerIds: string[],
+  courtsCount: number,
+  seed?: string
+): AmericanoRoundResult {
+  const n = playerIds.length;
+  if (n < 4 || n % 2 !== 0) {
+    throw new Error("É necessário um número par de jogadores (mínimo 4) para o formato Americano.");
+  }
+
+  const rng = seedrandom(seed || "americano-r1");
+  const shuffled = [...playerIds];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  // Pair adjacent: [0,1], [2,3], [4,5], ...
+  const teams: [string, string][] = [];
+  for (let i = 0; i < shuffled.length; i += 2) {
+    teams.push([shuffled[i], shuffled[i + 1]]);
+  }
+
+  // Match adjacent teams: team0 vs team1, team2 vs team3, ...
+  const matches: AmericanoRoundResult["matches"] = [];
+  for (let i = 0; i < teams.length - 1; i += 2) {
+    matches.push({
+      team1: teams[i],
+      team2: teams[i + 1],
+      courtIndex: Math.floor(i / 2) % courtsCount,
+    });
+  }
+
+  return { matches };
+}
+
+/**
+ * Generate subsequent rounds (N>1) of an Americano tournament.
+ * Sort players by current standings, pair adjacent players,
+ * match adjacent teams, avoiding repeated partners when possible.
+ */
+export function generateNextAmericanoRound(
+  playerIds: string[],
+  courtsCount: number,
+  standings: { playerId: string; points: number }[],
+  previousPairings: [string, string][], // pairs that already played together
+  roundIndex: number
+): AmericanoRoundResult {
+  const n = playerIds.length;
+  if (n < 4 || n % 2 !== 0) {
+    throw new Error("É necessário um número par de jogadores (mínimo 4) para o formato Americano.");
+  }
+
+  // Sort by points descending (stable sort preserving order for ties)
+  const sorted = [...standings].sort((a, b) => b.points - a.points);
+  const sortedIds = sorted.map((s) => s.playerId);
+
+  // Build a set of previous pairings for quick lookup
+  const pairingSet = new Set<string>();
+  for (const [a, b] of previousPairings) {
+    pairingSet.add(a < b ? `${a}|${b}` : `${b}|${a}`);
+  }
+
+  function hasPaired(a: string, b: string): boolean {
+    return pairingSet.has(a < b ? `${a}|${b}` : `${b}|${a}`);
+  }
+
+  // Pair adjacent players by ranking: #1 with #2, #3 with #4, etc.
+  // If a pair has already played together, try swapping with the next pair
+  const teams: [string, string][] = [];
+  const used = new Set<string>();
+  const remaining = [...sortedIds];
+
+  while (remaining.length >= 2) {
+    const a = remaining[0];
+    remaining.splice(0, 1);
+
+    // Find best partner: prefer adjacent in ranking, avoid repeated
+    let bestIdx = 0;
+    let bestHasPaired = hasPaired(a, remaining[0]);
+
+    for (let i = 1; i < remaining.length && bestHasPaired; i++) {
+      if (!hasPaired(a, remaining[i])) {
+        bestIdx = i;
+        bestHasPaired = false;
+        break;
+      }
+    }
+
+    const b = remaining[bestIdx];
+    remaining.splice(bestIdx, 1);
+    teams.push([a, b]);
+  }
+
+  // Match adjacent teams: team(#1,#2) vs team(#3,#4), etc.
+  // Best players on best court (lowest courtIndex)
+  const matches: AmericanoRoundResult["matches"] = [];
+  for (let i = 0; i < teams.length - 1; i += 2) {
+    matches.push({
+      team1: teams[i],
+      team2: teams[i + 1],
+      courtIndex: Math.floor(i / 2) % courtsCount,
+    });
+  }
+
+  return { matches };
+}
+
 export function generateRandomTeams(
   playerIds: string[],
   seed: string

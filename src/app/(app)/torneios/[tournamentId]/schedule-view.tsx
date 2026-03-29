@@ -163,13 +163,15 @@ export function ScheduleView({
         <Card>
           <CardHeader>
             <CardTitle>
-              {teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT"
+              {teamMode === "AMERICANO"
+                ? "Americano - Equipas por Ronda"
+                : teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT"
                 ? "Equipas Aleatórias por Ronda"
                 : "Equipas"}
             </CardTitle>
           </CardHeader>
           <div className="px-1 pb-1">
-            {teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" ? (
+            {teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" ? (
               <>
                 <p className="text-sm text-text-muted mb-3 font-medium">
                   Cada ronda tem equipas diferentes geradas aleatoriamente.

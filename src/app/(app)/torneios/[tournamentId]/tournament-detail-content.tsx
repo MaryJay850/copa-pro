@@ -15,6 +15,8 @@ import { OcrResultsUpload } from "@/components/ocr-results-upload";
 import { GroupStandings } from "@/components/group-standings";
 import { BracketView } from "@/components/bracket-view";
 import { AdvanceToKnockoutButton } from "./advance-knockout-button";
+import { AmericanoStandings, type AmericanoPlayer } from "@/components/americano-standings";
+import { getAmericanoStandings, generateNextAmericanoRoundAction } from "@/lib/actions";
 
 const statusLabels: Record<
   string,
@@ -49,7 +51,45 @@ export function TournamentDetailContent({
   finishedMatches,
   groupStandings,
 }: Props) {
-  const [activeSection, setActiveSection] = useState<string>("calendario");
+  const [activeSection, setActiveSection] = useState<string>(
+    tournament.teamMode === "AMERICANO" ? "americano" : "calendario"
+  );
+  const [americanoStandings, setAmericanoStandings] = useState<AmericanoPlayer[]>([]);
+  const [americanoLoading, setAmericanoLoading] = useState(false);
+  const [americanoError, setAmericanoError] = useState<string | null>(null);
+  const [generatingRound, setGeneratingRound] = useState(false);
+
+  // Load Americano standings on mount
+  React.useEffect(() => {
+    if (tournament.teamMode === "AMERICANO" && tournament.rounds.length > 0) {
+      getAmericanoStandings(tournament.id).then((data) => {
+        setAmericanoStandings(data);
+      }).catch(() => {});
+    }
+  }, [tournament.id, tournament.teamMode, tournament.rounds.length]);
+
+  // Check if current round is all finished (for Americano "next round" button)
+  const americanoCurrentRoundFinished = tournament.teamMode === "AMERICANO" && tournament.rounds.length > 0
+    ? tournament.rounds[tournament.rounds.length - 1]?.matches?.every((m: any) => m.status === "FINISHED") ?? false
+    : false;
+  const americanoMaxRounds = tournament.numberOfRounds || 999;
+  const americanoCanGenerateNext = tournament.teamMode === "AMERICANO"
+    && americanoCurrentRoundFinished
+    && tournament.rounds.length < americanoMaxRounds
+    && tournament.status !== "FINISHED";
+
+  const handleGenerateNextRound = async () => {
+    setGeneratingRound(true);
+    setAmericanoError(null);
+    try {
+      await generateNextAmericanoRoundAction(tournament.id);
+      window.location.reload();
+    } catch (err: any) {
+      setAmericanoError(err?.message || "Erro ao gerar próxima ronda.");
+    } finally {
+      setGeneratingRound(false);
+    }
+  };
 
   const s = statusLabels[tournament.status] || statusLabels.DRAFT;
   const progressPct = totalMatches > 0 ? Math.round((finishedMatches / totalMatches) * 100) : 0;
@@ -94,6 +134,14 @@ export function TournamentDetailContent({
       icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
     },
   ];
+
+  if (tournament.teamMode === "AMERICANO") {
+    navItems.push({
+      key: "americano",
+      label: "Ranking Americano",
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+    });
+  }
 
   if (tournament.format === "GROUP_KNOCKOUT") {
     navItems.push({
@@ -164,7 +212,7 @@ export function TournamentDetailContent({
             <div className="flex items-center gap-6">
               <div className="text-center">
                 <p className="text-2xl font-extrabold text-primary">
-                  {tournament.teamMode === "RANDOM_PER_ROUND"
+                  {tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "AMERICANO"
                     ? swapPlayers.length
                     : tournament.teams.length}
                 </p>
@@ -230,7 +278,7 @@ export function TournamentDetailContent({
                 <div className="min-w-0">
                   <p className="text-xs text-text-muted">Formato</p>
                   <p className="text-sm font-medium text-text">
-                    {tournament.teamSize === 1 ? "1v1" : "2v2"} &middot; {tournament.teamMode === "RANDOM_PER_ROUND" ? "Aleatórias" : tournament.teamMode === "RANKED_SPLIT" ? "Ranked Split" : "Fixas"}
+                    {tournament.teamSize === 1 ? "1v1" : "2v2"} &middot; {tournament.teamMode === "AMERICANO" ? "Americano" : tournament.teamMode === "RANDOM_PER_ROUND" ? "Aleatórias" : tournament.teamMode === "RANKED_SPLIT" ? "Ranked Split" : "Fixas"}
                   </p>
                 </div>
               </div>
@@ -247,7 +295,7 @@ export function TournamentDetailContent({
                   </p>
                 </div>
               </div>
-              {tournament.teamMode === "RANDOM_PER_ROUND" && (
+              {(tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "AMERICANO") && (
                 <div className="flex items-center gap-3">
                   <div className="w-7 h-7 rounded-lg bg-warning/10 flex items-center justify-center flex-shrink-0">
                     <svg className="w-3.5 h-3.5 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -437,6 +485,54 @@ export function TournamentDetailContent({
                 />
               )}
             </Card>
+          )}
+
+          {/* ─── Americano Section ─── */}
+          {activeSection === "americano" && tournament.teamMode === "AMERICANO" && (
+            <div className="space-y-4">
+              <AmericanoStandings players={americanoStandings} />
+
+              {canManage && americanoCanGenerateNext && (
+                <Card className="py-5 px-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold">Ronda {tournament.rounds.length + 1}</h3>
+                      <p className="text-xs text-text-muted mt-0.5">
+                        Todos os jogos da ronda {tournament.rounds.length} estão terminados. Gere a próxima ronda com base no ranking atual.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleGenerateNextRound}
+                      disabled={generatingRound}
+                      className="gap-1.5"
+                    >
+                      {generatingRound ? (
+                        "A gerar..."
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Gerar Próxima Ronda
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {americanoError && (
+                    <p className="text-xs text-red-600 mt-2">{americanoError}</p>
+                  )}
+                </Card>
+              )}
+
+              {americanoStandings.length === 0 && tournament.rounds.length === 0 && (
+                <Card className="py-5 px-6">
+                  <EmptyState
+                    title="Sem dados"
+                    description="Os dados aparecerão após gerar o calendário."
+                  />
+                </Card>
+              )}
+            </div>
           )}
 
           {/* ─── Group Knockout Section ─── */}
