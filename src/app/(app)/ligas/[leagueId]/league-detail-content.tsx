@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { CreateSeasonForm } from "./create-season-form";
 import { WhatsAppManagementModal } from "./whatsapp-management-modal";
 import { DeleteLeagueButton } from "./delete-league-button";
 import { ActivityLog } from "@/components/activity-log";
-import { updateLeague } from "@/lib/actions";
+import { updateLeague, searchUsers, addPlayerToLeague, removePlayerFromLeague } from "@/lib/actions";
 import { addClubToLeague, removeClubFromLeague } from "@/lib/actions/club-actions";
 import { sanitizeError } from "@/lib/error-utils";
 import Link from "next/link";
@@ -45,6 +45,13 @@ type LeagueData = {
   _count: { memberships: number; seasons: number; tournaments: number };
 };
 
+type SearchResult = {
+  id: string;
+  email: string;
+  phone: string;
+  player: { fullName: string; nickname: string | null } | null;
+};
+
 type Props = {
   league: LeagueData;
   canManage: boolean;
@@ -53,22 +60,98 @@ type Props = {
   leagueClubs: ClubData[];
   availableClubs: ClubData[];
   initialMode: "view" | "edit";
+  currentUserId: string;
 };
 
-export function LeagueDetailContent({ league, canManage, adminUser, invites, leagueClubs, availableClubs, initialMode }: Props) {
+export function LeagueDetailContent({ league, canManage, adminUser, invites, leagueClubs, availableClubs, initialMode, currentUserId }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<"view" | "edit">(initialMode);
+  const [isPending, startTransition] = useTransition();
 
   // Form state
   const [name, setName] = useState(league.name);
   const [location, setLocation] = useState(league.location || "");
   const [saving, setSaving] = useState(false);
   const [showInvitePanel, setShowInvitePanel] = useState(false);
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [activeSection, setActiveSection] = useState<string>("info-gerais");
+
+  // Members sorting
+  const [memberSort, setMemberSort] = useState<{ col: string; dir: "asc" | "desc" }>({ col: "name", dir: "asc" });
+
+  // Add member search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const isEditing = mode === "edit" && canManage;
   const activeSeason = league.seasons.find((s: any) => s.isActive);
   const hasChanges = name !== league.name || location !== (league.location || "");
+  const memberUserIds = new Set((league.memberships ?? []).map((m) => m.user.id));
+
+  // Sort members
+  const sortedMembers = [...(league.memberships ?? [])].sort((a, b) => {
+    const dir = memberSort.dir === "asc" ? 1 : -1;
+    switch (memberSort.col) {
+      case "name":
+        return dir * (a.user.player?.fullName ?? "").localeCompare(b.user.player?.fullName ?? "");
+      case "nickname":
+        return dir * (a.user.player?.nickname ?? "").localeCompare(b.user.player?.nickname ?? "");
+      case "elo":
+        return dir * ((a.user.player?.eloRating ?? 0) - (b.user.player?.eloRating ?? 0));
+      case "role":
+        return dir * (a.role ?? "").localeCompare(b.role ?? "");
+      default:
+        return 0;
+    }
+  });
+
+  const toggleSort = (col: string) => {
+    setMemberSort((prev) => prev.col === col ? { col, dir: prev.dir === "asc" ? "desc" : "asc" } : { col, dir: "asc" });
+  };
+
+  const sortIcon = (col: string) => {
+    if (memberSort.col !== col) return <span className="text-text-muted/40 ml-1">&uarr;&darr;</span>;
+    return <span className="text-primary ml-1">{memberSort.dir === "asc" ? "\u2191" : "\u2193"}</span>;
+  };
+
+  const handleSearchMembers = async () => {
+    if (!searchQuery.trim() || searchQuery.trim().length < 2) return;
+    setIsSearching(true);
+    try {
+      const results = await searchUsers(searchQuery.trim());
+      setSearchResults(results);
+    } catch {
+      setSearchResults([]);
+    }
+    setIsSearching(false);
+  };
+
+  const handleAddMember = (userId: string) => {
+    startTransition(async () => {
+      try {
+        await addPlayerToLeague(userId, league.id);
+        setSearchResults((prev) => prev.filter((u) => u.id !== userId));
+        toast.success("Membro adicionado com sucesso.");
+        router.refresh();
+      } catch (err) {
+        toast.error(sanitizeError(err, "Erro ao adicionar membro."));
+      }
+    });
+  };
+
+  const handleRemoveMember = (userId: string, memberName: string) => {
+    if (!confirm(`Remover ${memberName} da liga?`)) return;
+    startTransition(async () => {
+      try {
+        await removePlayerFromLeague(userId, league.id);
+        toast.success("Membro removido.");
+        router.refresh();
+      } catch (err) {
+        toast.error(sanitizeError(err, "Erro ao remover membro."));
+      }
+    });
+  };
 
   const inputClass = "w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors";
   const disabledClass = "w-full rounded-lg border border-border bg-surface-alt px-4 py-2.5 text-sm text-text opacity-80 cursor-default";
@@ -379,9 +462,10 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
                   Membros ({league.memberships?.length ?? 0})
                 </h2>
                 {canManage && (
-                  <Link href={`/ligas/${league.id}/membros`}>
-                    <Button size="sm" variant="secondary">Gerir Membros</Button>
-                  </Link>
+                  <Button size="sm" onClick={() => { setShowAddMemberModal(true); setSearchQuery(""); setSearchResults([]); }}>
+                    <svg className="w-3.5 h-3.5 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+                    Adicionar Membro
+                  </Button>
                 )}
               </div>
               {(!league.memberships || league.memberships.length === 0) ? (
@@ -391,34 +475,129 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-border">
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Nome</th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Alcunha</th>
-                        <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Elo</th>
-                        <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Email</th>
-                        <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Função</th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider cursor-pointer select-none hover:text-text" onClick={() => toggleSort("name")}>
+                          Nome{sortIcon("name")}
+                        </th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider cursor-pointer select-none hover:text-text" onClick={() => toggleSort("nickname")}>
+                          Alcunha{sortIcon("nickname")}
+                        </th>
+                        <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider cursor-pointer select-none hover:text-text" onClick={() => toggleSort("elo")}>
+                          Elo{sortIcon("elo")}
+                        </th>
+                        <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider cursor-pointer select-none hover:text-text" onClick={() => toggleSort("role")}>
+                          Função{sortIcon("role")}
+                        </th>
+                        <th className="text-right py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {league.memberships.map((m: MembershipData) => (
-                        <tr key={m.id} className="border-b border-border/50 hover:bg-surface-hover transition-colors">
-                          <td className="py-3 px-4 font-semibold">{m.user.player?.fullName ?? "—"}</td>
-                          <td className="py-3 px-4 text-text-muted">{m.user.player?.nickname ?? "—"}</td>
-                          <td className="py-3 px-4 text-center">
-                            <span className="font-mono font-medium text-primary">{m.user.player?.eloRating ?? "—"}</span>
-                          </td>
-                          <td className="py-3 px-4 text-text-muted text-xs">{m.user.email}</td>
-                          <td className="py-3 px-4 text-center">
-                            <Badge variant={m.role === "MANAGER" ? "warning" : "default"}>
-                              {m.role === "MANAGER" ? "Gestor" : "Membro"}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))}
+                      {sortedMembers.map((m: MembershipData) => {
+                        const isCurrentUser = m.user.id === currentUserId;
+                        return (
+                          <tr key={m.id} className={`border-b border-border/50 transition-colors ${isCurrentUser ? "bg-primary/5 hover:bg-primary/10" : "hover:bg-surface-hover"}`}>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold">{m.user.player?.fullName ?? "—"}</span>
+                                {isCurrentUser && <Badge variant="info" className="text-[10px] py-0 px-1.5">Tu</Badge>}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-text-muted">{m.user.player?.nickname ?? "—"}</td>
+                            <td className="py-3 px-4 text-center">
+                              <span className="font-mono font-medium text-primary">{m.user.player?.eloRating ?? "—"}</span>
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <Badge variant={m.role === "MANAGER" ? "warning" : "default"}>
+                                {m.role === "MANAGER" ? "Gestor" : "Membro"}
+                              </Badge>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                {m.user.player?.id && (
+                                  <Link href={`/jogadores/${m.user.player.id}`}>
+                                    <Button size="sm" variant="ghost" className="text-xs">Ver</Button>
+                                  </Link>
+                                )}
+                                {canManage && !isCurrentUser && (
+                                  <button
+                                    onClick={() => handleRemoveMember(m.user.id, m.user.player?.fullName ?? m.user.email)}
+                                    disabled={isPending}
+                                    className="text-xs text-danger hover:text-danger/80 font-medium px-2 py-1"
+                                  >
+                                    Remover
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
               )}
             </Card>
+          )}
+
+          {/* ─── Add Member Modal ─── */}
+          {showAddMemberModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddMemberModal(false)} />
+              <div className="relative bg-surface rounded-xl shadow-xl border border-border w-full max-w-lg mx-4 p-6 animate-fade-in-up max-h-[80vh] overflow-y-auto">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-base font-bold flex items-center gap-2">
+                    <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+                    Adicionar Membro
+                  </h2>
+                  <button onClick={() => setShowAddMemberModal(false)} className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-muted">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+
+                <div className="flex gap-2 mb-3">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && handleSearchMembers()}
+                    placeholder="Pesquisar por nome ou email..."
+                    className={inputClass}
+                  />
+                  <Button size="sm" onClick={handleSearchMembers} disabled={isSearching || searchQuery.trim().length < 2}>
+                    {isSearching ? "..." : "Pesquisar"}
+                  </Button>
+                </div>
+
+                {searchResults.length > 0 && (
+                  <div className="space-y-2">
+                    {searchResults.map((user) => {
+                      const isMember = memberUserIds.has(user.id);
+                      return (
+                        <div key={user.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">{user.player?.fullName ?? user.email}</p>
+                            <p className="text-xs text-text-muted">{user.email}</p>
+                            {user.phone && <p className="text-xs text-text-muted">{user.phone}</p>}
+                          </div>
+                          {isMember ? (
+                            <Badge variant="success">Já é membro</Badge>
+                          ) : (
+                            <Button size="sm" onClick={() => handleAddMember(user.id)} disabled={isPending}>
+                              {isPending ? "..." : "Adicionar"}
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {searchResults.length === 0 && searchQuery.trim().length >= 2 && !isSearching && (
+                  <p className="text-xs text-text-muted mt-2">
+                    Sem resultados. O utilizador precisa de estar registado na plataforma.
+                  </p>
+                )}
+              </div>
+            </div>
           )}
 
           {/* ─── Clubes Associados Table ─── */}
