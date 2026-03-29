@@ -4735,6 +4735,182 @@ export async function updateSeasonSettings(
   revalidatePath(`/ligas/${season.leagueId}/epocas/${seasonId}`);
 }
 
+// ── Easy Mix (simplified public tournaments) ──
+
+export async function createEasyMix(data: {
+  name: string;
+  playerNames: string[];
+  courtsCount: number;
+  numberOfSets: number;
+  numberOfRounds: number;
+}) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Autenticação necessária.");
+
+  if (!data.name?.trim()) throw new Error("Nome é obrigatório.");
+  if (data.playerNames.length < 4) throw new Error("Mínimo de 4 jogadores.");
+  if (data.courtsCount < 1) throw new Error("Mínimo de 1 campo.");
+
+  // Generate a unique slug
+  const slug = Math.random().toString(36).substring(2, 10);
+
+  // Create a hidden league for this Easy Mix
+  const league = await prisma.league.create({
+    data: {
+      name: `Easy Mix - ${data.name}`,
+      isActive: true,
+    },
+  });
+
+  // Add current user as league manager
+  await prisma.leagueManager.create({
+    data: { leagueId: league.id, userId: session.user.id },
+  });
+
+  // Create default season
+  const season = await prisma.season.create({
+    data: {
+      leagueId: league.id,
+      name: "Easy Mix",
+      isActive: true,
+    },
+  });
+
+  // Create ad-hoc players (not linked to User accounts)
+  const playerIds: string[] = [];
+  for (const name of data.playerNames) {
+    const player = await prisma.player.create({
+      data: { fullName: name.trim() },
+    });
+    playerIds.push(player.id);
+  }
+
+  // Create tournament
+  const tournament = await prisma.tournament.create({
+    data: {
+      leagueId: league.id,
+      seasonId: season.id,
+      name: data.name.trim(),
+      startDate: new Date(),
+      format: "ROUND_ROBIN",
+      teamMode: "RANDOM_PER_ROUND",
+      teamSize: 2,
+      courtsCount: data.courtsCount,
+      matchesPerPair: 1,
+      numberOfSets: data.numberOfSets,
+      numberOfRounds: data.numberOfRounds,
+      randomSeed: Math.random().toString(36).substring(2, 8),
+      isEasyMix: true,
+      publicSlug: slug,
+      status: "DRAFT",
+    },
+  });
+
+  // Create courts (legacy relation — direct Court records linked to tournament)
+  for (let i = 0; i < data.courtsCount; i++) {
+    await prisma.court.create({
+      data: {
+        tournamentId: tournament.id,
+        name: `Campo ${i + 1}`,
+        quality: "GOOD",
+        orderIndex: i,
+      },
+    });
+  }
+
+  // Create inscriptions
+  for (let i = 0; i < playerIds.length; i++) {
+    await prisma.tournamentInscription.create({
+      data: {
+        tournamentId: tournament.id,
+        playerId: playerIds[i],
+        orderIndex: i,
+        status: "TITULAR",
+      },
+    });
+  }
+
+  // Generate schedule
+  await generateSchedule(tournament.id);
+
+  return { slug, tournamentId: tournament.id };
+}
+
+export async function getEasyMix(slug: string) {
+  const tournament = await prisma.tournament.findFirst({
+    where: { publicSlug: slug, isEasyMix: true },
+    include: {
+      rounds: {
+        orderBy: { index: "asc" },
+        include: {
+          matches: {
+            orderBy: { slotIndex: "asc" },
+            include: {
+              teamA: { include: { player1: true, player2: true } },
+              teamB: { include: { player1: true, player2: true } },
+              court: true,
+            },
+          },
+        },
+      },
+      courts: { orderBy: { orderIndex: "asc" } },
+      inscriptions: {
+        orderBy: { orderIndex: "asc" },
+        include: { player: true },
+      },
+    },
+  });
+  return serialize(tournament);
+}
+
+export async function saveEasyMixScore(
+  matchId: string,
+  scores: { set1A: number | null; set1B: number | null; set2A: number | null; set2B: number | null; set3A: number | null; set3B: number | null }
+): Promise<{ success: true } | { success: false; error: string }> {
+  try {
+    const match = await prisma.match.findUnique({
+      where: { id: matchId },
+      include: { tournament: { include: { season: true } } },
+    });
+    if (!match) return { success: false, error: "Jogo não encontrado." };
+    if (!match.tournament.isEasyMix) return { success: false, error: "Este jogo não é Easy Mix." };
+
+    const allowDraws = match.tournament.season.allowDraws;
+    const numberOfSets = match.tournament.numberOfSets;
+
+    const validationError = validateMatchScores(
+      scores.set1A, scores.set1B, scores.set2A, scores.set2B,
+      scores.set3A, scores.set3B, allowDraws, numberOfSets
+    );
+    if (validationError) return { success: false, error: validationError };
+
+    const result = determineResult(
+      scores.set1A!, scores.set1B!, scores.set2A, scores.set2B,
+      scores.set3A, scores.set3B, allowDraws, numberOfSets
+    );
+
+    const winnerTeamId =
+      result.resultType === "WIN_A" ? match.teamAId :
+      result.resultType === "WIN_B" ? match.teamBId : null;
+
+    await prisma.match.update({
+      where: { id: matchId },
+      data: {
+        ...scores,
+        status: "FINISHED",
+        resultType: result.resultType,
+        winnerTeamId,
+        playedAt: new Date(),
+      },
+    });
+
+    revalidatePath(`/mix/${match.tournament.publicSlug}`);
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message || "Erro ao guardar." };
+  }
+}
+
 // ── Tournament Templates ──
 
 export async function saveTemplate(leagueId: string, name: string, config: string) {

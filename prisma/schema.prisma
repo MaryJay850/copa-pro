@@ -240,6 +240,10 @@ model Tournament {
   pointsLoss         Int       @default(0)
   currentPhase       String    @default("GROUPS") // "GROUPS" | "KNOCKOUT" | "FINISHED"
 
+  // Easy Mix
+  isEasyMix   Boolean @default(false)
+  publicSlug  String? @unique          // slug for public URL
+
   league           League                  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   season           Season                  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   club             Club?                   @relation(fields: [clubId], references: [id])
