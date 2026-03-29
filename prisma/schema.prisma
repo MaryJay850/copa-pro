@@ -337,6 +337,10 @@ model TournamentInscription {
   replacesId   String?
   createdAt    DateTime          @default(now())
 
+  // Check-in
+  checkedIn   Boolean   @default(false)
+  checkedInAt DateTime?
+
   tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
   player     Player     @relation(fields: [playerId], references: [id], onDelete: Cascade)
 

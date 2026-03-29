@@ -1537,6 +1537,56 @@ export async function swapTournamentPlayers(
   revalidatePath(`/ligas/${tournament.leagueId}`);
 }
 
+// ── Check-in de jogadores ──
+
+export async function checkInPlayer(tournamentId: string, playerId: string) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { seasonId: true, season: { select: { leagueId: true } }, status: true },
+  });
+  if (!tournament) throw new Error("Torneio não encontrado.");
+  await requireLeagueManager(tournament.season.leagueId);
+
+  const inscription = await prisma.tournamentInscription.findUnique({
+    where: { tournamentId_playerId: { tournamentId, playerId } },
+  });
+  if (!inscription) throw new Error("Inscrição não encontrada.");
+
+  await prisma.tournamentInscription.update({
+    where: { id: inscription.id },
+    data: {
+      checkedIn: !inscription.checkedIn,
+      checkedInAt: !inscription.checkedIn ? new Date() : null,
+    },
+  });
+
+  revalidatePath(`/torneios/${tournamentId}`);
+  return { checkedIn: !inscription.checkedIn };
+}
+
+export async function checkInAllPlayers(tournamentId: string) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { seasonId: true, season: { select: { leagueId: true } }, status: true },
+  });
+  if (!tournament) throw new Error("Torneio não encontrado.");
+  await requireLeagueManager(tournament.season.leagueId);
+
+  await prisma.tournamentInscription.updateMany({
+    where: {
+      tournamentId,
+      status: { in: ["TITULAR", "PROMOVIDO"] },
+      checkedIn: false,
+    },
+    data: {
+      checkedIn: true,
+      checkedInAt: new Date(),
+    },
+  });
+
+  revalidatePath(`/torneios/${tournamentId}`);
+}
+
 // ── Desistência / Substituição automática ──
 
 export async function desistPlayer(tournamentId: string, playerId: string) {
