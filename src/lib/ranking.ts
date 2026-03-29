@@ -1,18 +1,29 @@
 /**
  * Ranking module for CopaPro.
  *
- * POINT SYSTEM:
- * 1) Set points: +2 per set won by the player's team
- * 2) Match result: Win=+3, Draw=+1, Loss=+0
+ * POINT SYSTEM (configurable per season):
+ * 1) Set points: +pointsSetWon per set won by the player's team
+ * 2) Match result: Win=+pointsWin, Draw=+pointsDraw, Loss=+pointsLoss
  * 3) Total = setPoints + matchResultPoints
  *
+ * RANKING MODE:
+ * - SUM: Total points accumulated (default)
+ * - AVERAGE: Points per match (pointsTotal / matchesPlayed)
+ *
  * TIE-BREAKERS (default order):
- * 1) pointsTotal
+ * 1) pointsTotal (or average if AVERAGE mode)
  * 2) wins
  * 3) setsDiff
  * 4) setsWon
  * 5) draws
  */
+
+export interface PointConfig {
+  pointsWin: number;
+  pointsDraw: number;
+  pointsLoss: number;
+  pointsSetWon: number;
+}
 
 export interface MatchData {
   set1A: number | null;
@@ -77,24 +88,34 @@ export function countSetsWon(sets: SetResult[]): { setsA: number; setsB: number 
   return { setsA, setsB };
 }
 
+/** Default point config (backward compatible) */
+export const DEFAULT_POINT_CONFIG: PointConfig = {
+  pointsWin: 3,
+  pointsDraw: 1,
+  pointsLoss: 0,
+  pointsSetWon: 2,
+};
+
 /**
  * Compute the contribution of a single finished match to player rankings.
  * Returns deltas for all 4 players involved.
+ * Accepts optional pointConfig for configurable scoring.
  */
 export function computeMatchContribution(
   match: MatchData,
-  allowDraws: boolean
+  allowDraws: boolean,
+  pointConfig: PointConfig = DEFAULT_POINT_CONFIG
 ): PlayerDelta[] {
   if (match.status !== "FINISHED") return [];
 
   const sets = parseSets(match);
   const { setsA, setsB } = countSetsWon(sets);
 
-  // Set points: +2 per set won
-  const setPointsA = setsA * 2;
-  const setPointsB = setsB * 2;
+  // Set points: configurable per set won
+  const setPointsA = setsA * pointConfig.pointsSetWon;
+  const setPointsB = setsB * pointConfig.pointsSetWon;
 
-  // Match result points
+  // Match result points (configurable)
   let matchPointsA = 0;
   let matchPointsB = 0;
   let winsA = 0,
@@ -105,18 +126,18 @@ export function computeMatchContribution(
     lossesB = 0;
 
   if (match.resultType === "WIN_A") {
-    matchPointsA = 3;
-    matchPointsB = 0;
+    matchPointsA = pointConfig.pointsWin;
+    matchPointsB = pointConfig.pointsLoss;
     winsA = 1;
     lossesB = 1;
   } else if (match.resultType === "WIN_B") {
-    matchPointsA = 0;
-    matchPointsB = 3;
+    matchPointsA = pointConfig.pointsLoss;
+    matchPointsB = pointConfig.pointsWin;
     winsB = 1;
     lossesA = 1;
   } else if (match.resultType === "DRAW" && allowDraws) {
-    matchPointsA = 1;
-    matchPointsB = 1;
+    matchPointsA = pointConfig.pointsDraw;
+    matchPointsB = pointConfig.pointsDraw;
     drawsA = 1;
     drawsB = 1;
   }
@@ -206,15 +227,24 @@ export function aggregateRankings(allDeltas: PlayerDelta[]): RankingEntry[] {
 
 /**
  * Sort ranking entries by tie-breaker order:
- * 1) pointsTotal DESC
+ * 1) pointsTotal DESC (or average if AVERAGE mode)
  * 2) wins DESC
  * 3) setsDiff DESC
  * 4) setsWon DESC
  * 5) draws DESC
+ *
+ * @param rankingMode - "SUM" (default) or "AVERAGE"
  */
-export function sortRankings(entries: RankingEntry[]): RankingEntry[] {
+export function sortRankings(entries: RankingEntry[], rankingMode: string = "SUM"): RankingEntry[] {
   return [...entries].sort((a, b) => {
-    if (b.pointsTotal !== a.pointsTotal) return b.pointsTotal - a.pointsTotal;
+    // Primary sort: by points total or average
+    if (rankingMode === "AVERAGE") {
+      const avgA = a.matchesPlayed > 0 ? a.pointsTotal / a.matchesPlayed : 0;
+      const avgB = b.matchesPlayed > 0 ? b.pointsTotal / b.matchesPlayed : 0;
+      if (Math.abs(avgB - avgA) > 0.001) return avgB - avgA;
+    } else {
+      if (b.pointsTotal !== a.pointsTotal) return b.pointsTotal - a.pointsTotal;
+    }
     if (b.wins !== a.wins) return b.wins - a.wins;
     if (b.setsDiff !== a.setsDiff) return b.setsDiff - a.setsDiff;
     if (b.setsWon !== a.setsWon) return b.setsWon - a.setsWon;

@@ -161,6 +161,13 @@ model Season {
   allowDraws Boolean   @default(false)
   createdAt  DateTime  @default(now())
 
+  // Ranking configuration
+  rankingMode  String @default("SUM") // "SUM" | "AVERAGE"
+  pointsWin    Int    @default(3)
+  pointsDraw   Int    @default(1)
+  pointsLoss   Int    @default(0)
+  pointsSetWon Int    @default(2)
+
   league      League              @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   tournaments Tournament[]
   rankings    SeasonRankingEntry[]
@@ -350,6 +357,10 @@ model SeasonRankingEntry {
   setsLost      Int      @default(0)
   setsDiff      Int      @default(0)
   updatedAt     DateTime @updatedAt
+
+  // Manual adjustment
+  manualAdjustment Int     @default(0)
+  adjustmentNote   String?
 
   season Season @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)

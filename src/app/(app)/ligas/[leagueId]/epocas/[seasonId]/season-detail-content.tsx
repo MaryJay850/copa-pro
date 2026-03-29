@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RankingTable } from "@/components/ranking-table";
 import { ExportPDF } from "@/components/export-pdf";
-import { updateSeasonSettings, cloneSeason } from "@/lib/actions";
+import { updateSeasonSettings, cloneSeason, adjustPlayerRanking } from "@/lib/actions";
 import Link from "next/link";
 
 const statusLabels: Record<string, { label: string; variant: "default" | "success" | "warning" | "info" }> = {
@@ -45,8 +45,31 @@ export function SeasonDetailContent({
   const [endDate, setEndDate] = useState(season.endDate || "");
   const [saving, setSaving] = useState(false);
 
+  // Ranking config state
+  const [rankingMode, setRankingMode] = useState(season.rankingMode || "SUM");
+  const [pointsWin, setPointsWin] = useState(season.pointsWin ?? 3);
+  const [pointsDraw, setPointsDraw] = useState(season.pointsDraw ?? 1);
+  const [pointsLoss, setPointsLoss] = useState(season.pointsLoss ?? 0);
+  const [pointsSetWon, setPointsSetWon] = useState(season.pointsSetWon ?? 2);
+
+  // Manual adjustment modal
+  const [adjustModal, setAdjustModal] = useState<{
+    playerId: string;
+    playerName: string;
+    currentAdjustment: number;
+    currentNote: string | null;
+  } | null>(null);
+  const [adjValue, setAdjValue] = useState(0);
+  const [adjNote, setAdjNote] = useState("");
+  const [savingAdj, setSavingAdj] = useState(false);
+
   const isEditing = mode === "edit" && canManage;
   const hasChanges = name !== season.name || allowDraws !== season.allowDraws || startDate !== (season.startDate || "") || endDate !== (season.endDate || "");
+  const hasRankingChanges = rankingMode !== (season.rankingMode || "SUM") ||
+    pointsWin !== (season.pointsWin ?? 3) ||
+    pointsDraw !== (season.pointsDraw ?? 1) ||
+    pointsLoss !== (season.pointsLoss ?? 0) ||
+    pointsSetWon !== (season.pointsSetWon ?? 2);
 
   const inputClass = "w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors";
   const disabledClass = "w-full rounded-lg border border-border bg-surface-alt px-4 py-2.5 text-sm text-text opacity-80 cursor-default";
@@ -60,6 +83,11 @@ export function SeasonDetailContent({
         allowDraws,
         startDate: startDate || null,
         endDate: endDate || null,
+        rankingMode,
+        pointsWin,
+        pointsDraw,
+        pointsLoss,
+        pointsSetWon,
       });
       toast.success("Época atualizada com sucesso!");
       router.refresh();
@@ -75,7 +103,32 @@ export function SeasonDetailContent({
     setAllowDraws(season.allowDraws);
     setStartDate(season.startDate || "");
     setEndDate(season.endDate || "");
+    setRankingMode(season.rankingMode || "SUM");
+    setPointsWin(season.pointsWin ?? 3);
+    setPointsDraw(season.pointsDraw ?? 1);
+    setPointsLoss(season.pointsLoss ?? 0);
+    setPointsSetWon(season.pointsSetWon ?? 2);
     setMode("view");
+  };
+
+  const handleOpenAdjust = (playerId: string, playerName: string, currentAdjustment: number, currentNote: string | null) => {
+    setAdjustModal({ playerId, playerName, currentAdjustment, currentNote });
+    setAdjValue(currentAdjustment);
+    setAdjNote(currentNote || "");
+  };
+
+  const handleSaveAdjust = async () => {
+    if (!adjustModal) return;
+    setSavingAdj(true);
+    try {
+      await adjustPlayerRanking(seasonId, adjustModal.playerId, adjValue, adjNote || null);
+      toast.success(`Ajuste de ${adjValue > 0 ? "+" : ""}${adjValue} pts aplicado a ${adjustModal.playerName}`);
+      router.refresh();
+      setAdjustModal(null);
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao ajustar ranking.");
+    }
+    setSavingAdj(false);
   };
 
   const handleClone = async () => {
@@ -209,11 +262,17 @@ export function SeasonDetailContent({
           <Card className="py-5 px-5">
             <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Sistema de Pontos</h3>
             <div className="text-xs text-text-muted space-y-1.5 font-medium">
-              <p><span className="text-text font-semibold">Set ganho:</span> +2 pts</p>
-              <p><span className="text-text font-semibold">Vitória:</span> +3 pts</p>
-              {season.allowDraws && <p><span className="text-text font-semibold">Empate:</span> +1 pt</p>}
+              <p><span className="text-text font-semibold">Set ganho:</span> +{season.pointsSetWon ?? 2} pts</p>
+              <p><span className="text-text font-semibold">Vitória:</span> +{season.pointsWin ?? 3} pts</p>
+              {season.allowDraws && <p><span className="text-text font-semibold">Empate:</span> +{season.pointsDraw ?? 1} pt</p>}
+              {(season.pointsLoss ?? 0) !== 0 && <p><span className="text-text font-semibold">Derrota:</span> {season.pointsLoss > 0 ? "+" : ""}{season.pointsLoss} pts</p>}
               <div className="pt-2 mt-2 border-t border-border">
-                <p className="text-[10px] text-text-muted/70">Desempate: Pts &gt; Vitórias &gt; Dif. Sets &gt; Sets Ganhos &gt; Empates</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-bold ${(season.rankingMode || "SUM") === "AVERAGE" ? "bg-violet-100 text-violet-700" : "bg-primary/10 text-primary"}`}>
+                    {(season.rankingMode || "SUM") === "AVERAGE" ? "MÉDIA" : "SOMA"}
+                  </span>
+                </div>
+                <p className="text-[10px] text-text-muted/70">Desempate: {(season.rankingMode || "SUM") === "AVERAGE" ? "Méd" : "Pts"} &gt; Vitórias &gt; Dif. Sets &gt; Sets Ganhos &gt; Empates</p>
               </div>
             </div>
           </Card>
@@ -292,8 +351,74 @@ export function SeasonDetailContent({
                     <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputClass} />
                   </div>
                 </div>
+
+                {/* Ranking Configuration */}
+                <div className="pt-3 border-t border-border">
+                  <h3 className="text-sm font-bold mb-4 flex items-center gap-2">
+                    <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Sistema de Ranking
+                  </h3>
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-text-muted mb-1.5">Modo de Ranking</label>
+                      <div className="flex gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setRankingMode("SUM")}
+                          className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                            rankingMode === "SUM"
+                              ? "border-primary bg-primary/10 text-primary"
+                              : "border-border bg-surface text-text hover:bg-surface-hover"
+                          }`}
+                        >
+                          <div className="font-semibold">Soma</div>
+                          <div className="text-xs text-text-muted mt-0.5">Total de pontos acumulados</div>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRankingMode("AVERAGE")}
+                          className={`flex-1 rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                            rankingMode === "AVERAGE"
+                              ? "border-violet-500 bg-violet-50 text-violet-700"
+                              : "border-border bg-surface text-text hover:bg-surface-hover"
+                          }`}
+                        >
+                          <div className="font-semibold">Média</div>
+                          <div className="text-xs text-text-muted mt-0.5">Pontos por jogo disputado</div>
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-text-muted mb-1.5">Pts por Set Ganho</label>
+                      <input type="number" min={0} max={99} value={pointsSetWon} onChange={(e) => setPointsSetWon(Number(e.target.value))} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-text-muted mb-1.5">Pts por Vitória</label>
+                      <input type="number" min={0} max={99} value={pointsWin} onChange={(e) => setPointsWin(Number(e.target.value))} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-text-muted mb-1.5">Pts por Empate</label>
+                      <input type="number" min={0} max={99} value={pointsDraw} onChange={(e) => setPointsDraw(Number(e.target.value))} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-semibold text-text-muted mb-1.5">Pts por Derrota</label>
+                      <input type="number" min={-99} max={99} value={pointsLoss} onChange={(e) => setPointsLoss(Number(e.target.value))} className={inputClass} />
+                    </div>
+                  </div>
+                  {hasRankingChanges && (
+                    <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2">
+                      <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                      Alterar a pontuação vai recalcular todo o ranking da época.
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex justify-end pt-2">
-                  <Button type="submit" disabled={saving || !hasChanges}>
+                  <Button type="submit" disabled={saving || (!hasChanges && !hasRankingChanges)}>
                     {saving ? "A guardar..." : "Guardar Alterações"}
                   </Button>
                 </div>
@@ -316,9 +441,55 @@ export function SeasonDetailContent({
               {rankingRows.length === 0 ? (
                 <EmptyState title="Sem dados" description="O ranking será preenchido após os primeiros torneios." />
               ) : (
-                <RankingTable rows={rankingRows} />
+                <RankingTable
+                  rows={rankingRows}
+                  rankingMode={season.rankingMode || "SUM"}
+                  canManage={canManage}
+                  onAdjust={canManage ? handleOpenAdjust : undefined}
+                />
               )}
             </Card>
+          )}
+
+          {/* ─── Manual Adjustment Modal ─── */}
+          {adjustModal && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setAdjustModal(null)}>
+              <div className="bg-surface rounded-xl shadow-xl border border-border p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+                <h3 className="text-lg font-bold mb-1">Ajustar Ranking</h3>
+                <p className="text-sm text-text-muted mb-5">
+                  Ajuste manual de pontos para <span className="font-semibold text-text">{adjustModal.playerName}</span>
+                </p>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-text-muted mb-1.5">Ajuste de Pontos</label>
+                    <input
+                      type="number"
+                      value={adjValue}
+                      onChange={(e) => setAdjValue(Number(e.target.value))}
+                      className={inputClass}
+                      placeholder="Ex: 5 ou -3"
+                    />
+                    <p className="text-xs text-text-muted mt-1">Valor positivo adiciona pontos, negativo remove.</p>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-text-muted mb-1.5">Motivo (opcional)</label>
+                    <input
+                      type="text"
+                      value={adjNote}
+                      onChange={(e) => setAdjNote(e.target.value)}
+                      className={inputClass}
+                      placeholder="Ex: Penalização por ausência"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 mt-6">
+                  <Button variant="secondary" onClick={() => setAdjustModal(null)}>Cancelar</Button>
+                  <Button onClick={handleSaveAdjust} disabled={savingAdj}>
+                    {savingAdj ? "A guardar..." : "Aplicar Ajuste"}
+                  </Button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* ─── Torneios Table ─── */}

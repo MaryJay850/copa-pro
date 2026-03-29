@@ -1640,6 +1640,14 @@ export async function recomputeSeasonRanking(seasonId: string) {
 
   if (!season) return;
 
+  // Build point config from season settings
+  const pointConfig = {
+    pointsWin: season.pointsWin,
+    pointsDraw: season.pointsDraw,
+    pointsLoss: season.pointsLoss,
+    pointsSetWon: season.pointsSetWon,
+  };
+
   // Get all finished matches in this season
   const matches = await prisma.match.findMany({
     where: {
@@ -1652,7 +1660,7 @@ export async function recomputeSeasonRanking(seasonId: string) {
     },
   });
 
-  // Compute all deltas
+  // Compute all deltas with configurable points
   const allDeltas = matches.flatMap((m) =>
     computeMatchContribution(
       {
@@ -1669,7 +1677,8 @@ export async function recomputeSeasonRanking(seasonId: string) {
         teamA: { player1Id: m.teamA.player1Id, player2Id: m.teamA.player2Id },
         teamB: { player1Id: m.teamB.player1Id, player2Id: m.teamB.player2Id },
       },
-      season.allowDraws
+      season.allowDraws,
+      pointConfig
     )
   );
 
@@ -1719,21 +1728,70 @@ export async function recomputeSeasonRanking(seasonId: string) {
     }
   }
 
+  // Fetch existing manual adjustments to preserve them
+  const existingAdjustments = await prisma.seasonRankingEntry.findMany({
+    where: { seasonId, manualAdjustment: { not: 0 } },
+    select: { playerId: true, manualAdjustment: true, adjustmentNote: true },
+  });
+  const adjustmentMap = new Map(existingAdjustments.map((a) => [a.playerId, { manualAdjustment: a.manualAdjustment, adjustmentNote: a.adjustmentNote }]));
+
   // Delete old rankings and insert new ones (transactional)
   await prisma.$transaction(async (tx) => {
     await tx.seasonRankingEntry.deleteMany({ where: { seasonId } });
 
     for (const [playerId, data] of playerMap.entries()) {
+      const adj = adjustmentMap.get(playerId);
+      const manualAdjustment = adj?.manualAdjustment ?? 0;
       await tx.seasonRankingEntry.create({
         data: {
           seasonId,
           playerId,
           ...data,
+          pointsTotal: data.pointsTotal + manualAdjustment,
           setsDiff: data.setsWon - data.setsLost,
+          manualAdjustment,
+          adjustmentNote: adj?.adjustmentNote ?? null,
         },
       });
     }
   });
+}
+
+export async function adjustPlayerRanking(
+  seasonId: string,
+  playerId: string,
+  adjustment: number,
+  note: string | null
+) {
+  "use server";
+  const season = await prisma.season.findUnique({
+    where: { id: seasonId },
+    select: { leagueId: true },
+  });
+  if (!season) throw new Error("Época não encontrada.");
+  await requireLeagueManager(season.leagueId);
+
+  // Update or create the ranking entry with manual adjustment
+  const existing = await prisma.seasonRankingEntry.findUnique({
+    where: { seasonId_playerId: { seasonId, playerId } },
+  });
+
+  if (!existing) throw new Error("Jogador não encontrado no ranking.");
+
+  // Compute the delta: new adjustment replaces old one
+  const pointsDelta = adjustment - existing.manualAdjustment;
+
+  await prisma.seasonRankingEntry.update({
+    where: { seasonId_playerId: { seasonId, playerId } },
+    data: {
+      manualAdjustment: adjustment,
+      adjustmentNote: note,
+      pointsTotal: existing.pointsTotal + pointsDelta,
+    },
+  });
+
+  logAudit("ADJUST_RANKING", "SeasonRankingEntry", `${seasonId}/${playerId}`, { adjustment, note }).catch(() => {});
+  revalidatePath(`/ligas`);
 }
 
 // ── Tournament finalize ──
@@ -4483,14 +4541,30 @@ export async function sendCustomGroupMessage(leagueId: string, message: string) 
 
 export async function updateSeasonSettings(
   seasonId: string,
-  data: { name?: string; allowDraws?: boolean; startDate?: string | null; endDate?: string | null }
+  data: {
+    name?: string;
+    allowDraws?: boolean;
+    startDate?: string | null;
+    endDate?: string | null;
+    rankingMode?: string;
+    pointsWin?: number;
+    pointsDraw?: number;
+    pointsLoss?: number;
+    pointsSetWon?: number;
+  }
 ) {
   const season = await prisma.season.findUnique({
     where: { id: seasonId },
-    select: { leagueId: true },
+    select: { leagueId: true, pointsWin: true, pointsDraw: true, pointsLoss: true, pointsSetWon: true, rankingMode: true },
   });
   if (!season) throw new Error("Época não encontrada.");
   await requireLeagueManager(season.leagueId);
+
+  const needsRecompute =
+    (data.pointsWin !== undefined && data.pointsWin !== season.pointsWin) ||
+    (data.pointsDraw !== undefined && data.pointsDraw !== season.pointsDraw) ||
+    (data.pointsLoss !== undefined && data.pointsLoss !== season.pointsLoss) ||
+    (data.pointsSetWon !== undefined && data.pointsSetWon !== season.pointsSetWon);
 
   await prisma.season.update({
     where: { id: seasonId },
@@ -4499,8 +4573,18 @@ export async function updateSeasonSettings(
       ...(data.allowDraws !== undefined && { allowDraws: data.allowDraws }),
       ...(data.startDate !== undefined && { startDate: data.startDate ? new Date(data.startDate) : null }),
       ...(data.endDate !== undefined && { endDate: data.endDate ? new Date(data.endDate) : null }),
+      ...(data.rankingMode !== undefined && { rankingMode: data.rankingMode }),
+      ...(data.pointsWin !== undefined && { pointsWin: data.pointsWin }),
+      ...(data.pointsDraw !== undefined && { pointsDraw: data.pointsDraw }),
+      ...(data.pointsLoss !== undefined && { pointsLoss: data.pointsLoss }),
+      ...(data.pointsSetWon !== undefined && { pointsSetWon: data.pointsSetWon }),
     },
   });
+
+  // If points config changed, recompute all rankings
+  if (needsRecompute) {
+    await recomputeSeasonRanking(seasonId);
+  }
 
   logAudit("UPDATE_SEASON", "Season", seasonId, data).catch(() => {});
   revalidatePath(`/ligas/${season.leagueId}/epocas/${seasonId}`);
