@@ -16,7 +16,8 @@ import { GroupStandings } from "@/components/group-standings";
 import { BracketView } from "@/components/bracket-view";
 import { AdvanceToKnockoutButton } from "./advance-knockout-button";
 import { AmericanoStandings, type AmericanoPlayer } from "@/components/americano-standings";
-import { getAmericanoStandings, generateNextAmericanoRoundAction } from "@/lib/actions";
+import { SobeDesceCourtMap, type SobeDesceCourtInfo } from "@/components/sobe-desce-view";
+import { getAmericanoStandings, generateNextAmericanoRoundAction, getSobeDesceStandings, generateNextSobeDesceRoundAction } from "@/lib/actions";
 
 const statusLabels: Record<
   string,
@@ -52,18 +53,29 @@ export function TournamentDetailContent({
   groupStandings,
 }: Props) {
   const [activeSection, setActiveSection] = useState<string>(
-    tournament.teamMode === "AMERICANO" ? "americano" : "calendario"
+    tournament.teamMode === "AMERICANO" ? "americano" : tournament.teamMode === "SOBE_DESCE" ? "sobedesce" : "calendario"
   );
   const [americanoStandings, setAmericanoStandings] = useState<AmericanoPlayer[]>([]);
   const [americanoLoading, setAmericanoLoading] = useState(false);
   const [americanoError, setAmericanoError] = useState<string | null>(null);
   const [generatingRound, setGeneratingRound] = useState(false);
+  const [sobeDesceStandings, setSobeDesceStandings] = useState<AmericanoPlayer[]>([]);
+  const [sobeDesceError, setSobeDesceError] = useState<string | null>(null);
 
   // Load Americano standings on mount
   React.useEffect(() => {
     if (tournament.teamMode === "AMERICANO" && tournament.rounds.length > 0) {
       getAmericanoStandings(tournament.id).then((data) => {
         setAmericanoStandings(data);
+      }).catch(() => {});
+    }
+  }, [tournament.id, tournament.teamMode, tournament.rounds.length]);
+
+  // Load Sobe e Desce standings on mount
+  React.useEffect(() => {
+    if (tournament.teamMode === "SOBE_DESCE" && tournament.rounds.length > 0) {
+      getSobeDesceStandings(tournament.id).then((data) => {
+        setSobeDesceStandings(data);
       }).catch(() => {});
     }
   }, [tournament.id, tournament.teamMode, tournament.rounds.length]);
@@ -78,6 +90,16 @@ export function TournamentDetailContent({
     && tournament.rounds.length < americanoMaxRounds
     && tournament.status !== "FINISHED";
 
+  // Check if current round is all finished (for Sobe e Desce "next round" button)
+  const sobeDesceCurrentRoundFinished = tournament.teamMode === "SOBE_DESCE" && tournament.rounds.length > 0
+    ? tournament.rounds[tournament.rounds.length - 1]?.matches?.every((m: any) => m.status === "FINISHED") ?? false
+    : false;
+  const sobeDesceMaxRounds = tournament.numberOfRounds || 999;
+  const sobeDesceCanGenerateNext = tournament.teamMode === "SOBE_DESCE"
+    && sobeDesceCurrentRoundFinished
+    && tournament.rounds.length < sobeDesceMaxRounds
+    && tournament.status !== "FINISHED";
+
   const handleGenerateNextRound = async () => {
     setGeneratingRound(true);
     setAmericanoError(null);
@@ -86,6 +108,19 @@ export function TournamentDetailContent({
       window.location.reload();
     } catch (err: any) {
       setAmericanoError(err?.message || "Erro ao gerar próxima ronda.");
+    } finally {
+      setGeneratingRound(false);
+    }
+  };
+
+  const handleGenerateNextSobeDesceRound = async () => {
+    setGeneratingRound(true);
+    setSobeDesceError(null);
+    try {
+      await generateNextSobeDesceRoundAction(tournament.id);
+      window.location.reload();
+    } catch (err: any) {
+      setSobeDesceError(err?.message || "Erro ao gerar próxima ronda.");
     } finally {
       setGeneratingRound(false);
     }
@@ -140,6 +175,14 @@ export function TournamentDetailContent({
       key: "americano",
       label: "Ranking Americano",
       icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+    });
+  }
+
+  if (tournament.teamMode === "SOBE_DESCE") {
+    navItems.push({
+      key: "sobedesce",
+      label: "Sobe e Desce",
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" /></svg>,
     });
   }
 
@@ -212,7 +255,7 @@ export function TournamentDetailContent({
             <div className="flex items-center gap-6">
               <div className="text-center">
                 <p className="text-2xl font-extrabold text-primary">
-                  {tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "AMERICANO"
+                  {tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "AMERICANO" || tournament.teamMode === "SOBE_DESCE"
                     ? swapPlayers.length
                     : tournament.teams.length}
                 </p>
@@ -278,7 +321,7 @@ export function TournamentDetailContent({
                 <div className="min-w-0">
                   <p className="text-xs text-text-muted">Formato</p>
                   <p className="text-sm font-medium text-text">
-                    {tournament.teamSize === 1 ? "1v1" : "2v2"} &middot; {tournament.teamMode === "AMERICANO" ? "Americano" : tournament.teamMode === "RANDOM_PER_ROUND" ? "Aleatórias" : tournament.teamMode === "RANKED_SPLIT" ? "Ranked Split" : "Fixas"}
+                    {tournament.teamSize === 1 ? "1v1" : "2v2"} &middot; {tournament.teamMode === "AMERICANO" ? "Americano" : tournament.teamMode === "SOBE_DESCE" ? "Sobe e Desce" : tournament.teamMode === "RANDOM_PER_ROUND" ? "Aleatórias" : tournament.teamMode === "RANKED_SPLIT" ? "Ranked Split" : "Fixas"}
                   </p>
                 </div>
               </div>
@@ -295,7 +338,7 @@ export function TournamentDetailContent({
                   </p>
                 </div>
               </div>
-              {(tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "AMERICANO") && (
+              {(tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "AMERICANO" || tournament.teamMode === "SOBE_DESCE") && (
                 <div className="flex items-center gap-3">
                   <div className="w-7 h-7 rounded-lg bg-warning/10 flex items-center justify-center flex-shrink-0">
                     <svg className="w-3.5 h-3.5 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -529,6 +572,90 @@ export function TournamentDetailContent({
               )}
 
               {americanoStandings.length === 0 && tournament.rounds.length === 0 && (
+                <Card className="py-5 px-6">
+                  <EmptyState
+                    title="Sem dados"
+                    description="Os dados aparecerão após gerar o calendário."
+                  />
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* ─── Sobe e Desce Section ─── */}
+          {activeSection === "sobedesce" && tournament.teamMode === "SOBE_DESCE" && (
+            <div className="space-y-4">
+              {/* Court Map for latest round */}
+              {tournament.rounds.length > 0 && (() => {
+                const lastRound = tournament.rounds[tournament.rounds.length - 1];
+                const courtInfos: SobeDesceCourtInfo[] = [];
+                const courtMap = new Map<string, { name: string; index: number }>();
+                const tournamentCourts = tournament.tournamentCourts?.length > 0
+                  ? tournament.tournamentCourts.map((tc: any) => tc.court)
+                  : tournament.courts || [];
+                tournamentCourts.forEach((c: any, idx: number) => {
+                  courtMap.set(c.id, { name: c.name, index: idx });
+                });
+                // Group players by court from last round matches
+                const courtPlayers = new Map<number, { id: string; name: string }[]>();
+                for (const match of lastRound.matches) {
+                  const ci = match.court ? (courtMap.get(match.court.id)?.index ?? 0) : 0;
+                  if (!courtPlayers.has(ci)) courtPlayers.set(ci, []);
+                  const players = courtPlayers.get(ci)!;
+                  if (match.teamA?.player1) players.push({ id: match.teamA.player1.id, name: match.teamA.player1.nickname || match.teamA.player1.fullName });
+                  if (match.teamA?.player2) players.push({ id: match.teamA.player2.id, name: match.teamA.player2.nickname || match.teamA.player2.fullName });
+                  if (match.teamB?.player1) players.push({ id: match.teamB.player1.id, name: match.teamB.player1.nickname || match.teamB.player1.fullName });
+                  if (match.teamB?.player2) players.push({ id: match.teamB.player2.id, name: match.teamB.player2.nickname || match.teamB.player2.fullName });
+                }
+                const numCourts = courtPlayers.size;
+                for (const [ci, players] of courtPlayers) {
+                  const courtInfo = tournamentCourts[ci];
+                  courtInfos.push({
+                    courtName: courtInfo?.name || `Campo ${ci + 1}`,
+                    courtIndex: ci,
+                    players,
+                    isTopCourt: ci === 0,
+                    isBottomCourt: ci === numCourts - 1,
+                  });
+                }
+                return <SobeDesceCourtMap courts={courtInfos} />;
+              })()}
+
+              <AmericanoStandings players={sobeDesceStandings} />
+
+              {canManage && sobeDesceCanGenerateNext && (
+                <Card className="py-5 px-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-sm font-bold">Ronda {tournament.rounds.length + 1}</h3>
+                      <p className="text-xs text-text-muted mt-0.5">
+                        Todos os jogos da ronda {tournament.rounds.length} estão terminados. Gere a próxima ronda — vencedores sobem, perdedores descem.
+                      </p>
+                    </div>
+                    <Button
+                      onClick={handleGenerateNextSobeDesceRound}
+                      disabled={generatingRound}
+                      className="gap-1.5"
+                    >
+                      {generatingRound ? (
+                        "A gerar..."
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                          Gerar Próxima Ronda
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {sobeDesceError && (
+                    <p className="text-xs text-red-600 mt-2">{sobeDesceError}</p>
+                  )}
+                </Card>
+              )}
+
+              {sobeDesceStandings.length === 0 && tournament.rounds.length === 0 && (
                 <Card className="py-5 px-6">
                   <EmptyState
                     title="Sem dados"

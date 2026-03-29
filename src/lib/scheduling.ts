@@ -567,6 +567,139 @@ export function generateNextAmericanoRound(
   return { matches };
 }
 
+// ── Sobe e Desce (Céu Inferno) Format ──
+
+export interface SobeDesceRoundResult {
+  matches: {
+    team1: [string, string];
+    team2: [string, string];
+    courtIndex: number; // 0 = best court, N-1 = worst court
+  }[];
+}
+
+/**
+ * Generate Round 1 of a Sobe e Desce tournament.
+ * Random distribution of players across courts.
+ * Each court gets 4 players, randomly paired into 2 teams.
+ */
+export function generateSobeDesceRound1(
+  playerIds: string[],
+  courtsCount: number,
+  seed?: string
+): SobeDesceRoundResult {
+  const n = playerIds.length;
+  if (n < 4 || n % 4 !== 0) {
+    throw new Error("É necessário um múltiplo de 4 jogadores para o formato Sobe e Desce.");
+  }
+  if (n / 4 > courtsCount) {
+    throw new Error(`São necessários pelo menos ${n / 4} campos para ${n} jogadores.`);
+  }
+
+  const rng = seedrandom(seed || "sobedesce-r1");
+  const shuffled = [...playerIds];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+
+  const matches: SobeDesceRoundResult["matches"] = [];
+  const playersPerCourt = 4;
+  const numCourts = Math.min(n / playersPerCourt, courtsCount);
+
+  for (let c = 0; c < numCourts; c++) {
+    const base = c * playersPerCourt;
+    matches.push({
+      team1: [shuffled[base], shuffled[base + 1]],
+      team2: [shuffled[base + 2], shuffled[base + 3]],
+      courtIndex: c,
+    });
+  }
+
+  return { matches };
+}
+
+/**
+ * Generate next round of Sobe e Desce based on previous round results.
+ *
+ * Logic per court (after round N):
+ * - Court 0 (best): Winners stay at court 0, losers go to court 1
+ * - Court K (middle): Winners from court K go to court K-1, losers go to court K+1
+ * - Court N-1 (worst): Winners go to court N-2, losers stay at court N-1
+ *
+ * Then within each court, the 4 players are randomly paired into 2v2.
+ */
+export function generateNextSobeDesceRound(
+  previousRoundMatches: {
+    courtIndex: number;
+    team1: [string, string];
+    team2: [string, string];
+    winnerTeam: 1 | 2;
+  }[],
+  courtsCount: number,
+  roundIndex: number
+): SobeDesceRoundResult {
+  const sorted = [...previousRoundMatches].sort((a, b) => a.courtIndex - b.courtIndex);
+  const numCourts = sorted.length;
+
+  const courtWinners: [string, string][] = [];
+  const courtLosers: [string, string][] = [];
+
+  for (const match of sorted) {
+    if (match.winnerTeam === 1) {
+      courtWinners.push(match.team1);
+      courtLosers.push(match.team2);
+    } else {
+      courtWinners.push(match.team2);
+      courtLosers.push(match.team1);
+    }
+  }
+
+  const newCourtPlayers: string[][] = Array.from({ length: numCourts }, () => []);
+
+  for (let c = 0; c < numCourts; c++) {
+    const winners = courtWinners[c];
+    const losers = courtLosers[c];
+
+    if (c === 0) {
+      newCourtPlayers[0].push(...winners);
+      if (numCourts > 1) {
+        newCourtPlayers[1].push(...losers);
+      } else {
+        newCourtPlayers[0].push(...losers);
+      }
+    } else if (c === numCourts - 1) {
+      newCourtPlayers[c].push(...losers);
+      newCourtPlayers[c - 1].push(...winners);
+    } else {
+      newCourtPlayers[c - 1].push(...winners);
+      newCourtPlayers[c + 1].push(...losers);
+    }
+  }
+
+  const rng = seedrandom(`sobedesce-r${roundIndex}`);
+  const matches: SobeDesceRoundResult["matches"] = [];
+
+  for (let c = 0; c < numCourts; c++) {
+    const players = newCourtPlayers[c];
+    if (players.length !== 4) {
+      throw new Error(`Campo ${c + 1} ficou com ${players.length} jogadores em vez de 4. Verifique a configuração.`);
+    }
+
+    for (let i = players.length - 1; i > 0; i--) {
+      const j = Math.floor(rng() * (i + 1));
+      [players[i], players[j]] = [players[j], players[i]];
+    }
+
+    matches.push({
+      team1: [players[0], players[1]],
+      team2: [players[2], players[3]],
+      courtIndex: c,
+    });
+  }
+
+  return { matches };
+}
+
 export function generateRandomTeams(
   playerIds: string[],
   seed: string
