@@ -22,6 +22,7 @@ type Court = {
   quality: string;
   isAvailable: boolean;
   orderIndex: number;
+  _count: { matches: number; tournamentCourts: number };
 };
 
 type Club = {
@@ -260,26 +261,42 @@ export function AdminClubsContent({ clubs }: { clubs: Club[] }) {
                     <p className="text-sm text-text-muted py-2">Sem campos registados.</p>
                   ) : (
                     <div className="space-y-1.5">
-                      {club.courts.map((court) => (
-                        <div key={court.id} className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-border bg-surface">
-                          <span className="flex-1 text-sm font-medium">{court.name}</span>
-                          <span className={`text-xs font-semibold ${qualityLabel[court.quality]?.color || ""}`}>
-                            {qualityLabel[court.quality]?.label || court.quality}
-                          </span>
-                          <button
-                            onClick={() => handleToggleCourtAvailability(court.id, court.isAvailable)}
-                            className={`text-xs font-medium px-2 py-0.5 rounded ${court.isAvailable ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}
-                          >
-                            {court.isAvailable ? "Disponível" : "Indisponível"}
-                          </button>
-                          <button
-                            onClick={() => handleDeleteCourt(court.id)}
-                            className="text-xs text-text-muted hover:text-danger transition-colors"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                          </button>
-                        </div>
-                      ))}
+                      {club.courts.map((court) => {
+                        const hasUsage = (court._count?.matches ?? 0) > 0 || (court._count?.tournamentCourts ?? 0) > 0;
+                        return (
+                          <div key={court.id} className={`flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-surface ${court.isAvailable ? "border-border" : "border-border/50 opacity-70"}`}>
+                            <span className="flex-1 text-sm font-medium">{court.name}</span>
+                            <span className={`text-xs font-semibold ${qualityLabel[court.quality]?.color || ""}`}>
+                              {qualityLabel[court.quality]?.label || court.quality}
+                            </span>
+                            {hasUsage && (
+                              <span className="text-[10px] text-text-muted font-medium px-1.5 py-0.5 bg-surface-alt rounded">
+                                {court._count.tournamentCourts > 0 && `${court._count.tournamentCourts} torneio${court._count.tournamentCourts > 1 ? "s" : ""}`}
+                                {court._count.matches > 0 && ` · ${court._count.matches} jogo${court._count.matches > 1 ? "s" : ""}`}
+                              </span>
+                            )}
+                            <button
+                              onClick={() => handleToggleCourtAvailability(court.id, court.isAvailable)}
+                              className={`text-xs font-medium px-2 py-0.5 rounded ${court.isAvailable ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}
+                            >
+                              {court.isAvailable ? "Disponível" : "Indisponível"}
+                            </button>
+                            {hasUsage ? (
+                              <span className="text-[10px] text-text-muted" title="Campo tem torneios/jogos associados. Desative-o em vez de eliminar.">
+                                <svg className="w-3.5 h-3.5 text-text-muted/40" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => handleDeleteCourt(court.id)}
+                                className="text-xs text-text-muted hover:text-danger transition-colors"
+                                title="Eliminar campo"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>

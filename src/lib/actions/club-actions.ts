@@ -12,7 +12,10 @@ export async function getAllClubs() {
 
   const clubs = await prisma.club.findMany({
     include: {
-      courts: { orderBy: { orderIndex: "asc" } },
+      courts: {
+        orderBy: { orderIndex: "asc" },
+        include: { _count: { select: { matches: true, tournamentCourts: true } } },
+      },
       _count: {
         select: { tournaments: true, leagueClubs: true, courts: true },
       },
@@ -258,13 +261,28 @@ export async function deleteCourt(courtId: string) {
   });
   if (!court) throw new Error("Campo não encontrado.");
 
-  if (court._count.matches > 0) {
-    throw new Error("Não é possível eliminar o campo. Existem jogos associados.");
+  if (court._count.matches > 0 || court._count.tournamentCourts > 0) {
+    throw new Error("Não é possível eliminar o campo. Existem torneios ou jogos associados. Desative o campo em vez de o eliminar.");
   }
 
-  await prisma.tournamentCourt.deleteMany({ where: { courtId } });
   await prisma.court.delete({ where: { id: courtId } });
   revalidatePath("/admin/clubes");
+}
+
+export async function getCourtUsageInfo(courtId: string) {
+  await requireAdmin();
+
+  const court = await prisma.court.findUnique({
+    where: { id: courtId },
+    include: { _count: { select: { matches: true, tournamentCourts: true } } },
+  });
+  if (!court) throw new Error("Campo não encontrado.");
+
+  return {
+    hasUsage: court._count.matches > 0 || court._count.tournamentCourts > 0,
+    matchCount: court._count.matches,
+    tournamentCount: court._count.tournamentCourts,
+  };
 }
 
 export async function reorderCourts(clubId: string, courtIds: string[]) {
