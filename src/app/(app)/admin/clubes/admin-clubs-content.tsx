@@ -47,6 +47,13 @@ export function AdminClubsContent({ clubs }: { clubs: Club[] }) {
   const [courtQuality, setCourtQuality] = useState("GOOD");
   const [savingCourt, setSavingCourt] = useState(false);
 
+  // Court editing
+  const [editingCourt, setEditingCourt] = useState<string | null>(null);
+  const [editCourtName, setEditCourtName] = useState("");
+  const [editCourtQuality, setEditCourtQuality] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [reordering, setReordering] = useState(false);
+
   const inputClass = "w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors";
 
   const handleCreateClub = async (e: React.FormEvent) => {
@@ -109,6 +116,44 @@ export function AdminClubsContent({ clubs }: { clubs: Club[] }) {
     } catch (err) {
       toast.error(sanitizeError(err, "Erro ao eliminar campo."));
     }
+  };
+
+  const handleStartEditCourt = (court: Court) => {
+    setEditingCourt(court.id);
+    setEditCourtName(court.name);
+    setEditCourtQuality(court.quality);
+  };
+
+  const handleSaveEditCourt = async (courtId: string) => {
+    setSavingEdit(true);
+    try {
+      await updateCourt({ courtId, name: editCourtName, quality: editCourtQuality as any });
+      toast.success("Campo atualizado.");
+      setEditingCourt(null);
+      router.refresh();
+    } catch (err) {
+      toast.error(sanitizeError(err, "Erro ao atualizar campo."));
+    }
+    setSavingEdit(false);
+  };
+
+  const handleMoveCourt = async (club: Club, courtId: string, direction: "up" | "down") => {
+    const courtIds = club.courts.map((c) => c.id);
+    const idx = courtIds.indexOf(courtId);
+    if ((direction === "up" && idx <= 0) || (direction === "down" && idx >= courtIds.length - 1)) return;
+    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
+    [courtIds[idx], courtIds[swapIdx]] = [courtIds[swapIdx], courtIds[idx]];
+
+    setReordering(true);
+    try {
+      // Update both courts' orderIndex
+      await updateCourt({ courtId: courtIds[idx], orderIndex: idx });
+      await updateCourt({ courtId: courtIds[swapIdx], orderIndex: swapIdx });
+      router.refresh();
+    } catch (err) {
+      toast.error(sanitizeError(err, "Erro ao reordenar."));
+    }
+    setReordering(false);
   };
 
   const qualityLabel: Record<string, { label: string; color: string }> = {
@@ -261,12 +306,71 @@ export function AdminClubsContent({ clubs }: { clubs: Club[] }) {
                     <p className="text-sm text-text-muted py-2">Sem campos registados.</p>
                   ) : (
                     <div className="space-y-1.5">
-                      {club.courts.map((court) => {
+                      {club.courts.map((court, courtIdx) => {
                         const hasUsage = (court._count?.matches ?? 0) > 0 || (court._count?.tournamentCourts ?? 0) > 0;
+                        const isEditing = editingCourt === court.id;
+
+                        if (isEditing) {
+                          return (
+                            <div key={court.id} className="flex items-center gap-3 px-4 py-2.5 rounded-lg border border-primary/30 bg-primary/5">
+                              <input
+                                type="text"
+                                value={editCourtName}
+                                onChange={(e) => setEditCourtName(e.target.value)}
+                                className="flex-1 text-sm font-medium rounded-lg border border-border bg-surface px-3 py-1.5 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                                autoFocus
+                              />
+                              <select
+                                value={editCourtQuality}
+                                onChange={(e) => setEditCourtQuality(e.target.value)}
+                                className="rounded-lg border border-border bg-surface px-2 py-1.5 text-xs font-semibold focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                              >
+                                <option value="GOOD">Bom</option>
+                                <option value="MEDIUM">Médio</option>
+                                <option value="BAD">Mau</option>
+                              </select>
+                              <Button size="sm" onClick={() => handleSaveEditCourt(court.id)} disabled={savingEdit}>
+                                {savingEdit ? "..." : "Guardar"}
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => setEditingCourt(null)}>Cancelar</Button>
+                            </div>
+                          );
+                        }
+
                         return (
                           <div key={court.id} className={`flex items-center gap-3 px-4 py-2.5 rounded-lg border bg-surface ${court.isAvailable ? "border-border" : "border-border/50 opacity-70"}`}>
-                            <span className="flex-1 text-sm font-medium">{court.name}</span>
-                            <span className={`text-xs font-semibold ${qualityLabel[court.quality]?.color || ""}`}>
+                            {/* Reorder buttons */}
+                            <div className="flex flex-col gap-0.5">
+                              <button
+                                onClick={() => handleMoveCourt(club, court.id, "up")}
+                                disabled={courtIdx === 0 || reordering}
+                                className="text-text-muted hover:text-primary disabled:opacity-20 transition-colors"
+                                title="Mover para cima"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" /></svg>
+                              </button>
+                              <button
+                                onClick={() => handleMoveCourt(club, court.id, "down")}
+                                disabled={courtIdx === club.courts.length - 1 || reordering}
+                                className="text-text-muted hover:text-primary disabled:opacity-20 transition-colors"
+                                title="Mover para baixo"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                              </button>
+                            </div>
+
+                            <span
+                              className="flex-1 text-sm font-medium cursor-pointer hover:text-primary transition-colors"
+                              onClick={() => handleStartEditCourt(court)}
+                              title="Clique para editar"
+                            >
+                              {court.name}
+                            </span>
+                            <span
+                              className={`text-xs font-semibold cursor-pointer hover:opacity-70 ${qualityLabel[court.quality]?.color || ""}`}
+                              onClick={() => handleStartEditCourt(court)}
+                              title="Clique para editar"
+                            >
                               {qualityLabel[court.quality]?.label || court.quality}
                             </span>
                             {hasUsage && (
@@ -280,6 +384,13 @@ export function AdminClubsContent({ clubs }: { clubs: Club[] }) {
                               className={`text-xs font-medium px-2 py-0.5 rounded ${court.isAvailable ? "bg-success/10 text-success" : "bg-danger/10 text-danger"}`}
                             >
                               {court.isAvailable ? "Disponível" : "Indisponível"}
+                            </button>
+                            <button
+                              onClick={() => handleStartEditCourt(court)}
+                              className="text-xs text-text-muted hover:text-primary transition-colors"
+                              title="Editar campo"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
                             </button>
                             {hasUsage ? (
                               <span className="text-[10px] text-text-muted" title="Campo tem torneios/jogos associados. Desative-o em vez de eliminar.">
