@@ -209,8 +209,8 @@ model Player {
 
 model Tournament {
   id             String    @id @default(cuid())
-  leagueId       String
-  seasonId       String
+  leagueId       String?
+  seasonId       String?
   clubId         String?
   name           String
   startDate      DateTime?
@@ -244,8 +244,8 @@ model Tournament {
   isEasyMix   Boolean @default(false)
   publicSlug  String? @unique          // slug for public URL
 
-  league           League                  @relation(fields: [leagueId], references: [id], onDelete: Cascade)
-  season           Season                  @relation(fields: [seasonId], references: [id], onDelete: Cascade)
+  league           League?                 @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  season           Season?                 @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   club             Club?                   @relation(fields: [clubId], references: [id])
   teams            Team[]
   courts           Court[]                 // Legacy relation — kept for backward compat

@@ -1,12 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { createEasyMix } from "@/lib/actions";
+import { createEasyMix, searchPlayers } from "@/lib/actions";
 import { toast } from "sonner";
+
+type PlayerEntry = {
+  name: string;
+  playerId?: string;
+  userId?: string;
+  nickname?: string | null;
+};
 
 export function EasyMixWizard() {
   const router = useRouter();
@@ -21,32 +28,98 @@ export function EasyMixWizard() {
 
   // Players
   const [playerInput, setPlayerInput] = useState("");
-  const [players, setPlayers] = useState<string[]>([]);
+  const [players, setPlayers] = useState<PlayerEntry[]>([]);
+
+  // Search
+  const [suggestions, setSuggestions] = useState<{ id: string; fullName: string; nickname: string | null; userId: string }[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const suggestionsRef = useRef<HTMLDivElement>(null);
 
   const inputClass = "w-full rounded-lg border border-border bg-surface px-4 py-2.5 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors";
 
-  const addPlayer = () => {
-    const trimmed = playerInput.trim();
-    if (trimmed && !players.includes(trimmed)) {
-      setPlayers([...players, trimmed]);
-      setPlayerInput("");
+  const allRegistered = players.length > 0 && players.every((p) => !!p.playerId);
+  const hasAdHoc = players.some((p) => !p.playerId);
+
+  // Debounced search
+  const handleInputChange = useCallback((value: string) => {
+    setPlayerInput(value);
+    if (searchTimeout.current) clearTimeout(searchTimeout.current);
+    if (value.trim().length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
     }
+    setSearching(true);
+    searchTimeout.current = setTimeout(async () => {
+      try {
+        const results = await searchPlayers(value.trim());
+        // Filter out players already added
+        const existingIds = new Set(players.filter((p) => p.playerId).map((p) => p.playerId));
+        setSuggestions(results.filter((r) => !existingIds.has(r.id)));
+        setShowSuggestions(true);
+      } catch {
+        setSuggestions([]);
+      }
+      setSearching(false);
+    }, 300);
+  }, [players]);
+
+  // Close suggestions on click outside
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(e.target as Node) &&
+        inputRef.current &&
+        !inputRef.current.contains(e.target as Node)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const addRegisteredPlayer = (player: { id: string; fullName: string; nickname: string | null; userId: string }) => {
+    if (players.some((p) => p.playerId === player.id)) return;
+    setPlayers([...players, { name: player.fullName, playerId: player.id, userId: player.userId, nickname: player.nickname }]);
+    setPlayerInput("");
+    setSuggestions([]);
+    setShowSuggestions(false);
+    inputRef.current?.focus();
   };
 
-  const removePlayer = (name: string) => {
-    setPlayers(players.filter((p) => p !== name));
+  const addAdHocPlayer = () => {
+    const trimmed = playerInput.trim();
+    if (!trimmed) return;
+    if (players.some((p) => p.name === trimmed && !p.playerId)) {
+      toast.error("Jogador com este nome ja existe.");
+      return;
+    }
+    setPlayers([...players, { name: trimmed }]);
+    setPlayerInput("");
+    setSuggestions([]);
+    setShowSuggestions(false);
+    inputRef.current?.focus();
+  };
+
+  const removePlayer = (index: number) => {
+    setPlayers(players.filter((_, i) => i !== index));
   };
 
   const handleCreate = async () => {
     if (players.length < 4) {
-      toast.error("Mínimo de 4 jogadores.");
+      toast.error("Minimo de 4 jogadores.");
       return;
     }
     setLoading(true);
     try {
       const result = await createEasyMix({
         name,
-        playerNames: players,
+        players: players.map((p) => ({ name: p.name, playerId: p.playerId })),
         courtsCount,
         numberOfSets,
         numberOfRounds,
@@ -75,7 +148,7 @@ export function EasyMixWizard() {
           <div className="pt-14 flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1">
               <h1 className="text-xl font-extrabold tracking-tight">Easy Mix</h1>
-              <p className="text-sm text-text-muted mt-0.5">Cria um torneio rápido e partilha com amigos</p>
+              <p className="text-sm text-text-muted mt-0.5">Cria um torneio rapido e partilha com amigos</p>
             </div>
             <Badge variant="info">Passo {step} de 2</Badge>
           </div>
@@ -99,7 +172,7 @@ export function EasyMixWizard() {
           <Card className="py-5 px-5">
             <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Passos</h3>
             <div className="space-y-1.5">
-              {["Configuração", "Jogadores"].map((label, i) => (
+              {["Configuracao", "Jogadores"].map((label, i) => (
                 <button
                   key={i}
                   onClick={() => (i + 1 < step ? setStep(i + 1) : undefined)}
@@ -114,7 +187,7 @@ export function EasyMixWizard() {
                   <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
                     step === i + 1 ? "bg-emerald-500 text-white" : i + 1 < step ? "bg-emerald-100 text-emerald-600" : "bg-border text-text-muted"
                   }`}>
-                    {i + 1 < step ? "✓" : i + 1}
+                    {i + 1 < step ? "\u2713" : i + 1}
                   </span>
                   {label}
                 </button>
@@ -126,7 +199,7 @@ export function EasyMixWizard() {
           <Card className="py-5 px-5">
             <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Resumo</h3>
             <div className="text-xs space-y-2 text-text-muted font-medium">
-              <p><span className="text-text font-semibold">Nome:</span> {name || "—"}</p>
+              <p><span className="text-text font-semibold">Nome:</span> {name || "\u2014"}</p>
               <p><span className="text-text font-semibold">Campos:</span> {courtsCount}</p>
               <p><span className="text-text font-semibold">Sets:</span> {numberOfSets}</p>
               <p><span className="text-text font-semibold">Rondas:</span> {numberOfRounds}</p>
@@ -145,12 +218,12 @@ export function EasyMixWizard() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
-                Configuração Rápida
+                Configuracao Rapida
               </h2>
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs font-semibold text-text-muted mb-1.5">Nome do Torneio</label>
-                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="Ex: Padel Sábado" required />
+                  <input type="text" value={name} onChange={(e) => setName(e.target.value)} className={inputClass} placeholder="Ex: Padel Sabado" required />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
@@ -171,7 +244,7 @@ export function EasyMixWizard() {
                   </div>
                 </div>
                 <div className="bg-emerald-50 rounded-lg px-4 py-3 text-xs text-emerald-700">
-                  <strong>Modo:</strong> Pares aleatórios a cada ronda (2v2). Equipas mudam em cada ronda para que todos joguem com todos.
+                  <strong>Modo:</strong> Pares aleatorios a cada ronda (2v2). Equipas mudam em cada ronda para que todos joguem com todos.
                 </div>
               </div>
               <div className="flex justify-end pt-4">
@@ -191,17 +264,111 @@ export function EasyMixWizard() {
                 Jogadores ({players.length})
               </h2>
 
-              {/* Add player input */}
-              <div className="flex gap-2 mb-4">
-                <input
-                  type="text"
-                  value={playerInput}
-                  onChange={(e) => setPlayerInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPlayer(); } }}
-                  className={inputClass}
-                  placeholder="Nome do jogador..."
-                />
-                <Button onClick={addPlayer} disabled={!playerInput.trim()}>Adicionar</Button>
+              {/* ELO info banner */}
+              {players.length > 0 && (
+                <div className={`rounded-lg px-4 py-3 text-xs mb-4 ${
+                  allRegistered
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    : "bg-amber-50 text-amber-700 border border-amber-200"
+                }`}>
+                  {allRegistered
+                    ? "\u2713 Todos os jogadores registados \u2014 ELO sera atualizado"
+                    : "\u26A0 Existem jogadores sem conta \u2014 ELO nao sera atualizado"}
+                </div>
+              )}
+
+              {/* Info text */}
+              <div className="bg-blue-50 rounded-lg px-4 py-3 text-xs text-blue-700 mb-4 border border-blue-200">
+                Se todos os jogadores forem registados, o ELO sera atualizado. Jogadores sem conta nao afetam o ELO.
+              </div>
+
+              {/* Add player input with autocomplete */}
+              <div className="relative mb-4">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      ref={inputRef}
+                      type="text"
+                      value={playerInput}
+                      onChange={(e) => handleInputChange(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          if (suggestions.length > 0) {
+                            addRegisteredPlayer(suggestions[0]);
+                          } else if (playerInput.trim()) {
+                            addAdHocPlayer();
+                          }
+                        }
+                      }}
+                      onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+                      className={inputClass}
+                      placeholder="Pesquisar jogador registado ou escrever nome..."
+                    />
+                    {searching && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    onClick={() => {
+                      if (suggestions.length > 0) {
+                        addRegisteredPlayer(suggestions[0]);
+                      } else {
+                        addAdHocPlayer();
+                      }
+                    }}
+                    disabled={!playerInput.trim()}
+                  >
+                    Adicionar
+                  </Button>
+                </div>
+
+                {/* Autocomplete suggestions */}
+                {showSuggestions && suggestions.length > 0 && (
+                  <div
+                    ref={suggestionsRef}
+                    className="absolute z-50 left-0 right-16 mt-1 bg-surface border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                  >
+                    {suggestions.map((s) => (
+                      <button
+                        key={s.id}
+                        onClick={() => addRegisteredPlayer(s)}
+                        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-surface-hover text-sm text-left transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{s.fullName}</span>
+                          {s.nickname && <span className="text-text-muted text-xs">({s.nickname})</span>}
+                        </div>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                          Registado
+                        </span>
+                      </button>
+                    ))}
+                    {playerInput.trim() && (
+                      <button
+                        onClick={addAdHocPlayer}
+                        className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-surface-hover text-sm text-left transition-colors border-t border-border"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">&quot;{playerInput.trim()}&quot;</span>
+                          <span className="text-text-muted text-xs">(sem conta)</span>
+                        </div>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+                          Sem conta
+                        </span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Show ad-hoc option when no suggestions and input has text */}
+                {showSuggestions === false && !searching && playerInput.trim().length >= 2 && suggestions.length === 0 && (
+                  <div className="text-xs text-text-muted mt-1">
+                    Nenhum jogador registado encontrado. Pressiona Enter ou &quot;Adicionar&quot; para adicionar como jogador sem conta.
+                  </div>
+                )}
               </div>
 
               {/* Player list */}
@@ -215,9 +382,19 @@ export function EasyMixWizard() {
                     <div key={i} className="flex items-center justify-between px-3 py-2 bg-surface-alt rounded-lg text-sm">
                       <div className="flex items-center gap-2">
                         <span className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center text-[10px] font-bold">{i + 1}</span>
-                        <span className="font-medium">{p}</span>
+                        <span className="font-medium">{p.name}</span>
+                        {p.nickname && <span className="text-text-muted text-xs">({p.nickname})</span>}
+                        {p.playerId ? (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">
+                            Registado
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">
+                            Sem conta
+                          </span>
+                        )}
                       </div>
-                      <button onClick={() => removePlayer(p)} className="text-red-400 hover:text-red-600 text-xs">
+                      <button onClick={() => removePlayer(i)} className="text-red-400 hover:text-red-600 text-xs">
                         Remover
                       </button>
                     </div>
@@ -227,7 +404,7 @@ export function EasyMixWizard() {
 
               {players.length > maxTitulars && (
                 <div className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mb-4">
-                  Tens {players.length} jogadores mas apenas {maxTitulars} podem jogar em simultâneo ({courtsCount} campos x 4). Os restantes serão suplentes que rodam.
+                  Tens {players.length} jogadores mas apenas {maxTitulars} podem jogar em simultaneo ({courtsCount} campos x 4). Os restantes serao suplentes que rodam.
                 </div>
               )}
 

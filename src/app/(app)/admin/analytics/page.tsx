@@ -97,7 +97,7 @@ export default async function AnalyticsPage() {
               <Link key={t.id} href={`/torneios/${t.id}`} className="flex items-center justify-between px-3 py-2 bg-surface-alt rounded-lg hover:bg-surface-hover transition-colors">
                 <div>
                   <p className="text-sm font-medium">{t.name}</p>
-                  <p className="text-xs text-text-muted">{t.league.name}</p>
+                  <p className="text-xs text-text-muted">{t.league?.name ?? "Standalone"}</p>
                 </div>
                 <span className="text-xs text-text-muted">
                   {new Date(t.createdAt).toLocaleDateString("pt-PT")}

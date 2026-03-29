@@ -605,7 +605,7 @@ export async function generateSchedule(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(tournament.leagueId);
+  await requireLeagueManager(tournament.leagueId ?? "");
 
   // Check if results exist
   const hasResults = tournament.matches.some((m) => m.status === "FINISHED");
@@ -639,10 +639,10 @@ export async function generateSchedule(tournamentId: string) {
     }
 
     // Fetch season ranking to split players
-    const rankings = await prisma.seasonRankingEntry.findMany({
+    const rankings = tournament.seasonId ? await prisma.seasonRankingEntry.findMany({
       where: { seasonId: tournament.seasonId },
       orderBy: { pointsTotal: "desc" },
-    });
+    }) : [];
 
     // Sort inscribed players by ranking position (unranked go to bottom)
     const rankedPlayerIds = playerIds
@@ -1066,10 +1066,10 @@ export async function generateSchedule(tournamentId: string) {
   // ── WhatsApp: divulgar calendário no grupo (fire-and-forget) ──
   (async () => {
     try {
-      const league = await prisma.league.findUnique({
+      const league = tournament.leagueId ? await prisma.league.findUnique({
         where: { id: tournament.leagueId },
         select: { whatsappGroupId: true },
-      });
+      }) : null;
       if (league?.whatsappGroupId) {
         // Build rounds data for the message
         const allMatches = await prisma.match.findMany({
@@ -1127,7 +1127,7 @@ export async function forceRegenerateSchedule(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(tournament.leagueId);
+  await requireLeagueManager(tournament.leagueId ?? "");
 
   // Delete all results first
   await prisma.match.deleteMany({ where: { tournamentId } });
@@ -1353,7 +1353,7 @@ export async function forceRegenerateSchedule(tournamentId: string) {
   });
 
   // Recompute season rankings since results were deleted
-  await recomputeSeasonRanking(tournament.seasonId);
+  if (tournament.seasonId) await recomputeSeasonRanking(tournament.seasonId);
 
   revalidatePath(`/torneios/${tournamentId}`);
   const generatedRounds = await prisma.round.count({ where: { tournamentId } });
@@ -1497,7 +1497,7 @@ export async function generateNextAmericanoRoundAction(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(tournament.leagueId);
+  await requireLeagueManager(tournament.leagueId ?? "");
 
   if (tournament.teamMode !== "AMERICANO") {
     throw new Error("Este torneio não é do formato Americano.");
@@ -1654,7 +1654,7 @@ export async function setMatchEvent(
       include: { tournament: { include: { season: true } } },
     });
     if (!match) return { success: false, error: "Jogo não encontrado." };
-    await requireLeagueManager(match.tournament.leagueId);
+    await requireLeagueManager(match.tournament.leagueId ?? "");
 
     const validEvents = ["NONE", "WALKOVER_A", "WALKOVER_B", "CANCELLED", "INJURY", "POSTPONED"];
     if (!validEvents.includes(event)) return { success: false, error: "Evento inválido." };
@@ -1679,7 +1679,7 @@ export async function setMatchEvent(
           playedAt: new Date(),
         },
       });
-      await recomputeSeasonRanking(match.tournament.seasonId);
+      if (match.tournament.seasonId) await recomputeSeasonRanking(match.tournament.seasonId);
     } else if (event === "CANCELLED") {
       // Cancelled: clear scores, keep SCHEDULED, won't count for ranking
       await prisma.match.update({
@@ -1696,7 +1696,7 @@ export async function setMatchEvent(
           playedAt: null,
         },
       });
-      await recomputeSeasonRanking(match.tournament.seasonId);
+      if (match.tournament.seasonId) await recomputeSeasonRanking(match.tournament.seasonId);
     } else if (event === "NONE") {
       // Remove event, reset to clean state
       await prisma.match.update({
@@ -1722,10 +1722,10 @@ export async function setMatchEvent(
 export async function startMatch(matchId: string) {
   const match = await prisma.match.findUnique({
     where: { id: matchId },
-    include: { tournament: { select: { seasonId: true, season: { select: { leagueId: true } } } } },
+    include: { tournament: { select: { seasonId: true, leagueId: true, season: { select: { leagueId: true } } } } },
   });
   if (!match) throw new Error("Jogo não encontrado.");
-  await requireLeagueManager(match.tournament.season.leagueId);
+  await requireLeagueManager(match.tournament.season?.leagueId ?? match.tournament.leagueId ?? "");
   if (match.status !== "SCHEDULED") throw new Error("Jogo já foi iniciado ou terminado.");
 
   await prisma.match.update({
@@ -1759,9 +1759,9 @@ export async function saveMatchScore(
     });
 
     if (!match) return { success: false, error: "Jogo não encontrado." };
-    await requireLeagueManager(match.tournament.leagueId);
+    await requireLeagueManager(match.tournament.leagueId ?? "");
 
-    const allowDraws = match.tournament.season.allowDraws;
+    const allowDraws = match.tournament.season?.allowDraws ?? false;
     // Use knockoutSets for elimination matches if configured
     const isKnockoutMatch = match.bracketPhase && match.bracketPhase !== "GROUP";
     const numberOfSets = (isKnockoutMatch && match.tournament.knockoutSets)
@@ -1812,7 +1812,9 @@ export async function saveMatchScore(
     });
 
     // Recompute season ranking
-    await recomputeSeasonRanking(match.tournament.seasonId);
+    if (match.tournament.seasonId) {
+      await recomputeSeasonRanking(match.tournament.seasonId);
+    }
 
     // Update Elo ratings (fire-and-forget)
     updateEloAfterMatch(matchId).catch((err) =>
@@ -1849,7 +1851,7 @@ export async function resetMatch(matchId: string): Promise<{ success: true } | {
     });
 
     if (!match) return { success: false, error: "Jogo não encontrado." };
-    await requireLeagueManager(match.tournament.leagueId);
+    await requireLeagueManager(match.tournament.leagueId ?? "");
 
     await prisma.match.update({
       where: { id: matchId },
@@ -1865,7 +1867,7 @@ export async function resetMatch(matchId: string): Promise<{ success: true } | {
     });
 
     // Recompute rankings
-    await recomputeSeasonRanking(match.tournament.seasonId);
+    if (match.tournament.seasonId) await recomputeSeasonRanking(match.tournament.seasonId);
 
     logAudit("RESET_MATCH", "Match", matchId).catch(() => {});
 
@@ -2009,11 +2011,11 @@ export async function swapTournamentPlayers(
   });
 
   // Recompute season ranking if tournament has results
-  await recomputeSeasonRanking(tournament.seasonId);
+  if (tournament.seasonId) await recomputeSeasonRanking(tournament.seasonId);
 
   logAudit("SWAP_PLAYERS", "Tournament", tournamentId, { playerAId, playerBId }).catch(() => {});
   revalidatePath(`/torneios/${tournamentId}`, "page");
-  revalidatePath(`/ligas/${tournament.leagueId}`);
+  if (tournament.leagueId) revalidatePath(`/ligas/${tournament.leagueId}`);
 }
 
 // ── Check-in de jogadores ──
@@ -2021,10 +2023,10 @@ export async function swapTournamentPlayers(
 export async function checkInPlayer(tournamentId: string, playerId: string) {
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { seasonId: true, season: { select: { leagueId: true } }, status: true },
+    select: { seasonId: true, leagueId: true, season: { select: { leagueId: true } }, status: true },
   });
   if (!tournament) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(tournament.season.leagueId);
+  await requireLeagueManager(tournament.season?.leagueId ?? tournament.leagueId ?? "");
 
   const inscription = await prisma.tournamentInscription.findUnique({
     where: { tournamentId_playerId: { tournamentId, playerId } },
@@ -2046,10 +2048,10 @@ export async function checkInPlayer(tournamentId: string, playerId: string) {
 export async function checkInAllPlayers(tournamentId: string) {
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { seasonId: true, season: { select: { leagueId: true } }, status: true },
+    select: { seasonId: true, leagueId: true, season: { select: { leagueId: true } }, status: true },
   });
   if (!tournament) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(tournament.season.leagueId);
+  await requireLeagueManager(tournament.season?.leagueId ?? tournament.leagueId ?? "");
 
   await prisma.tournamentInscription.updateMany({
     where: {
@@ -2075,7 +2077,7 @@ export async function desistPlayer(tournamentId: string, playerId: string) {
     include: { teams: true },
   });
   if (!tournament) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(tournament.leagueId);
+  await requireLeagueManager(tournament.leagueId ?? "");
 
   // 2. Find the player's inscription (must be TITULAR or PROMOVIDO)
   const inscription = await prisma.tournamentInscription.findUnique({
@@ -2141,7 +2143,7 @@ export async function desistPlayer(tournamentId: string, playerId: string) {
         include: { user: true },
       });
       if (promotedPlayer?.user?.email) {
-        const league = await prisma.league.findUnique({ where: { id: tournament.leagueId } });
+        const league = tournament.leagueId ? await prisma.league.findUnique({ where: { id: tournament.leagueId } }) : null;
         sendEmail({
           to: promotedPlayer.user.email,
           subject: `CopaPro: Foi promovido a titular no torneio ${tournament.name}!`,
@@ -2336,7 +2338,7 @@ export async function finishTournament(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(tournament.leagueId);
+  await requireLeagueManager(tournament.leagueId ?? "");
 
   const finishedCount = tournament.matches.filter((m) => m.status === "FINISHED").length;
   if (finishedCount === 0) {
@@ -2377,7 +2379,7 @@ export async function finishTournament(tournamentId: string) {
   });
 
   // Recompute season rankings (in case unfinished matches were deleted)
-  await recomputeSeasonRanking(tournament.seasonId);
+  if (tournament.seasonId) await recomputeSeasonRanking(tournament.seasonId);
 
   // ── Email: notify all participants with final standings ──
   try {
@@ -2432,7 +2434,7 @@ export async function finishTournament(tournamentId: string) {
             html: tournamentFinishedEmail({
               playerName: ins.player.fullName,
               tournamentName: fullTournament.name,
-              leagueName: fullTournament.league.name,
+              leagueName: fullTournament.league?.name ?? "",
               rankings,
               tournamentUrl,
             }),
@@ -2482,13 +2484,13 @@ export async function finishTournament(tournamentId: string) {
           .sort((a, b) => b.points - a.points)
           .map((r, i) => ({ position: i + 1, teamName: r.name, points: r.points, wins: r.wins, losses: r.losses }));
 
-        await sendGroupMessage(t.league.whatsappGroupId, tournamentFinishedMessage(t.name, rankings));
+        await sendGroupMessage(t.league?.whatsappGroupId ?? null, tournamentFinishedMessage(t.name, rankings));
 
         // Season ranking — full sort with tie-breakers
-        const seasonRanking = await prisma.seasonRankingEntry.findMany({
+        const seasonRanking = t.season ? await prisma.seasonRankingEntry.findMany({
           where: { seasonId: t.season.id },
           include: { player: { select: { fullName: true, nickname: true } } },
-        });
+        }) : [];
         const sortedRanking = seasonRanking
           .sort((a, b) => {
             if (b.pointsTotal !== a.pointsTotal) return b.pointsTotal - a.pointsTotal;
@@ -2507,7 +2509,9 @@ export async function finishTournament(tournamentId: string) {
           losses: r.losses,
           setsDiff: r.setsDiff,
         }));
-        await sendGroupMessage(t.league.whatsappGroupId, seasonRankingMessage(t.season.name, seasonRankings));
+        if (t.league?.whatsappGroupId && t.season) {
+          await sendGroupMessage(t.league.whatsappGroupId, seasonRankingMessage(t.season.name, seasonRankings));
+        }
       }
     } catch (err) {
       console.error("[WHATSAPP] Erro ao enviar ranking final:", err);
@@ -2528,7 +2532,7 @@ export async function deleteTournament(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(tournament.leagueId);
+  await requireLeagueManager(tournament.leagueId ?? "");
 
   logAudit("DELETE_TOURNAMENT", "Tournament", tournamentId).catch(() => {});
 
@@ -2536,7 +2540,7 @@ export async function deleteTournament(tournamentId: string) {
   await prisma.tournament.delete({ where: { id: tournamentId } });
 
   // Recompute season rankings since match data was removed
-  await recomputeSeasonRanking(tournament.seasonId);
+  if (tournament.seasonId) await recomputeSeasonRanking(tournament.seasonId);
 
   revalidatePath(`/ligas`);
   return { seasonId: tournament.seasonId, leagueId: tournament.leagueId };
@@ -2563,7 +2567,7 @@ export async function getTournamentForEdit(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(tournament.leagueId);
+  await requireLeagueManager(tournament.leagueId ?? "");
 
   const hasResults = tournament.matches.some((m) => m.status === "FINISHED");
   if (hasResults || tournament.status === "FINISHED") {
@@ -2595,7 +2599,7 @@ export async function updateTournament(data: {
   });
 
   if (!existing) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(existing.leagueId);
+  await requireLeagueManager(existing.leagueId ?? "");
 
   const hasResults = existing.matches.some((m) => m.status === "FINISHED");
   if (hasResults) {
@@ -2676,10 +2680,10 @@ export async function updateTournament(data: {
   if (data.teams.length > 0) {
     (async () => {
       try {
-        const league = await prisma.league.findUnique({
+        const league = existing.leagueId ? await prisma.league.findUnique({
           where: { id: existing.leagueId },
           select: { whatsappGroupId: true },
-        });
+        }) : null;
         if (league?.whatsappGroupId) {
           const teamsWithNames = await Promise.all(
             data.teams.map(async (t) => {
@@ -2729,7 +2733,7 @@ export async function updateTournamentBasic(data: {
   });
 
   if (!existing) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(existing.leagueId);
+  await requireLeagueManager(existing.leagueId ?? "");
 
   if (existing.status === "FINISHED") {
     throw new Error("Não é possível editar um torneio terminado.");
@@ -3595,7 +3599,7 @@ export async function getAvailablePlayersForSwap(tournamentId: string) {
 
   // Get all approved league members with players, excluding those already in tournament
   const memberships = await prisma.leagueMembership.findMany({
-    where: { leagueId: tournament.leagueId, status: "APPROVED" },
+    where: { leagueId: tournament.leagueId ?? "", status: "APPROVED" },
     include: { user: { include: { player: true } } },
   });
 
@@ -4065,7 +4069,7 @@ export async function cloneTournament(tournamentId: string) {
   });
 
   if (!source) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(source.leagueId);
+  await requireLeagueManager(source.leagueId ?? "");
 
   const clone = await prisma.tournament.create({
     data: {
@@ -4130,7 +4134,7 @@ export async function reopenTournament(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(tournament.leagueId);
+  await requireLeagueManager(tournament.leagueId ?? "");
 
   if (tournament.status !== "FINISHED") {
     throw new Error("Apenas torneios terminados podem ser reabertos.");
@@ -4718,7 +4722,7 @@ export async function getPlayerMatchHistory(
       id: m.id,
       date: m.playedAt,
       tournament: m.tournament.name,
-      season: m.tournament.season.name,
+      season: m.tournament.season?.name ?? "—",
       court: m.court?.name || null,
       partner: myTeam.player2
         ? myTeam.player1Id === playerId
@@ -4896,7 +4900,7 @@ export async function confirmMatchResult(submissionId: string) {
     scores.set1A!, scores.set1B!,
     scores.set2A, scores.set2B,
     scores.set3A, scores.set3B,
-    match.tournament.season.allowDraws,
+    match.tournament.season?.allowDraws ?? false,
     match.tournament.numberOfSets
   );
 
@@ -4916,7 +4920,7 @@ export async function confirmMatchResult(submissionId: string) {
   });
 
   // Recompute ranking
-  await recomputeSeasonRanking(match.tournament.seasonId);
+  if (match.tournament.seasonId) await recomputeSeasonRanking(match.tournament.seasonId);
 
   // Fire-and-forget Elo update
   updateEloAfterMatch(match.id).catch(() => {});
@@ -4992,7 +4996,7 @@ async function saveMatchScoreInternal(
   },
   match: any
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const allowDraws = match.tournament.season.allowDraws;
+  const allowDraws = match.tournament.season?.allowDraws ?? false;
   const numberOfSets = match.tournament.numberOfSets;
 
   const validationError = validateMatchScores(
@@ -5033,7 +5037,7 @@ async function saveMatchScoreInternal(
     data: { status: "RUNNING" },
   });
 
-  await recomputeSeasonRanking(match.tournament.seasonId);
+  if (match.tournament.seasonId) await recomputeSeasonRanking(match.tournament.seasonId);
 
   updateEloAfterMatch(matchId).catch((err) =>
     console.error("[ELO] Erro ao atualizar ratings:", (err as Error).message)
@@ -5122,9 +5126,38 @@ export async function updateSeasonSettings(
 
 // ── Easy Mix (simplified public tournaments) ──
 
+export async function searchPlayers(query: string) {
+  "use server";
+  if (!query || query.trim().length < 1) return [];
+  const q = query.trim();
+  const results = await prisma.player.findMany({
+    where: {
+      user: { isNot: null },
+      OR: [
+        { fullName: { contains: q, mode: "insensitive" } },
+        { nickname: { contains: q, mode: "insensitive" } },
+      ],
+    },
+    select: {
+      id: true,
+      fullName: true,
+      nickname: true,
+      user: { select: { id: true } },
+    },
+    take: 10,
+  });
+  return results.map((p) => ({
+    id: p.id,
+    fullName: p.fullName,
+    nickname: p.nickname,
+    userId: p.user!.id,
+  }));
+}
+
 export async function createEasyMix(data: {
   name: string;
-  playerNames: string[];
+  playerNames?: string[];
+  players?: { name: string; playerId?: string }[];
   courtsCount: number;
   numberOfSets: number;
   numberOfRounds: number;
@@ -5133,48 +5166,38 @@ export async function createEasyMix(data: {
   if (!session?.user?.id) throw new Error("Autenticação necessária.");
 
   if (!data.name?.trim()) throw new Error("Nome é obrigatório.");
-  if (data.playerNames.length < 4) throw new Error("Mínimo de 4 jogadores.");
+
+  // Support both old format (playerNames) and new format (players)
+  const playerEntries: { name: string; playerId?: string }[] = data.players
+    ? data.players
+    : (data.playerNames ?? []).map((n) => ({ name: n }));
+
+  if (playerEntries.length < 4) throw new Error("Mínimo de 4 jogadores.");
   if (data.courtsCount < 1) throw new Error("Mínimo de 1 campo.");
 
   // Generate a unique slug
   const slug = Math.random().toString(36).substring(2, 10);
 
-  // Create a hidden league for this Easy Mix
-  const league = await prisma.league.create({
-    data: {
-      name: `Easy Mix - ${data.name}`,
-      isActive: true,
-    },
-  });
-
-  // Add current user as league manager
-  await prisma.leagueManager.create({
-    data: { leagueId: league.id, userId: session.user.id },
-  });
-
-  // Create default season
-  const season = await prisma.season.create({
-    data: {
-      leagueId: league.id,
-      name: "Easy Mix",
-      isActive: true,
-    },
-  });
-
-  // Create ad-hoc players (not linked to User accounts)
+  // Create players: use existing if playerId provided, otherwise create ad-hoc
   const playerIds: string[] = [];
-  for (const name of data.playerNames) {
-    const player = await prisma.player.create({
-      data: { fullName: name.trim() },
-    });
-    playerIds.push(player.id);
+  for (const entry of playerEntries) {
+    if (entry.playerId) {
+      // Registered player — verify they exist
+      const existing = await prisma.player.findUnique({ where: { id: entry.playerId } });
+      if (!existing) throw new Error(`Jogador não encontrado: ${entry.name}`);
+      playerIds.push(existing.id);
+    } else {
+      // Ad-hoc player (no user account)
+      const player = await prisma.player.create({
+        data: { fullName: entry.name.trim() },
+      });
+      playerIds.push(player.id);
+    }
   }
 
-  // Create tournament
+  // Create standalone tournament (no league/season for Easy Mix)
   const tournament = await prisma.tournament.create({
     data: {
-      leagueId: league.id,
-      seasonId: season.id,
       name: data.name.trim(),
       startDate: new Date(),
       format: "ROUND_ROBIN",
@@ -5260,7 +5283,7 @@ export async function saveEasyMixScore(
     if (!match) return { success: false, error: "Jogo não encontrado." };
     if (!match.tournament.isEasyMix) return { success: false, error: "Este jogo não é Easy Mix." };
 
-    const allowDraws = match.tournament.season.allowDraws;
+    const allowDraws = match.tournament.season?.allowDraws ?? false;
     const numberOfSets = match.tournament.numberOfSets;
 
     const validationError = validateMatchScores(
@@ -5288,6 +5311,20 @@ export async function saveEasyMixScore(
         playedAt: new Date(),
       },
     });
+
+    // ELO update for Easy Mix: only if ALL players are registered (have userId)
+    if (match.tournament.isEasyMix && winnerTeamId) {
+      const inscriptions = await prisma.tournamentInscription.findMany({
+        where: { tournamentId: match.tournament.id },
+        include: { player: { include: { user: true } } },
+      });
+      const allRegistered = inscriptions.every((ins) => ins.player.user !== null);
+      if (allRegistered) {
+        updateEloAfterMatch(matchId).catch((err) =>
+          console.error("[ELO] Erro ao atualizar ratings:", (err as Error).message)
+        );
+      }
+    }
 
     revalidatePath(`/mix/${match.tournament.publicSlug}`);
     return { success: true };
@@ -5643,9 +5680,9 @@ export async function getScoreboardData(tournamentId: string) {
   const userId = (session.user as any).id;
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
   const isAdminUser = user?.role === "ADMINISTRADOR";
-  const manager = await prisma.leagueManager.findUnique({
+  const manager = tournament.leagueId ? await prisma.leagueManager.findUnique({
     where: { userId_leagueId: { userId, leagueId: tournament.leagueId } },
-  });
+  }) : null;
   if (!isAdminUser && !manager) {
     throw new Error("Sem permissão. Apenas administradores e gestores podem aceder ao placar.");
   }
@@ -5672,9 +5709,9 @@ export async function saveScoreboardMatch(
     });
 
     if (!match) return { success: false, error: "Jogo não encontrado." };
-    await requireLeagueManager(match.tournament.leagueId);
+    await requireLeagueManager(match.tournament.leagueId ?? "");
 
-    const allowDraws = match.tournament.season.allowDraws;
+    const allowDraws = match.tournament.season?.allowDraws ?? false;
     const numberOfSets = match.tournament.numberOfSets;
 
     const validationError = validateMatchScores(

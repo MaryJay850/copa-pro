@@ -172,7 +172,7 @@ export async function generateGroupSchedule(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(tournament.leagueId);
+  await requireLeagueManager(tournament.leagueId ?? "");
 
   if (tournament.format !== "GROUP_KNOCKOUT") {
     throw new Error("Este torneio nao e do formato Fase de Grupos + Eliminatorias.");
@@ -278,7 +278,7 @@ export async function advanceToKnockout(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(tournament.leagueId);
+  await requireLeagueManager(tournament.leagueId ?? "");
 
   if (tournament.format !== "GROUP_KNOCKOUT") {
     throw new Error("Este torneio nao e do formato Fase de Grupos + Eliminatorias.");

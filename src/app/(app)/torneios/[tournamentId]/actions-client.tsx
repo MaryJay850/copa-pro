@@ -27,8 +27,8 @@ export function TournamentActions({
 }: {
   tournamentId: string;
   status: string;
-  leagueId: string;
-  seasonId: string;
+  leagueId: string | null;
+  seasonId: string | null;
   hasResults: boolean;
   finishedMatches?: number;
   totalMatches?: number;
@@ -107,7 +107,7 @@ export function TournamentActions({
     setLoading(true);
     try {
       await deleteTournament(tournamentId);
-      router.push(`/ligas/${leagueId}/epocas/${seasonId}`);
+      router.push(leagueId && seasonId ? `/ligas/${leagueId}/epocas/${seasonId}` : `/easy-mix`);
     } catch (e: unknown) {
       toast.error(sanitizeError(e));
     }

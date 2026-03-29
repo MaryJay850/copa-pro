@@ -186,10 +186,10 @@ export function TournamentDetailContent({
             <div className="flex-1">
               <div className="flex items-center gap-2 text-xs text-text-muted mb-1 font-medium">
                 <Link href="/ligas" className="hover:text-primary transition-colors">Ligas</Link>
-                <span>&rsaquo;</span>
-                <Link href={`/ligas/${tournament.leagueId}`} className="hover:text-primary transition-colors">{tournament.league.name}</Link>
-                <span>&rsaquo;</span>
-                <Link href={`/ligas/${tournament.leagueId}/epocas/${tournament.seasonId}`} className="hover:text-primary transition-colors">{tournament.season.name}</Link>
+                {tournament.league && (<><span>&rsaquo;</span>
+                <Link href={`/ligas/${tournament.leagueId}`} className="hover:text-primary transition-colors">{tournament.league.name}</Link></>)}
+                {tournament.season && (<><span>&rsaquo;</span>
+                <Link href={`/ligas/${tournament.leagueId}/epocas/${tournament.seasonId}`} className="hover:text-primary transition-colors">{tournament.season.name}</Link></>)}
                 <span>&rsaquo;</span>
               </div>
               <div className="flex items-center gap-3 flex-wrap">
@@ -371,6 +371,7 @@ export function TournamentDetailContent({
           <Card className="py-5 px-5">
             <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Ligações</h3>
             <div className="space-y-1.5">
+              {tournament.league && (
               <Link
                 href={`/ligas/${tournament.leagueId}`}
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
@@ -380,6 +381,8 @@ export function TournamentDetailContent({
                 </svg>
                 {tournament.league.name}
               </Link>
+              )}
+              {tournament.season && (
               <Link
                 href={`/ligas/${tournament.leagueId}/epocas/${tournament.seasonId}`}
                 className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
@@ -389,6 +392,7 @@ export function TournamentDetailContent({
                 </svg>
                 {tournament.season.name}
               </Link>
+              )}
               {tournament.status !== "FINISHED" && (
                 <Link
                   href={`/torneios/${tournament.id}/placar`}
@@ -477,7 +481,7 @@ export function TournamentDetailContent({
                   currentUserId={currentUserId ?? undefined}
                   pendingSubmissionsMap={pendingSubmissionsMap}
                   tournamentName={tournament.name}
-                  seasonName={tournament.season.name}
+                  seasonName={tournament.season?.name ?? ""}
                   tournamentId={tournament.id}
                   teams={tournament.teams}
                   teamMode={tournament.teamMode}

@@ -229,7 +229,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Check permissions
-    await requireLeagueManager(tournament.leagueId);
+    await requireLeagueManager(tournament.leagueId ?? "");
 
     // Collect images from form data
     const images: { base64: string; mediaType: string }[] = [];

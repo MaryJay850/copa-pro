@@ -20,7 +20,7 @@ export default async function EditTournamentPage({
 
   if (!tournament) notFound();
 
-  const allPlayers = await getLeagueMembersAsPlayers(tournament.leagueId);
+  const allPlayers = tournament.leagueId ? await getLeagueMembersAsPlayers(tournament.leagueId) : [];
 
   // Build selectionOrder from inscriptions (ordered by orderIndex) or fallback to teams
   const selectionOrder = tournament.inscriptions && tournament.inscriptions.length > 0
@@ -60,8 +60,8 @@ export default async function EditTournamentPage({
       leagueId={tournament.leagueId}
       seasonId={tournament.seasonId}
       existingPlayers={allPlayers}
-      leagueName={tournament.league.name}
-      seasonName={tournament.season.name}
+      leagueName={tournament.league?.name ?? ""}
+      seasonName={tournament.season?.name ?? ""}
       editMode={{
         tournamentId: tournament.id,
         initialData,

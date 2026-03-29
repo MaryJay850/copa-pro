@@ -63,7 +63,7 @@ async function notifyManagersTournamentTomorrow() {
 
   for (const t of tournaments) {
     // Collect manager emails
-    const managerEmails = t.league.managers
+    const managerEmails = (t.league?.managers ?? [])
       .map((m) => m.user.email)
       .filter(Boolean);
 
@@ -93,7 +93,7 @@ async function notifyManagersTournamentTomorrow() {
           subject: `Lembrete: ${t.name} é amanhã!`,
           html: tournamentReminderManagerEmail({
             tournamentName: t.name,
-            leagueName: t.league.name,
+            leagueName: t.league?.name ?? "",
             startDate: formatDate(t.startDate!),
             inscriptions,
           }),
@@ -233,7 +233,7 @@ async function notifyPlayersTournamentToday() {
           html: tournamentDayPlayerEmail({
             playerName: pInfo.playerName,
             tournamentName: t.name,
-            leagueName: t.league.name,
+            leagueName: t.league?.name ?? "",
             teamName: pInfo.teamName,
             teamPartner: pInfo.partnerName,
             rounds,

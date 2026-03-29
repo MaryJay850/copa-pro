@@ -36,8 +36,8 @@ export function TournamentWizard({
   leagueName,
   seasonName,
 }: {
-  leagueId: string;
-  seasonId: string;
+  leagueId: string | null;
+  seasonId: string | null;
   existingPlayers: Player[];
   leagueName?: string;
   seasonName?: string;
@@ -143,7 +143,7 @@ export function TournamentWizard({
   const [savingTemplate, setSavingTemplate] = useState(false);
 
   const loadTemplates = useCallback(async () => {
-    if (templatesLoaded) return;
+    if (templatesLoaded || !leagueId) return;
     try {
       const t = await getTemplates(leagueId);
       setTemplates(t as any);
@@ -176,6 +176,7 @@ export function TournamentWizard({
         numberOfRounds, format: tournamentFormat, numberOfGroups,
         knockoutSets, rankedSplitSubMode,
       });
+      if (!leagueId) return;
       await saveTemplate(leagueId, templateName, config);
       setShowSaveTemplate(false);
       setTemplateName("");
@@ -226,7 +227,7 @@ export function TournamentWizard({
   }, []);
 
   const loadClubs = useCallback(async () => {
-    if (clubsLoaded) return;
+    if (clubsLoaded || !leagueId) return;
     try {
       const data = await getClubsForLeague(leagueId);
       setClubs(data.map((c: any) => ({ id: c.id, name: c.name })));
@@ -447,7 +448,7 @@ export function TournamentWizard({
         }
         router.push(`/torneios/${editMode.tournamentId}`);
       } else {
-        const tournament = await createTournament({ leagueId, seasonId, ...payload });
+        const tournament = await createTournament({ leagueId: leagueId!, seasonId: seasonId!, ...payload });
         const hasTeamsOrPerRound = teams.length > 0 || teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO";
         if (hasTeamsOrPerRound) await generateSchedule(tournament.id);
         router.push(`/torneios/${tournament.id}`);
@@ -1031,7 +1032,7 @@ export function TournamentWizard({
                 <div className="flex flex-wrap gap-3 mt-1">
                   {(["FIXED_TEAMS", "RANDOM_TEAMS", "MANUAL_TEAMS", "RANDOM_PER_ROUND", "RANKED_SPLIT", "AMERICANO"] as const).map((mode) => (
                     <label key={mode} className="flex items-center gap-2 text-sm cursor-pointer">
-                      <input type="radio" checked={teamMode === mode} onChange={() => { setTeamMode(mode); if (mode === "RANKED_SPLIT" && !rankingLoaded) { getPlayersWithRanking(seasonId).then((data) => { setRankingData(data); setRankingLoaded(true); }).catch(() => {}); } }} className="text-primary focus:ring-primary" />
+                      <input type="radio" checked={teamMode === mode} onChange={() => { setTeamMode(mode); if (mode === "RANKED_SPLIT" && !rankingLoaded && seasonId) { getPlayersWithRanking(seasonId).then((data) => { setRankingData(data); setRankingLoaded(true); }).catch(() => {}); } }} className="text-primary focus:ring-primary" />
                       {mode === "FIXED_TEAMS" ? "Equipas Fixas" : mode === "RANDOM_TEAMS" ? "Equipas Aleatórias" : mode === "MANUAL_TEAMS" ? "Equipas Manuais" : mode === "RANDOM_PER_ROUND" ? "Aleatórias por Ronda" : mode === "RANKED_SPLIT" ? "Aleatórias por Nível" : "Americano"}
                     </label>
                   ))}
