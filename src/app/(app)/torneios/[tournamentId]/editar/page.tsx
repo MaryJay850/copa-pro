@@ -2,7 +2,6 @@ export const dynamic = "force-dynamic";
 
 import { getTournamentForEdit, getLeagueMembersAsPlayers } from "@/lib/actions";
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { TournamentWizard } from "@/app/(app)/ligas/[leagueId]/epocas/[seasonId]/torneios/novo/wizard";
 
 export default async function EditTournamentPage({
@@ -57,47 +56,16 @@ export default async function EditTournamentPage({
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <div className="flex items-center gap-2 text-sm text-text-muted mb-1">
-          <Link href="/ligas" className="hover:text-text">
-            Ligas
-          </Link>
-          <span>/</span>
-          <Link
-            href={`/ligas/${tournament.leagueId}`}
-            className="hover:text-text"
-          >
-            {tournament.league.name}
-          </Link>
-          <span>/</span>
-          <Link
-            href={`/ligas/${tournament.leagueId}/epocas/${tournament.seasonId}`}
-            className="hover:text-text"
-          >
-            {tournament.season.name}
-          </Link>
-          <span>/</span>
-          <Link
-            href={`/torneios/${tournament.id}`}
-            className="hover:text-text"
-          >
-            {tournament.name}
-          </Link>
-          <span>/</span>
-        </div>
-        <h1 className="text-2xl font-bold">Editar Torneio</h1>
-      </div>
-
-      <TournamentWizard
-        leagueId={tournament.leagueId}
-        seasonId={tournament.seasonId}
-        existingPlayers={allPlayers}
-        editMode={{
-          tournamentId: tournament.id,
-          initialData,
-        }}
-      />
-    </div>
+    <TournamentWizard
+      leagueId={tournament.leagueId}
+      seasonId={tournament.seasonId}
+      existingPlayers={allPlayers}
+      leagueName={tournament.league.name}
+      seasonName={tournament.season.name}
+      editMode={{
+        tournamentId: tournament.id,
+        initialData,
+      }}
+    />
   );
 }

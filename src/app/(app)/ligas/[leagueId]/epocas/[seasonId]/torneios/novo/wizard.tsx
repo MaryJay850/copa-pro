@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -32,10 +33,14 @@ export function TournamentWizard({
   seasonId,
   existingPlayers,
   editMode,
+  leagueName,
+  seasonName,
 }: {
   leagueId: string;
   seasonId: string;
   existingPlayers: Player[];
+  leagueName?: string;
+  seasonName?: string;
   editMode?: {
     tournamentId: string;
     initialData: {
@@ -476,22 +481,196 @@ export function TournamentWizard({
 
   const stepBars = Array.from({ length: totalSteps }, (_, i) => i + 1);
 
+  const stepLabels = [
+    { num: 1, label: "Configuração", icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
+    { num: 2, label: "Jogadores", icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
+    ...(!skipsTeamStep ? [{ num: 3, label: "Equipas", icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg> }] : []),
+    { num: reviewStep, label: "Confirmar", icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> },
+  ];
+
   return (
-    <div className="max-w-2xl space-y-6">
-      <div className="flex gap-1">
-        {stepBars.map((s) => (
-          <div key={s} className={`h-1.5 flex-1 rounded-full transition-colors ${s <= step ? "bg-primary" : "bg-border"}`} />
-        ))}
+    <div className="space-y-6 animate-fade-in-up">
+      {/* ─── Top Header Card ─── */}
+      <div className="rounded-lg shadow-card bg-surface border border-border overflow-hidden">
+        <div className="h-28" style={{ background: "linear-gradient(to right, #5766da, #7c6fe0, #a78bfa)" }} />
+
+        <div className="px-6 pb-6 relative">
+          {/* Avatar */}
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg border-4 border-surface absolute -top-10 left-6" style={{ background: "linear-gradient(to bottom right, #5766da, #8b9cf7)" }}>
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </div>
+
+          <div className="pt-14 flex flex-col sm:flex-row sm:items-center gap-4">
+            {/* Name & breadcrumb */}
+            <div className="flex-1">
+              <div className="flex items-center gap-2 text-xs text-text-muted mb-1 font-medium">
+                <Link href="/ligas" className="hover:text-primary transition-colors">Ligas</Link>
+                <span>&rsaquo;</span>
+                <Link href={`/ligas/${leagueId}`} className="hover:text-primary transition-colors">{leagueName || "Liga"}</Link>
+                <span>&rsaquo;</span>
+                <Link href={`/ligas/${leagueId}/epocas/${seasonId}`} className="hover:text-primary transition-colors">{seasonName || "Época"}</Link>
+                <span>&rsaquo;</span>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-xl font-extrabold tracking-tight">{editMode ? "Editar Torneio" : "Novo Torneio"}</h1>
+                <Badge variant="info">Passo {step} de {totalSteps}</Badge>
+              </div>
+            </div>
+
+            {/* Step progress bar */}
+            <div className="flex items-center gap-1.5 min-w-[180px]">
+              {stepBars.map((s) => (
+                <div key={s} className={`h-2 flex-1 rounded-full transition-colors ${s <= step ? "bg-primary" : "bg-border"}`} />
+              ))}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-lg">{error}</div>
-      )}
+      {/* ─── Body: Sidebar + Content ─── */}
+      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+        {/* Left Sidebar */}
+        <div className="space-y-5">
+          {/* Step Navigation */}
+          <Card className="py-5 px-5">
+            <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Passos</h3>
+            <div className="space-y-1.5">
+              {stepLabels.map((sl) => {
+                const isCurrent = step === sl.num;
+                const isCompleted = step > sl.num;
+                return (
+                  <button
+                    key={sl.num}
+                    onClick={() => {
+                      // Only allow navigating to completed steps
+                      if (isCompleted) setStep(sl.num);
+                    }}
+                    disabled={!isCompleted && !isCurrent}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      isCurrent
+                        ? "bg-primary/10 text-primary"
+                        : isCompleted
+                          ? "text-text hover:bg-surface-hover cursor-pointer"
+                          : "text-text-muted/50 cursor-default"
+                    }`}
+                  >
+                    <span className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold ${
+                      isCurrent
+                        ? "bg-primary text-white"
+                        : isCompleted
+                          ? "bg-success/20 text-success"
+                          : "bg-border text-text-muted/50"
+                    }`}>
+                      {isCompleted ? (
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+                      ) : sl.num}
+                    </span>
+                    {sl.label}
+                  </button>
+                );
+              })}
+            </div>
+          </Card>
 
-      {/* Step 1: Basic info */}
-      {step === 1 && (
-        <Card>
-          <h2 className="text-lg font-semibold mb-4">Passo 1: Informações Básicas</h2>
+          {/* Info Card */}
+          <Card className="py-5 px-5">
+            <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Resumo</h3>
+            <div className="space-y-3">
+              {name && (
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3.5 h-3.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-text-muted">Nome</p>
+                    <p className="text-sm font-medium text-text truncate">{name}</p>
+                  </div>
+                </div>
+              )}
+              {startDate && (
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-success/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3.5 h-3.5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-text-muted">Data</p>
+                    <p className="text-sm font-medium text-text">{new Date(startDate + "T00:00:00").toLocaleDateString("pt-PT", { day: "2-digit", month: "short", year: "numeric" })}</p>
+                  </div>
+                </div>
+              )}
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-warning/10 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-3.5 h-3.5 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-text-muted">Jogadores</p>
+                  <p className="text-sm font-medium text-text">{selectionOrder.length > 0 ? `${selectionOrder.length} selecionados` : "Nenhum"}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-info/10 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-3.5 h-3.5 text-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-text-muted">Campos</p>
+                  <p className="text-sm font-medium text-text">{effectiveCourtsCount}</p>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Quick Links */}
+          <Card className="py-5 px-5">
+            <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Ligações</h3>
+            <div className="space-y-1.5">
+              <Link
+                href={`/ligas/${leagueId}`}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
+              >
+                <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                {leagueName || "Liga"}
+              </Link>
+              <Link
+                href={`/ligas/${leagueId}/epocas/${seasonId}`}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
+              >
+                <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {seasonName || "Época"}
+              </Link>
+            </div>
+          </Card>
+        </div>
+
+        {/* Right Content Area */}
+        <div className="space-y-6">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm px-4 py-2 rounded-lg">{error}</div>
+          )}
+
+          {/* Step 1: Basic info */}
+          {step === 1 && (
+            <Card className="py-5 px-6">
+              <h2 className="text-base font-bold mb-5 flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Configuração do Torneio
+              </h2>
           <div className="space-y-4">
             <Input label="Nome do Torneio" tooltip="Nome do torneio. Ex: Torneio Janeiro, Taça Verão" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Torneio Janeiro" required />
 
@@ -852,8 +1031,11 @@ export function TournamentWizard({
 
       {/* Step 2: Players */}
       {step === 2 && (
-        <Card>
-          <h2 className="text-lg font-semibold mb-4">Passo 2: Jogadores</h2>
+        <Card className="py-5 px-6">
+          <h2 className="text-base font-bold mb-5 flex items-center gap-2">
+            <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+            Jogadores
+          </h2>
           <p className="text-sm text-text-muted mb-1">
             Selecione os jogadores ({selectionOrder.length} selecionados).
             {selectionOrder.length > 0 && (teamSize === 1 ? " Mínimo 2." : " Número par de titulares (mínimo 4).")}
@@ -941,9 +1123,10 @@ export function TournamentWizard({
 
       {/* Step 3: Teams (only for 2v2, not RANDOM_PER_ROUND) */}
       {step === 3 && teamSize === 2 && teamMode !== "RANDOM_PER_ROUND" && (
-        <Card>
-          <h2 className="text-lg font-semibold mb-4">
-            Passo 3: {teamMode === "RANDOM_TEAMS" ? "Equipas Aleatórias" : teamMode === "MANUAL_TEAMS" ? "Formar Equipas Manualmente" : "Formar Equipas"}
+        <Card className="py-5 px-6">
+          <h2 className="text-base font-bold mb-5 flex items-center gap-2">
+            <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+            {teamMode === "RANDOM_TEAMS" ? "Equipas Aleatórias" : teamMode === "MANUAL_TEAMS" ? "Formar Equipas Manualmente" : "Formar Equipas"}
           </h2>
 
           {teamMode === "RANDOM_TEAMS" && (
@@ -997,9 +1180,10 @@ export function TournamentWizard({
 
       {/* Review step */}
       {step === reviewStep && (
-        <Card>
-          <h2 className="text-lg font-semibold mb-4">
-            Passo {reviewStep}: {editMode ? "Confirmar Alterações" : "Confirmar e Criar"}
+        <Card className="py-5 px-6">
+          <h2 className="text-base font-bold mb-5 flex items-center gap-2">
+            <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            {editMode ? "Confirmar Alterações" : "Confirmar e Criar"}
           </h2>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Nome</span><span className="font-medium">{name}</span></div>
@@ -1073,6 +1257,9 @@ export function TournamentWizard({
           </div>
         </Card>
       )}
+
+        </div>
+      </div>
     </div>
   );
 }

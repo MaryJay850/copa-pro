@@ -85,7 +85,7 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
   const [showAddMemberModal, setShowAddMemberModal] = useState(false);
   const [showAddClubModal, setShowAddClubModal] = useState(false);
   const [expandedClubs, setExpandedClubs] = useState<Set<string>>(new Set());
-  const [activeSection, setActiveSection] = useState<string>("info-gerais");
+  const [activeSection, setActiveSection] = useState<string>("epocas");
 
   // Members sorting
   const [memberSort, setMemberSort] = useState<{ col: string; dir: "asc" | "desc" }>({ col: "name", dir: "asc" });
