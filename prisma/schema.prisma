@@ -147,8 +147,21 @@ model League {
   memberships LeagueMembership[]
   invites     LeagueInvite[]
   leagueClubs LeagueClub[]
+  templates   TournamentTemplate[]
 
   @@map("leagues")
+}
+
+model TournamentTemplate {
+  id        String   @id @default(cuid())
+  leagueId  String
+  name      String
+  config    String   // JSON with wizard config
+  createdAt DateTime @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@map("tournament_templates")
 }
 
 model Season {

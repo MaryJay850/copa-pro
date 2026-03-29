@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, FieldLabel } from "@/components/ui/tooltip";
-import { createTournament, generateSchedule, updateTournament, updateTournamentBasic, getPlayersWithRanking } from "@/lib/actions";
+import { createTournament, generateSchedule, updateTournament, updateTournamentBasic, getPlayersWithRanking, saveTemplate, getTemplates, deleteTemplate } from "@/lib/actions";
 import { getClubsForLeague, getAvailableCourtsForClub } from "@/lib/actions/club-actions";
 import { sanitizeError } from "@/lib/error-utils";
 
@@ -134,6 +134,62 @@ export function TournamentWizard({
   const [randomSeed, setRandomSeed] = useState(
     editMode?.initialData.randomSeed ?? Math.random().toString(36).substring(2, 8)
   );
+
+  // Templates
+  const [templates, setTemplates] = useState<{ id: string; name: string; config: string }[]>([]);
+  const [templatesLoaded, setTemplatesLoaded] = useState(false);
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState("");
+  const [savingTemplate, setSavingTemplate] = useState(false);
+
+  const loadTemplates = useCallback(async () => {
+    if (templatesLoaded) return;
+    try {
+      const t = await getTemplates(leagueId);
+      setTemplates(t as any);
+      setTemplatesLoaded(true);
+    } catch { /* ignore */ }
+  }, [leagueId, templatesLoaded]);
+
+  const handleApplyTemplate = (config: string) => {
+    try {
+      const c = JSON.parse(config);
+      if (c.teamMode) setTeamMode(c.teamMode);
+      if (c.numberOfSets) setNumberOfSets(c.numberOfSets);
+      if (c.matchesPerPair) setMatchesPerPair(c.matchesPerPair);
+      if (c.courtsCount) setCourtsCount(c.courtsCount);
+      if (c.teamSize) setTeamSize(c.teamSize);
+      if (c.numberOfRounds) setNumberOfRounds(c.numberOfRounds);
+      if (c.format) setTournamentFormat(c.format);
+      if (c.numberOfGroups) setNumberOfGroups(c.numberOfGroups);
+      if (c.knockoutSets) setKnockoutSets(c.knockoutSets);
+      if (c.rankedSplitSubMode) setRankedSplitSubMode(c.rankedSplitSubMode);
+    } catch { /* ignore */ }
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateName.trim()) return;
+    setSavingTemplate(true);
+    try {
+      const config = JSON.stringify({
+        teamMode, numberOfSets, matchesPerPair, courtsCount, teamSize,
+        numberOfRounds, format: tournamentFormat, numberOfGroups,
+        knockoutSets, rankedSplitSubMode,
+      });
+      await saveTemplate(leagueId, templateName, config);
+      setShowSaveTemplate(false);
+      setTemplateName("");
+      setTemplatesLoaded(false); // Reload on next open
+    } catch { /* ignore */ }
+    setSavingTemplate(false);
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    try {
+      await deleteTemplate(id);
+      setTemplates((t) => t.filter((x) => x.id !== id));
+    } catch { /* ignore */ }
+  };
 
   // Derived values
   const selectedPlayerIds = new Set(selectionOrder);
@@ -671,6 +727,45 @@ export function TournamentWizard({
                 </svg>
                 Configuração do Torneio
               </h2>
+
+              {/* Template selector */}
+              {!editMode && (
+                <div className="mb-5 p-3 bg-surface-alt rounded-lg border border-border">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-text-muted uppercase tracking-wider">Usar Modelo</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                      defaultValue=""
+                      onFocus={loadTemplates}
+                      onChange={(e) => {
+                        if (!e.target.value) return;
+                        const tpl = templates.find((t) => t.id === e.target.value);
+                        if (tpl) handleApplyTemplate(tpl.config);
+                      }}
+                    >
+                      <option value="">Sem modelo (começar do zero)</option>
+                      {templates.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    {templates.length > 0 && (
+                      <button
+                        type="button"
+                        className="text-xs text-red-500 hover:text-red-700 whitespace-nowrap"
+                        onClick={() => {
+                          const sel = (document.querySelector('select') as HTMLSelectElement)?.value;
+                          if (sel) handleDeleteTemplate(sel);
+                        }}
+                      >
+                        Apagar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
           <div className="space-y-4">
             <Input label="Nome do Torneio" tooltip="Nome do torneio. Ex: Torneio Janeiro, Taça Verão" value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Torneio Janeiro" required />
 
@@ -1237,6 +1332,38 @@ export function TournamentWizard({
               </div>
             )}
           </div>
+          {/* Save as template */}
+          {!editMode && (
+            <div className="mt-4 p-3 bg-surface-alt rounded-lg border border-border">
+              {showSaveTemplate ? (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={templateName}
+                    onChange={(e) => setTemplateName(e.target.value)}
+                    placeholder="Nome do modelo..."
+                    className="flex-1 rounded-lg border border-border px-3 py-1.5 text-sm focus:border-primary focus:outline-none"
+                  />
+                  <Button size="sm" onClick={handleSaveTemplate} disabled={savingTemplate || !templateName.trim()}>
+                    {savingTemplate ? "..." : "Guardar"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={() => setShowSaveTemplate(false)}>Cancelar</Button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowSaveTemplate(true)}
+                  className="text-xs text-primary font-semibold hover:underline flex items-center gap-1"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                  Guardar como modelo reutilizável
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2 mt-4">
             <Button variant="ghost" onClick={() => setStep(teams.length === 0 && teamMode !== "RANDOM_PER_ROUND" && teamMode !== "RANKED_SPLIT" ? 2 : (skipsTeamStep ? 2 : 3))}>Anterior</Button>
             <Button onClick={handleSubmit} disabled={loading}>

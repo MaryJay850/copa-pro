@@ -4735,6 +4735,36 @@ export async function updateSeasonSettings(
   revalidatePath(`/ligas/${season.leagueId}/epocas/${seasonId}`);
 }
 
+// ── Tournament Templates ──
+
+export async function saveTemplate(leagueId: string, name: string, config: string) {
+  await requireLeagueManager(leagueId);
+  const template = await prisma.tournamentTemplate.create({
+    data: { leagueId, name: name.trim(), config },
+  });
+  logAudit("CREATE_TEMPLATE", "TournamentTemplate", template.id, { name }).catch(() => {});
+  revalidatePath(`/ligas/${leagueId}`);
+  return template;
+}
+
+export async function getTemplates(leagueId: string) {
+  return prisma.tournamentTemplate.findMany({
+    where: { leagueId },
+    orderBy: { createdAt: "desc" },
+  });
+}
+
+export async function deleteTemplate(templateId: string) {
+  const template = await prisma.tournamentTemplate.findUnique({
+    where: { id: templateId },
+  });
+  if (!template) throw new Error("Modelo não encontrado.");
+  await requireLeagueManager(template.leagueId);
+  await prisma.tournamentTemplate.delete({ where: { id: templateId } });
+  logAudit("DELETE_TEMPLATE", "TournamentTemplate", templateId).catch(() => {});
+  revalidatePath(`/ligas/${template.leagueId}`);
+}
+
 export async function cloneSeason(seasonId: string) {
   // Plan check: clone season
   await requireFeature("CLONE_SEASON");
