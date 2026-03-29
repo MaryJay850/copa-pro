@@ -91,6 +91,11 @@ const icons = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
     </svg>
   ),
+  easyMix: (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13 10V3L4 14h7v7l9-11h-7z" />
+    </svg>
+  ),
 };
 
 export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => void }) {
@@ -115,6 +120,7 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
         items: [
           { href: "/dashboard", label: "Painel", icon: icons.dashboard },
           { href: "/ligas", label: "As Minhas Ligas", icon: icons.leagues },
+          { href: "/easy-mix", label: "Easy Mix", icon: icons.easyMix },
         ],
       },
     ];
