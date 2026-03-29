@@ -333,24 +333,6 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
             </Card>
           )}
 
-          {/* Invite Modal */}
-          {showInvitePanel && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="absolute inset-0 bg-black/50" onClick={() => setShowInvitePanel(false)} />
-              <div className="relative bg-surface rounded-xl shadow-xl border border-border w-full max-w-md mx-4 p-6 animate-fade-in-up">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-base font-bold flex items-center gap-2">
-                    <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
-                    Convidar Jogadores
-                  </h2>
-                  <button onClick={() => setShowInvitePanel(false)} className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-muted">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-                <InviteLinkCard leagueId={league.id} invites={invites} />
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Right Content Area */}
@@ -538,68 +520,6 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
             </Card>
           )}
 
-          {/* ─── Add Member Modal ─── */}
-          {showAddMemberModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center">
-              <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddMemberModal(false)} />
-              <div className="relative bg-surface rounded-xl shadow-xl border border-border w-full max-w-lg mx-4 p-6 animate-fade-in-up max-h-[80vh] overflow-y-auto">
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-base font-bold flex items-center gap-2">
-                    <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
-                    Adicionar Membro
-                  </h2>
-                  <button onClick={() => setShowAddMemberModal(false)} className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-muted">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                  </button>
-                </div>
-
-                <div className="flex gap-2 mb-3">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleSearchMembers()}
-                    placeholder="Pesquisar por nome ou email..."
-                    className={inputClass}
-                  />
-                  <Button size="sm" onClick={handleSearchMembers} disabled={isSearching || searchQuery.trim().length < 2}>
-                    {isSearching ? "..." : "Pesquisar"}
-                  </Button>
-                </div>
-
-                {searchResults.length > 0 && (
-                  <div className="space-y-2">
-                    {searchResults.map((user) => {
-                      const isMember = memberUserIds.has(user.id);
-                      return (
-                        <div key={user.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium truncate">{user.player?.fullName ?? user.email}</p>
-                            <p className="text-xs text-text-muted">{user.email}</p>
-                            {user.phone && <p className="text-xs text-text-muted">{user.phone}</p>}
-                          </div>
-                          {isMember ? (
-                            <Badge variant="success">Já é membro</Badge>
-                          ) : (
-                            <Button size="sm" onClick={() => handleAddMember(user.id)} disabled={isPending}>
-                              {isPending ? "..." : "Adicionar"}
-                            </Button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {searchResults.length === 0 && searchQuery.trim().length >= 2 && !isSearching && (
-                  <p className="text-xs text-text-muted mt-2">
-                    Sem resultados. O utilizador precisa de estar registado na plataforma.
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
           {/* ─── Clubes Associados Table ─── */}
           {activeSection === "clubes" && (
             <Card className="py-5 px-6" id="clubes">
@@ -753,6 +673,89 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
           )}
         </div>
       </div>
+
+      {/* ─── Modals (rendered at root level for proper fixed positioning) ─── */}
+
+      {/* Invite Modal */}
+      {showInvitePanel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowInvitePanel(false)} />
+          <div className="relative bg-surface rounded-xl shadow-xl border border-border w-full max-w-md mx-4 p-6 animate-fade-in-up">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+                Convidar Jogadores
+              </h2>
+              <button onClick={() => setShowInvitePanel(false)} className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-muted">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <InviteLinkCard leagueId={league.id} invites={invites} />
+          </div>
+        </div>
+      )}
+
+      {/* Add Member Modal */}
+      {showAddMemberModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddMemberModal(false)} />
+          <div className="relative bg-surface rounded-xl shadow-xl border border-border w-full max-w-lg mx-4 p-6 animate-fade-in-up max-h-[80vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
+                Adicionar Membro
+              </h2>
+              <button onClick={() => setShowAddMemberModal(false)} className="p-1.5 rounded-lg hover:bg-surface-hover transition-colors text-text-muted">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="flex gap-2 mb-3">
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearchMembers()}
+                placeholder="Pesquisar por nome ou email..."
+                className={inputClass}
+              />
+              <Button size="sm" onClick={handleSearchMembers} disabled={isSearching || searchQuery.trim().length < 2}>
+                {isSearching ? "..." : "Pesquisar"}
+              </Button>
+            </div>
+
+            {searchResults.length > 0 && (
+              <div className="space-y-2">
+                {searchResults.map((user) => {
+                  const isMember = memberUserIds.has(user.id);
+                  return (
+                    <div key={user.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2.5">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{user.player?.fullName ?? user.email}</p>
+                        <p className="text-xs text-text-muted">{user.email}</p>
+                        {user.phone && <p className="text-xs text-text-muted">{user.phone}</p>}
+                      </div>
+                      {isMember ? (
+                        <Badge variant="success">Já é membro</Badge>
+                      ) : (
+                        <Button size="sm" onClick={() => handleAddMember(user.id)} disabled={isPending}>
+                          {isPending ? "..." : "Adicionar"}
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {searchResults.length === 0 && searchQuery.trim().length >= 2 && !isSearching && (
+              <p className="text-xs text-text-muted mt-2">
+                Sem resultados. O utilizador precisa de estar registado na plataforma.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
