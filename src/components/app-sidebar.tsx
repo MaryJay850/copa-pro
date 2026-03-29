@@ -135,6 +135,7 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
           { href: "/admin", label: "Visão Geral", icon: icons.admin },
           { href: "/admin/utilizadores", label: "Utilizadores", icon: icons.users },
           { href: "/admin/ligas", label: "Ligas", icon: icons.leagues },
+          { href: "/admin/clubes", label: "Clubes", icon: icons.clubs },
           { href: "/admin/analytics", label: "Analytics", icon: icons.analytics },
           { href: "/admin/planos", label: "Planos", icon: icons.plans },
           { href: "/admin/auditoria", label: "Auditoria", icon: icons.audit },

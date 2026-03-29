@@ -1,6 +1,7 @@
 export const dynamic = "force-dynamic";
 
 import { getLeague, getLeagueInvites } from "@/lib/actions";
+import { getClubsForLeague, getClubsNotInLeague } from "@/lib/actions/club-actions";
 import { isLeagueManager, isAdmin } from "@/lib/auth-guards";
 import { notFound } from "next/navigation";
 import { LeagueDetailContent } from "./league-detail-content";
@@ -22,6 +23,10 @@ export default async function LeaguePage({
   const adminUser = await isAdmin();
   const invites = canManage ? await getLeagueInvites(leagueId) : [];
 
+  // Clubs associated with this league
+  const leagueClubs = await getClubsForLeague(leagueId).catch(() => []);
+  const availableClubs = canManage ? await getClubsNotInLeague(leagueId).catch(() => []) : [];
+
   const initialMode = modo === "editar" && canManage ? "edit" : "view";
 
   return (
@@ -30,6 +35,8 @@ export default async function LeaguePage({
       canManage={canManage}
       adminUser={adminUser}
       invites={invites}
+      leagueClubs={leagueClubs}
+      availableClubs={availableClubs}
       initialMode={initialMode}
     />
   );

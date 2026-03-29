@@ -537,7 +537,7 @@ export function TournamentWizard({
               </select>
               {clubsLoaded && clubs.length === 0 && (
                 <p className="text-xs text-amber-600 mt-1">
-                  Nenhum clube configurado. <a href={`/ligas/${leagueId}/clubes`} className="underline font-medium">Criar clube</a>
+                  Nenhum clube associado. <a href={`/ligas/${leagueId}?modo=editar#clubes`} className="underline font-medium">Associar clube</a>
                 </p>
               )}
             </div>

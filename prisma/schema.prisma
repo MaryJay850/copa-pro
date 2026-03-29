@@ -146,7 +146,7 @@ model League {
   managers    LeagueManager[]
   memberships LeagueMembership[]
   invites     LeagueInvite[]
-  clubs       Club[]
+  leagueClubs LeagueClub[]
 
   @@map("leagues")
 }
@@ -477,15 +477,27 @@ model PlanPrice {
 
 model Club {
   id        String   @id @default(cuid())
-  leagueId  String
   name      String
+  location  String?
   createdAt DateTime @default(now())
 
-  league      League       @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   courts      Court[]
   tournaments Tournament[]
+  leagueClubs LeagueClub[]
 
   @@map("clubs")
+}
+
+model LeagueClub {
+  id       String @id @default(cuid())
+  leagueId String
+  clubId   String
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, clubId])
+  @@map("league_clubs")
 }
 
 model TournamentCourt {

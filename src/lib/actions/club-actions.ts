@@ -1,74 +1,74 @@
 "use server";
 
 import { prisma } from "../db";
-import { requireLeagueManager } from "../auth-guards";
+import { requireAdmin, requireLeagueManager } from "../auth-guards";
 import { revalidatePath } from "next/cache";
 import type { CourtQuality } from "../../../generated/prisma/enums";
 
-// ── Club CRUD ──
+// ── Club CRUD (Admin only) ──
 
-export async function getClubsForLeague(leagueId: string) {
-  await requireLeagueManager(leagueId);
+export async function getAllClubs() {
+  await requireAdmin();
 
   const clubs = await prisma.club.findMany({
-    where: { leagueId },
     include: {
-      courts: {
-        orderBy: { orderIndex: "asc" },
-      },
+      courts: { orderBy: { orderIndex: "asc" } },
       _count: {
-        select: { tournaments: true },
+        select: { tournaments: true, leagueClubs: true, courts: true },
       },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { name: "asc" },
   });
 
   return JSON.parse(JSON.stringify(clubs));
 }
 
+export async function getClubsForLeague(leagueId: string) {
+  // No auth check - viewing clubs is open to league members
+  const leagueClubs = await prisma.leagueClub.findMany({
+    where: { leagueId },
+    include: {
+      club: {
+        include: {
+          courts: { orderBy: { orderIndex: "asc" } },
+          _count: { select: { tournaments: true, courts: true } },
+        },
+      },
+    },
+    orderBy: { club: { name: "asc" } },
+  });
+
+  return JSON.parse(JSON.stringify(leagueClubs.map((lc) => lc.club)));
+}
+
 export async function getClubWithCourts(clubId: string) {
+  await requireAdmin();
+
   const club = await prisma.club.findUnique({
     where: { id: clubId },
     include: {
-      league: { select: { id: true, name: true } },
-      courts: {
-        orderBy: { orderIndex: "asc" },
+      courts: { orderBy: { orderIndex: "asc" } },
+      leagueClubs: {
+        include: { league: { select: { id: true, name: true } } },
       },
     },
   });
 
   if (!club) throw new Error("Clube não encontrado.");
-  await requireLeagueManager(club.leagueId);
-
   return JSON.parse(JSON.stringify(club));
 }
 
 export async function getAvailableCourtsForClub(clubId: string) {
-  const club = await prisma.club.findUnique({
-    where: { id: clubId },
-    select: { leagueId: true },
-  });
-  if (!club) throw new Error("Clube não encontrado.");
-
   const courts = await prisma.court.findMany({
-    where: {
-      clubId,
-      isAvailable: true,
-    },
+    where: { clubId, isAvailable: true },
     orderBy: { orderIndex: "asc" },
-    select: {
-      id: true,
-      name: true,
-      quality: true,
-      orderIndex: true,
-    },
+    select: { id: true, name: true, quality: true, orderIndex: true },
   });
-
   return courts;
 }
 
-export async function createClub(leagueId: string, name: string) {
-  await requireLeagueManager(leagueId);
+export async function createClub(name: string, location?: string) {
+  await requireAdmin();
 
   if (!name || name.trim().length === 0) {
     throw new Error("Nome do clube é obrigatório.");
@@ -76,47 +76,42 @@ export async function createClub(leagueId: string, name: string) {
 
   const club = await prisma.club.create({
     data: {
-      leagueId,
       name: name.trim(),
+      location: location?.trim() || null,
     },
   });
 
-  revalidatePath(`/ligas/${leagueId}`);
+  revalidatePath("/admin/clubes");
   return club;
 }
 
-export async function updateClub(clubId: string, name: string) {
-  const club = await prisma.club.findUnique({
-    where: { id: clubId },
-    select: { leagueId: true },
-  });
-  if (!club) throw new Error("Clube não encontrado.");
-  await requireLeagueManager(club.leagueId);
+export async function updateClub(clubId: string, data: { name?: string; location?: string }) {
+  await requireAdmin();
 
-  if (!name || name.trim().length === 0) {
-    throw new Error("Nome do clube é obrigatório.");
-  }
+  const club = await prisma.club.findUnique({ where: { id: clubId } });
+  if (!club) throw new Error("Clube não encontrado.");
 
   const updated = await prisma.club.update({
     where: { id: clubId },
-    data: { name: name.trim() },
+    data: {
+      ...(data.name !== undefined && { name: data.name.trim() }),
+      ...(data.location !== undefined && { location: data.location.trim() || null }),
+    },
   });
 
-  revalidatePath(`/ligas/${club.leagueId}`);
+  revalidatePath("/admin/clubes");
   return updated;
 }
 
 export async function deleteClub(clubId: string) {
+  await requireAdmin();
+
   const club = await prisma.club.findUnique({
     where: { id: clubId },
-    include: {
-      _count: { select: { tournaments: true } },
-    },
+    include: { _count: { select: { tournaments: true } } },
   });
   if (!club) throw new Error("Clube não encontrado.");
-  await requireLeagueManager(club.leagueId);
 
-  // Check for active tournaments using this club
   const activeTournaments = await prisma.tournament.count({
     where: {
       clubId,
@@ -129,28 +124,86 @@ export async function deleteClub(clubId: string) {
   }
 
   await prisma.club.delete({ where: { id: clubId } });
-  revalidatePath(`/ligas/${club.leagueId}`);
+  revalidatePath("/admin/clubes");
 }
 
-// ── Court CRUD within Club ──
+// ── League-Club Association ──
+
+export async function addClubToLeague(clubId: string, leagueId: string) {
+  await requireLeagueManager(leagueId);
+
+  const club = await prisma.club.findUnique({ where: { id: clubId } });
+  if (!club) throw new Error("Clube não encontrado.");
+
+  const league = await prisma.league.findUnique({ where: { id: leagueId } });
+  if (!league) throw new Error("Liga não encontrada.");
+
+  await prisma.leagueClub.upsert({
+    where: { leagueId_clubId: { leagueId, clubId } },
+    create: { leagueId, clubId },
+    update: {},
+  });
+
+  revalidatePath(`/ligas/${leagueId}`);
+}
+
+export async function removeClubFromLeague(clubId: string, leagueId: string) {
+  await requireLeagueManager(leagueId);
+
+  // Check if any tournament in this league uses this club
+  const tournamentsUsingClub = await prisma.tournament.count({
+    where: {
+      leagueId,
+      clubId,
+      status: { in: ["DRAFT", "PUBLISHED", "RUNNING"] },
+    },
+  });
+
+  if (tournamentsUsingClub > 0) {
+    throw new Error("Não é possível remover o clube. Existem torneios ativos nesta liga a usar este clube.");
+  }
+
+  await prisma.leagueClub.deleteMany({
+    where: { leagueId, clubId },
+  });
+
+  revalidatePath(`/ligas/${leagueId}`);
+}
+
+export async function getClubsNotInLeague(leagueId: string) {
+  await requireLeagueManager(leagueId);
+
+  const existingClubIds = await prisma.leagueClub.findMany({
+    where: { leagueId },
+    select: { clubId: true },
+  });
+
+  const clubs = await prisma.club.findMany({
+    where: {
+      id: { notIn: existingClubIds.map((lc) => lc.clubId) },
+    },
+    include: {
+      _count: { select: { courts: true } },
+    },
+    orderBy: { name: "asc" },
+  });
+
+  return JSON.parse(JSON.stringify(clubs));
+}
+
+// ── Court CRUD within Club (Admin only) ──
 
 export async function addCourtToClub(data: {
   clubId: string;
   name: string;
   quality: CourtQuality;
 }) {
-  const club = await prisma.club.findUnique({
-    where: { id: data.clubId },
-    select: { leagueId: true },
-  });
-  if (!club) throw new Error("Clube não encontrado.");
-  await requireLeagueManager(club.leagueId);
+  await requireAdmin();
 
   if (!data.name || data.name.trim().length === 0) {
     throw new Error("Nome do campo é obrigatório.");
   }
 
-  // Get next orderIndex
   const maxOrder = await prisma.court.aggregate({
     where: { clubId: data.clubId },
     _max: { orderIndex: true },
@@ -166,7 +219,7 @@ export async function addCourtToClub(data: {
     },
   });
 
-  revalidatePath(`/ligas/${club.leagueId}`);
+  revalidatePath("/admin/clubes");
   return court;
 }
 
@@ -177,12 +230,10 @@ export async function updateCourt(data: {
   isAvailable?: boolean;
   orderIndex?: number;
 }) {
-  const court = await prisma.court.findUnique({
-    where: { id: data.courtId },
-    include: { club: { select: { leagueId: true } } },
-  });
-  if (!court || !court.club) throw new Error("Campo não encontrado.");
-  await requireLeagueManager(court.club.leagueId);
+  await requireAdmin();
+
+  const court = await prisma.court.findUnique({ where: { id: data.courtId } });
+  if (!court) throw new Error("Campo não encontrado.");
 
   const updated = await prisma.court.update({
     where: { id: data.courtId },
@@ -194,42 +245,31 @@ export async function updateCourt(data: {
     },
   });
 
-  revalidatePath(`/ligas/${court.club.leagueId}`);
+  revalidatePath("/admin/clubes");
   return updated;
 }
 
 export async function deleteCourt(courtId: string) {
+  await requireAdmin();
+
   const court = await prisma.court.findUnique({
     where: { id: courtId },
-    include: {
-      club: { select: { leagueId: true } },
-      _count: { select: { matches: true, tournamentCourts: true } },
-    },
+    include: { _count: { select: { matches: true, tournamentCourts: true } } },
   });
-  if (!court || !court.club) throw new Error("Campo não encontrado.");
-  await requireLeagueManager(court.club.leagueId);
+  if (!court) throw new Error("Campo não encontrado.");
 
-  // Check for matches using this court
   if (court._count.matches > 0) {
     throw new Error("Não é possível eliminar o campo. Existem jogos associados.");
   }
 
-  // Remove tournament court associations first
   await prisma.tournamentCourt.deleteMany({ where: { courtId } });
-
   await prisma.court.delete({ where: { id: courtId } });
-  revalidatePath(`/ligas/${court.club.leagueId}`);
+  revalidatePath("/admin/clubes");
 }
 
 export async function reorderCourts(clubId: string, courtIds: string[]) {
-  const club = await prisma.club.findUnique({
-    where: { id: clubId },
-    select: { leagueId: true },
-  });
-  if (!club) throw new Error("Clube não encontrado.");
-  await requireLeagueManager(club.leagueId);
+  await requireAdmin();
 
-  // Update orderIndex for each court
   for (let i = 0; i < courtIds.length; i++) {
     await prisma.court.update({
       where: { id: courtIds[i] },
@@ -237,5 +277,5 @@ export async function reorderCourts(clubId: string, courtIds: string[]) {
     });
   }
 
-  revalidatePath(`/ligas/${club.leagueId}`);
+  revalidatePath("/admin/clubes");
 }

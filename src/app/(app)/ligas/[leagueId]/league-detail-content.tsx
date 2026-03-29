@@ -13,8 +13,16 @@ import { WhatsAppManagementModal } from "./whatsapp-management-modal";
 import { DeleteLeagueButton } from "./delete-league-button";
 import { ActivityLog } from "@/components/activity-log";
 import { updateLeague } from "@/lib/actions";
+import { addClubToLeague, removeClubFromLeague } from "@/lib/actions/club-actions";
 import { sanitizeError } from "@/lib/error-utils";
 import Link from "next/link";
+
+type ClubData = {
+  id: string;
+  name: string;
+  location: string | null;
+  _count: { courts: number };
+};
 
 type LeagueData = {
   id: string;
@@ -30,10 +38,12 @@ type Props = {
   canManage: boolean;
   adminUser: boolean;
   invites: any[];
+  leagueClubs: ClubData[];
+  availableClubs: ClubData[];
   initialMode: "view" | "edit";
 };
 
-export function LeagueDetailContent({ league, canManage, adminUser, invites, initialMode }: Props) {
+export function LeagueDetailContent({ league, canManage, adminUser, invites, leagueClubs, availableClubs, initialMode }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<"view" | "edit">(initialMode);
 
@@ -200,10 +210,10 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, ini
                   <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
                   Membros
                 </Link>
-                <Link href={`/ligas/${league.id}/clubes`} className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors">
+                <a href="#clubes" className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors">
                   <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                  Clubes & Campos
-                </Link>
+                  Clubes
+                </a>
               </div>
             </Card>
           )}
@@ -282,23 +292,95 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, ini
             </p>
           </Card>
 
-          {/* ─── Clubs & Courts ─── */}
+          {/* ─── Clubs ─── */}
           <Card className="py-5 px-6" id="clubes">
-            <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold flex items-center gap-2">
                 <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                 </svg>
-                Clubes & Campos
+                Clubes Associados
               </h2>
-              {canManage && (
-                <Link href={`/ligas/${league.id}/clubes`}>
-                  <Button size="sm" variant="secondary">Gerir Clubes</Button>
-                </Link>
-              )}
             </div>
-            <p className="text-sm text-text-muted">Gerir clubes de padel, campos e qualidade dos campos.</p>
+            {leagueClubs.length === 0 ? (
+              <p className="text-sm text-text-muted">Nenhum clube associado a esta liga.</p>
+            ) : (
+              <div className="space-y-2">
+                {leagueClubs.map((club) => (
+                  <div key={club.id} className="flex items-center justify-between px-4 py-3 rounded-lg border border-border">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(to bottom right, #5766da, #8b9cf7)" }}>
+                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      </div>
+                      <div>
+                        <span className="text-sm font-semibold">{club.name}</span>
+                        {club.location && (
+                          <p className="text-xs text-text-muted">{club.location}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <Badge variant="default">{club._count.courts} campos</Badge>
+                      {isEditing && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await removeClubFromLeague(club.id, league.id);
+                              toast.success(`${club.name} removido da liga.`);
+                              router.refresh();
+                            } catch (err) {
+                              toast.error(sanitizeError(err, "Erro ao remover clube."));
+                            }
+                          }}
+                          className="text-xs text-danger hover:text-danger/80 font-medium"
+                        >
+                          Remover
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {/* Add club (edit mode) */}
+            {isEditing && availableClubs.length > 0 && (
+              <div className="mt-4 pt-4 border-t border-border">
+                <label className="block text-xs font-semibold text-text-muted mb-1.5">Associar Clube</label>
+                <div className="flex gap-2">
+                  <select
+                    id="add-club-select"
+                    className={inputClass}
+                    defaultValue=""
+                  >
+                    <option value="" disabled>Selecionar clube...</option>
+                    {availableClubs.map((club) => (
+                      <option key={club.id} value={club.id}>
+                        {club.name} {club.location ? `(${club.location})` : ""} — {club._count.courts} campos
+                      </option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={async () => {
+                      const select = document.getElementById("add-club-select") as HTMLSelectElement;
+                      if (!select.value) return;
+                      try {
+                        await addClubToLeague(select.value, league.id);
+                        toast.success("Clube associado à liga!");
+                        router.refresh();
+                      } catch (err) {
+                        toast.error(sanitizeError(err, "Erro ao associar clube."));
+                      }
+                    }}
+                  >
+                    Associar
+                  </Button>
+                </div>
+              </div>
+            )}
           </Card>
 
           {/* ─── Invite Players (edit mode or canManage) ─── */}
