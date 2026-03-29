@@ -121,7 +121,7 @@ export function TournamentActions({
   const canEdit = status === "DRAFT" || (status !== "FINISHED" && !hasResults);
 
   return (
-    <div className="flex flex-wrap gap-2 print:hidden">
+    <div className="flex flex-col gap-2 print:hidden">
       {status === "DRAFT" && (
         <Button onClick={handleGenerate} disabled={loading} size="sm">
           Gerar Calendário

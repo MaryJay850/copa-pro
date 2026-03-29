@@ -1,0 +1,533 @@
+"use client";
+
+import React, { useState } from "react";
+import Link from "next/link";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { ScheduleView } from "./schedule-view";
+import { TournamentActions } from "./actions-client";
+import { PlayerManagement } from "@/components/player-management";
+import { ExportCalendar } from "@/components/export-calendar";
+import { PlayerSwap } from "./player-swap";
+import { OcrResultsUpload } from "@/components/ocr-results-upload";
+import { GroupStandings } from "@/components/group-standings";
+import { BracketView } from "@/components/bracket-view";
+import { AdvanceToKnockoutButton } from "./advance-knockout-button";
+
+const statusLabels: Record<
+  string,
+  { label: string; variant: "default" | "success" | "warning" | "info" }
+> = {
+  DRAFT: { label: "Rascunho", variant: "default" },
+  PUBLISHED: { label: "Publicado", variant: "info" },
+  RUNNING: { label: "A decorrer", variant: "warning" },
+  FINISHED: { label: "Terminado", variant: "success" },
+};
+
+type Props = {
+  tournament: any;
+  canManage: boolean;
+  adminUser: boolean;
+  currentUserId: string | null;
+  currentPlayerId: string | null;
+  pendingSubmissionsMap: Record<string, any>;
+  totalMatches: number;
+  finishedMatches: number;
+  groupStandings: any[];
+};
+
+export function TournamentDetailContent({
+  tournament,
+  canManage,
+  adminUser,
+  currentUserId,
+  currentPlayerId,
+  pendingSubmissionsMap,
+  totalMatches,
+  finishedMatches,
+  groupStandings,
+}: Props) {
+  const [activeSection, setActiveSection] = useState<string>("calendario");
+
+  const s = statusLabels[tournament.status] || statusLabels.DRAFT;
+  const progressPct = totalMatches > 0 ? Math.round((finishedMatches / totalMatches) * 100) : 0;
+
+  // Unique players for PlayerSwap
+  const swapPlayers = (() => {
+    const seen = new Set<string>();
+    const result: { id: string; fullName: string; nickname: string | null }[] = [];
+    for (const team of tournament.teams) {
+      if (team.player1 && !seen.has(team.player1.id)) {
+        seen.add(team.player1.id);
+        result.push({ id: team.player1.id, fullName: team.player1.fullName, nickname: team.player1.nickname });
+      }
+      if (team.player2 && !seen.has(team.player2.id)) {
+        seen.add(team.player2.id);
+        result.push({ id: team.player2.id, fullName: team.player2.fullName, nickname: team.player2.nickname });
+      }
+    }
+    return result.sort((a, b) => (a.nickname || a.fullName).localeCompare(b.nickname || b.fullName));
+  })();
+
+  // Inscriptions suplentes
+  const suplentes = tournament.inscriptions?.filter(
+    (i: any) => i.status === "SUPLENTE" || i.status === "PROMOVIDO" || i.status === "DESISTIU"
+  ) || [];
+
+  // Group knockout data
+  const knockoutMatches = tournament.format === "GROUP_KNOCKOUT"
+    ? tournament.rounds.flatMap((r: any) => r.matches).filter((m: any) => m.bracketPhase && m.bracketPhase !== "GROUP")
+    : [];
+  const groupMatches = tournament.format === "GROUP_KNOCKOUT"
+    ? tournament.rounds.flatMap((r: any) => r.matches).filter((m: any) => m.bracketPhase === "GROUP" || !m.bracketPhase)
+    : [];
+  const allGroupsFinished = groupMatches.length > 0 && groupMatches.every((m: any) => m.status === "FINISHED");
+  const isGroupPhase = tournament.currentPhase === "GROUPS";
+
+  // Build sidebar nav items
+  const navItems: { key: string; label: string; icon: React.ReactNode }[] = [
+    {
+      key: "calendario",
+      label: "Calendário",
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+    },
+  ];
+
+  if (tournament.format === "GROUP_KNOCKOUT") {
+    navItems.push({
+      key: "grupos",
+      label: "Grupos & Eliminatórias",
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>,
+    });
+  }
+
+  if (suplentes.length > 0) {
+    navItems.push({
+      key: "inscricoes",
+      label: "Inscrições",
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>,
+    });
+  }
+
+  if (canManage && tournament.inscriptions && tournament.inscriptions.length > 0) {
+    navItems.push({
+      key: "jogadores",
+      label: "Gestão Jogadores",
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+    });
+  }
+
+  return (
+    <div className="space-y-6 animate-fade-in-up">
+      {/* ─── Top Header Card ─── */}
+      <div className="rounded-lg shadow-card bg-surface border border-border overflow-hidden">
+        <div className="h-28" style={{ background: "linear-gradient(to right, #5766da, #7c6fe0, #a78bfa)" }} />
+
+        <div className="px-6 pb-6 relative">
+          {/* Avatar */}
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-lg border-4 border-surface absolute -top-10 left-6" style={{ background: "linear-gradient(to bottom right, #5766da, #8b9cf7)" }}>
+            <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+
+          <div className="pt-14 flex flex-col sm:flex-row sm:items-center gap-4">
+            {/* Name & breadcrumb */}
+            <div className="flex-1">
+              <div className="flex items-center gap-2 text-xs text-text-muted mb-1 font-medium">
+                <Link href="/ligas" className="hover:text-primary transition-colors">Ligas</Link>
+                <span>&rsaquo;</span>
+                <Link href={`/ligas/${tournament.leagueId}`} className="hover:text-primary transition-colors">{tournament.league.name}</Link>
+                <span>&rsaquo;</span>
+                <Link href={`/ligas/${tournament.leagueId}/epocas/${tournament.seasonId}`} className="hover:text-primary transition-colors">{tournament.season.name}</Link>
+                <span>&rsaquo;</span>
+              </div>
+              <div className="flex items-center gap-3 flex-wrap">
+                <h1 className="text-xl font-extrabold tracking-tight">{tournament.name}</h1>
+                <Badge variant={s.variant} pulse={tournament.status === "RUNNING"}>
+                  {s.label}
+                </Badge>
+              </div>
+              {tournament.startDate && (
+                <p className="text-sm text-text-muted mt-1 flex items-center gap-1.5 font-medium">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {new Date(tournament.startDate).toLocaleDateString("pt-PT", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}
+                </p>
+              )}
+            </div>
+
+            {/* Quick stats */}
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <p className="text-2xl font-extrabold text-primary">
+                  {tournament.teamMode === "RANDOM_PER_ROUND"
+                    ? swapPlayers.length
+                    : tournament.teams.length}
+                </p>
+                <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">
+                  {tournament.teamSize === 1 ? "Jogadores" : "Equipas"}
+                </p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-extrabold text-text">{totalMatches}</p>
+                <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Jogos</p>
+              </div>
+              <div className="text-center">
+                <p className="text-2xl font-extrabold text-text">{tournament.courtsCount}</p>
+                <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Campos</p>
+              </div>
+            </div>
+
+            {/* Edit link */}
+            {canManage && (tournament.status === "DRAFT" || (tournament.status !== "FINISHED" && finishedMatches === 0)) && (
+              <Link href={`/torneios/${tournament.id}/editar`}>
+                <Button size="sm" className="gap-1.5">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Editar
+                </Button>
+              </Link>
+            )}
+          </div>
+
+          {/* Progress bar */}
+          {totalMatches > 0 && (
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-semibold text-text-muted">Progresso</span>
+                <span className="text-xs font-bold text-text tabular-nums">{finishedMatches}/{totalMatches} jogos ({progressPct}%)</span>
+              </div>
+              <div className="w-full bg-surface-hover rounded-full h-2.5 overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-primary to-primary-light rounded-full h-2.5 transition-all duration-500"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ─── Body: Sidebar + Content ─── */}
+      <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
+        {/* Left Sidebar */}
+        <div className="space-y-5">
+          {/* Info Card */}
+          <Card className="py-5 px-5">
+            <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Informação</h3>
+            <div className="space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-3.5 h-3.5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-text-muted">Formato</p>
+                  <p className="text-sm font-medium text-text">
+                    {tournament.teamSize === 1 ? "1v1" : "2v2"} &middot; {tournament.teamMode === "RANDOM_PER_ROUND" ? "Aleatórias" : tournament.teamMode === "RANKED_SPLIT" ? "Ranked Split" : "Fixas"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-7 h-7 rounded-lg bg-success/10 flex items-center justify-center flex-shrink-0">
+                  <svg className="w-3.5 h-3.5 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-text-muted">Sets</p>
+                  <p className="text-sm font-medium text-text">
+                    {tournament.numberOfSets === 1 ? "1 Set" : tournament.numberOfSets === 2 ? "2 Sets" : "Melhor de 3"}
+                  </p>
+                </div>
+              </div>
+              {tournament.teamMode === "RANDOM_PER_ROUND" && (
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-warning/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3.5 h-3.5 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-text-muted">Rondas</p>
+                    <p className="text-sm font-medium text-text">
+                      {tournament.numberOfRounds || tournament.rounds.length} rondas
+                    </p>
+                  </div>
+                </div>
+              )}
+              {tournament.format === "GROUP_KNOCKOUT" && (
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-info/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3.5 h-3.5 text-info" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-text-muted">Fase</p>
+                    <p className="text-sm font-medium text-text">
+                      {tournament.currentPhase === "GROUPS" ? "Fase de Grupos" : tournament.currentPhase === "KNOCKOUT" ? "Eliminatórias" : "Terminado"}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+
+          {/* Navigation */}
+          <Card className="py-5 px-5">
+            <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Navegação</h3>
+            <div className="space-y-1.5">
+              {navItems.map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveSection(item.key)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    activeSection === item.key
+                      ? "bg-primary/10 text-primary"
+                      : "text-text hover:bg-surface-hover"
+                  }`}
+                >
+                  <span className={activeSection === item.key ? "text-primary" : "text-text-muted"}>{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          {/* Management Actions */}
+          {canManage && (
+            <Card className="py-5 px-5">
+              <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Ações</h3>
+              <div className="space-y-2">
+                <TournamentActions
+                  tournamentId={tournament.id}
+                  status={tournament.status}
+                  leagueId={tournament.leagueId}
+                  seasonId={tournament.seasonId}
+                  hasResults={finishedMatches > 0}
+                  finishedMatches={finishedMatches}
+                  totalMatches={totalMatches}
+                />
+              </div>
+            </Card>
+          )}
+
+          {/* Quick Links */}
+          <Card className="py-5 px-5">
+            <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Ligações</h3>
+            <div className="space-y-1.5">
+              <Link
+                href={`/ligas/${tournament.leagueId}`}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
+              >
+                <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                {tournament.league.name}
+              </Link>
+              <Link
+                href={`/ligas/${tournament.leagueId}/epocas/${tournament.seasonId}`}
+                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
+              >
+                <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {tournament.season.name}
+              </Link>
+              {tournament.status !== "FINISHED" && (
+                <Link
+                  href={`/torneios/${tournament.id}/placar`}
+                  target="_blank"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
+                >
+                  <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <rect x="2" y="3" width="20" height="18" rx="2" strokeWidth="2"/>
+                    <path d="M12 3v18M2 12h20" strokeWidth="2"/>
+                  </svg>
+                  Placar de Jogo
+                </Link>
+              )}
+            </div>
+          </Card>
+        </div>
+
+        {/* Right Content Area */}
+        <div className="space-y-6">
+          {/* ─── Player Swap (admin only) ─── */}
+          {adminUser && tournament.status !== "FINISHED" && swapPlayers.length > 0 && (
+            <PlayerSwap
+              tournamentId={tournament.id}
+              players={swapPlayers}
+            />
+          )}
+
+          {/* ─── OCR Results Upload ─── */}
+          {canManage && tournament.status !== "FINISHED" && tournament.rounds.length > 0 && activeSection === "calendario" && (
+            <OcrResultsUpload
+              tournamentId={tournament.id}
+              matches={tournament.rounds.flatMap((r: any) =>
+                r.matches.map((m: any) => ({
+                  id: m.id,
+                  roundIndex: r.index,
+                  courtName: m.court?.name || "",
+                  teamAName: m.teamA.name,
+                  teamBName: m.teamB.name,
+                  status: m.status,
+                }))
+              )}
+              numberOfSets={tournament.numberOfSets}
+              courts={tournament.courts?.map((c: any) => ({ id: c.id, name: c.name })) || []}
+            />
+          )}
+
+          {/* ─── Export Calendar ─── */}
+          {tournament.rounds.length > 0 && activeSection === "calendario" && (
+            <ExportCalendar
+              tournamentName={tournament.name}
+              startDate={tournament.startDate ? tournament.startDate.toString() : null}
+              matches={tournament.rounds.flatMap((r: any) =>
+                r.matches.map((m: any) => ({
+                  team1Name: m.teamA.name,
+                  team2Name: m.teamB.name,
+                  courtName: m.court?.name,
+                  roundIndex: r.index,
+                }))
+              )}
+            />
+          )}
+
+          {/* ─── Schedule Section ─── */}
+          {activeSection === "calendario" && (
+            <Card className="py-5 px-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold flex items-center gap-2">
+                  <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Calendário
+                </h2>
+              </div>
+              {tournament.rounds.length === 0 ? (
+                <EmptyState
+                  title="Sem calendário"
+                  description="Gere o calendário para começar a registar resultados."
+                />
+              ) : (
+                <ScheduleView
+                  rounds={tournament.rounds}
+                  numberOfSets={tournament.numberOfSets}
+                  canManage={canManage && tournament.status !== "FINISHED"}
+                  startDate={tournament.startDate ? tournament.startDate.toString() : null}
+                  currentPlayerId={currentPlayerId ?? undefined}
+                  currentUserId={currentUserId ?? undefined}
+                  pendingSubmissionsMap={pendingSubmissionsMap}
+                  tournamentName={tournament.name}
+                  seasonName={tournament.season.name}
+                  tournamentId={tournament.id}
+                  teams={tournament.teams}
+                  teamMode={tournament.teamMode}
+                  numberOfRounds={tournament.numberOfRounds ?? undefined}
+                />
+              )}
+            </Card>
+          )}
+
+          {/* ─── Group Knockout Section ─── */}
+          {activeSection === "grupos" && tournament.format === "GROUP_KNOCKOUT" && (
+            <div className="space-y-6">
+              {/* Group Standings */}
+              {groupStandings.length > 0 && (
+                <GroupStandings
+                  groups={groupStandings}
+                  teamsAdvancing={tournament.teamsAdvancing || 1}
+                />
+              )}
+
+              {/* Advance to Knockout button */}
+              {canManage && isGroupPhase && allGroupsFinished && knockoutMatches.length === 0 && (
+                <AdvanceToKnockoutButton tournamentId={tournament.id} />
+              )}
+
+              {/* Bracket View */}
+              {knockoutMatches.length > 0 && (
+                <BracketView matches={knockoutMatches} />
+              )}
+
+              {groupStandings.length === 0 && knockoutMatches.length === 0 && (
+                <Card className="py-5 px-6">
+                  <EmptyState
+                    title="Sem dados de grupo"
+                    description="Os dados aparecerão após gerar o calendário."
+                  />
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* ─── Inscriptions Section ─── */}
+          {activeSection === "inscricoes" && suplentes.length > 0 && (
+            <Card className="py-5 px-6">
+              <h2 className="text-base font-bold mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Inscrições ({tournament.inscriptions.length})
+              </h2>
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {tournament.inscriptions.map((insc: any, idx: number) => (
+                  <div
+                    key={insc.id}
+                    className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl text-sm ${
+                      insc.status === "DESISTIU" ? "bg-red-50 line-through text-text-muted" : "bg-surface-alt"
+                    }`}
+                  >
+                    <span className={insc.status === "DESISTIU" ? "text-text-muted" : "font-semibold"}>
+                      {insc.player.nickname || insc.player.fullName.split(" ")[0]}
+                    </span>
+                    <Badge
+                      variant={
+                        insc.status === "TITULAR" ? "success"
+                          : insc.status === "PROMOVIDO" ? "success"
+                          : insc.status === "SUPLENTE" ? "warning"
+                          : "default"
+                      }
+                    >
+                      {insc.status === "TITULAR" ? "Titular"
+                        : insc.status === "PROMOVIDO" ? "Promovido"
+                        : insc.status === "SUPLENTE" ? `Suplente #${idx - tournament.inscriptions.filter((x: any) => x.status === "TITULAR" || x.status === "PROMOVIDO").length + 1}`
+                        : "Desistiu"}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {/* ─── Player Management Section ─── */}
+          {activeSection === "jogadores" && canManage && tournament.inscriptions && tournament.inscriptions.length > 0 && (
+            <Card className="py-5 px-6">
+              <h2 className="text-base font-bold mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Gestão de Jogadores
+              </h2>
+              <PlayerManagement
+                tournamentId={tournament.id}
+                inscriptions={tournament.inscriptions}
+                readOnly={tournament.status === "FINISHED"}
+              />
+            </Card>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
