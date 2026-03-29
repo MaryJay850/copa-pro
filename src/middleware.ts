@@ -29,7 +29,7 @@ export function middleware(request: NextRequest) {
   if (isStaticPublicFile) return NextResponse.next();
 
   // ── Public routes — always accessible (no auth required) ──
-  const publicPaths = ["/", "/login", "/registar", "/api/auth", "/recuperar-password", "/alterar-password", "/convite", "/sobre", "/contacto", "/termos", "/privacidade", "/api/stripe/webhook", "/api/stripe/debug-prices", "/api/debug"];
+  const publicPaths = ["/", "/login", "/registar", "/api/auth", "/recuperar-password", "/alterar-password", "/convite", "/sobre", "/contacto", "/termos", "/privacidade", "/api/stripe/webhook", "/api/stripe/debug-prices", "/api/debug", "/api/deploy"];
   const isPublic = publicPaths.some(
     (p) => pathname === p || pathname.startsWith(p + "/")
   );
@@ -37,6 +37,31 @@ export function middleware(request: NextRequest) {
   // ── Build version check ──
   const clientBuildId = request.cookies.get(BUILD_COOKIE)?.value;
   const isStale = BUILD_ID && clientBuildId && clientBuildId !== BUILD_ID;
+  const hasNoBuildCookie = BUILD_ID && !clientBuildId;
+
+  // ── Handle stale Server Action POST requests ──
+  // When a browser sends a POST with Next-Action header from a cached old page,
+  // the server action ID won't exist in the new build. Intercept and force reload.
+  const isServerAction = request.method === "POST" && request.headers.has("Next-Action");
+  if (isServerAction && (isStale || hasNoBuildCookie)) {
+    // Return a 409 Conflict with a JSON body that the Next.js client can handle
+    // The client-side error boundary will catch this and reload the page
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.searchParams.set("_v", BUILD_ID);
+    const response = NextResponse.json(
+      { error: "STALE_BUILD", message: "Nova versão disponível. A recarregar..." },
+      { status: 409 }
+    );
+    response.cookies.set(BUILD_COOKIE, BUILD_ID, {
+      path: "/",
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 365,
+    });
+    response.headers.set("x-reload-url", redirectUrl.toString());
+    return response;
+  }
 
   // For page navigations (not API, not static), if build is stale → force refresh
   if (isStale && !isApi && !isNextInternal) {

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { DM_Sans, IBM_Plex_Sans } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
 import { ServiceWorkerRegister } from "@/components/sw-register";
+import { BuildChecker } from "@/components/build-checker";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -58,6 +59,7 @@ export default function RootLayout({
         <SessionProvider>
           {children}
           <ServiceWorkerRegister />
+          <BuildChecker />
           <Toaster richColors position="top-right" />
         </SessionProvider>
       </body>

@@ -40,19 +40,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        if (!credentials?.email || !credentials?.password) {
+          console.log("[auth] Login falhou: credenciais em falta");
+          return null;
+        }
 
         const user = await prisma.user.findUnique({
           where: { email: credentials.email as string },
           include: { player: { select: { fullName: true } } },
         });
-        if (!user) return null;
+        if (!user) {
+          console.log(`[auth] Login falhou: utilizador não encontrado (${credentials.email})`);
+          return null;
+        }
 
         const valid = await bcrypt.compare(
           credentials.password as string,
           user.hashedPassword
         );
-        if (!valid) return null;
+        if (!valid) {
+          console.log(`[auth] Login falhou: password incorreta (${credentials.email})`);
+          return null;
+        }
 
         return {
           id: user.id,
