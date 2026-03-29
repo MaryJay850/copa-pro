@@ -139,7 +139,25 @@ export async function getLeague(id: string) {
   const result = await prisma.league.findUnique({
     where: { id },
     include: {
-      seasons: { orderBy: { createdAt: "desc" } },
+      seasons: {
+        orderBy: { createdAt: "desc" },
+        include: {
+          _count: { select: { tournaments: true } },
+        },
+      },
+      memberships: {
+        where: { status: "APPROVED" },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              player: { select: { id: true, fullName: true, nickname: true, eloRating: true } },
+            },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      },
       _count: {
         select: {
           seasons: true,
@@ -536,7 +554,7 @@ export async function createTournament(data: {
         select: { whatsappGroupId: true },
       });
       if (league?.whatsappGroupId) {
-        const appUrl = process.env.APP_URL || "https://copapro.bitclever.pt";
+        const appUrl = process.env.APP_URL || "https://copapro.pt";
         const tournamentUrl = `${appUrl}/torneios/${tournament.id}`;
         const dateStr = data.startDate
           ? new Date(data.startDate + "T00:00:00").toLocaleDateString("pt-PT", {
@@ -1814,7 +1832,7 @@ export async function finishTournament(tournamentId: string) {
         .sort((a, b) => b.points - a.points)
         .map((t, i) => ({ position: i + 1, teamName: t.name, points: t.points, wins: t.wins, losses: t.losses }));
 
-      const appUrl = process.env.APP_URL || "https://copapro.bitclever.pt";
+      const appUrl = process.env.APP_URL || "https://copapro.pt";
       const tournamentUrl = `${appUrl}/torneios/${tournamentId}`;
 
       for (const ins of fullTournament.inscriptions) {
@@ -2776,7 +2794,7 @@ export async function createLeagueInvite(leagueId: string, maxUses?: number) {
       select: { name: true },
     });
     if (manager?.email && league) {
-      const appUrl = process.env.APP_URL || "https://copapro.bitclever.pt";
+      const appUrl = process.env.APP_URL || "https://copapro.pt";
       sendEmail({
         to: manager.email,
         subject: `Link de convite criado: ${league.name}`,

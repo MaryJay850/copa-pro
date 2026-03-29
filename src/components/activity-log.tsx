@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { getLeagueActivityLog } from "@/lib/actions/audit-actions";
 
@@ -52,11 +51,7 @@ export function ActivityLog({ leagueId }: { leagueId: string }) {
   const totalPages = Math.ceil(total / 15);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Atividade Recente</CardTitle>
-      </CardHeader>
-
+    <div>
       {loading && entries.length === 0 ? (
         <div className="flex items-center justify-center h-24 text-text-muted text-sm">
           A carregar...
@@ -66,42 +61,49 @@ export function ActivityLog({ leagueId }: { leagueId: string }) {
           Sem atividade registada.
         </div>
       ) : (
-        <div className="space-y-1">
-          {entries.map((entry) => (
-            <div
-              key={entry.id}
-              className="flex items-center justify-between px-3 py-2 bg-surface-alt rounded-lg text-xs"
-            >
-              <div className="flex-1 min-w-0">
-                <span className="font-medium">
-                  {ACTION_LABELS[entry.action] || entry.action}
-                </span>
-                {entry.userName && (
-                  <span className="text-text-muted ml-1">
-                    por {entry.userName}
-                  </span>
-                )}
-              </div>
-              <span className="text-text-muted whitespace-nowrap ml-2">
-                {new Date(entry.createdAt).toLocaleDateString("pt-PT", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </span>
-            </div>
-          ))}
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-border">
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Ação</th>
+                  <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Utilizador</th>
+                  <th className="text-right py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Data</th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((entry) => (
+                  <tr key={entry.id} className="border-b border-border/50 hover:bg-surface-hover transition-colors">
+                    <td className="py-3 px-4 font-medium">
+                      {ACTION_LABELS[entry.action] || entry.action}
+                    </td>
+                    <td className="py-3 px-4 text-text-muted">
+                      {entry.userName || "—"}
+                    </td>
+                    <td className="py-3 px-4 text-right text-text-muted text-xs whitespace-nowrap">
+                      {new Date(entry.createdAt).toLocaleDateString("pt-PT", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2 border-t border-border">
+            <div className="flex items-center justify-between pt-3 mt-2 border-t border-border">
               <Button
                 size="sm"
                 variant="ghost"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1 || loading}
               >
-                ← Anterior
+                &larr; Anterior
               </Button>
               <span className="text-xs text-text-muted">
                 {page} / {totalPages}
@@ -112,12 +114,12 @@ export function ActivityLog({ leagueId }: { leagueId: string }) {
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages || loading}
               >
-                Seguinte →
+                Seguinte &rarr;
               </Button>
             </div>
           )}
-        </div>
+        </>
       )}
-    </Card>
+    </div>
   );
 }

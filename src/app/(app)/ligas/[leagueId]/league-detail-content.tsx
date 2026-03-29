@@ -24,12 +24,24 @@ type ClubData = {
   _count: { courts: number };
 };
 
+type MembershipData = {
+  id: string;
+  role: string;
+  createdAt: string;
+  user: {
+    id: string;
+    email: string;
+    player: { id: string; fullName: string; nickname: string | null; eloRating: number } | null;
+  };
+};
+
 type LeagueData = {
   id: string;
   name: string;
   location: string | null;
   whatsappGroupId: string | null;
   seasons: any[];
+  memberships: MembershipData[];
   _count: { memberships: number; seasons: number; tournaments: number };
 };
 
@@ -52,6 +64,7 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
   const [location, setLocation] = useState(league.location || "");
   const [saving, setSaving] = useState(false);
   const [showInvitePanel, setShowInvitePanel] = useState(false);
+  const [activeSection, setActiveSection] = useState<string>("info-gerais");
 
   const isEditing = mode === "edit" && canManage;
   const activeSeason = league.seasons.find((s: any) => s.isActive);
@@ -207,29 +220,32 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
             <Card className="py-5 px-5">
               <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Gestão Rápida</h3>
               <div className="space-y-1.5">
-                <a href="#epocas" className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors">
-                  <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                  Épocas
-                </a>
-                <Link href={`/ligas/${league.id}/membros`} className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors">
-                  <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-                  Membros
-                </Link>
-                <a href="#clubes" className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors">
-                  <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                  Clubes Associados
-                </a>
-                <button
-                  onClick={() => setShowInvitePanel(!showInvitePanel)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
-                >
-                  <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg>
-                  Convidar Jogadores
-                </button>
-                <a href="#atividade" className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors">
-                  <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
-                  Atividade Recente
-                </a>
+                {[
+                  { key: "epocas", label: "Épocas", icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
+                  { key: "membros", label: "Membros", icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg> },
+                  { key: "clubes", label: "Clubes Associados", icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg> },
+                  { key: "invite", label: "Convidar Jogadores", icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" /></svg> },
+                  { key: "atividade", label: "Atividade Recente", icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg> },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    onClick={() => {
+                      if (item.key === "invite") {
+                        setShowInvitePanel(true);
+                      } else {
+                        setActiveSection(item.key);
+                      }
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                      activeSection === item.key && item.key !== "invite"
+                        ? "bg-primary/10 text-primary"
+                        : "text-text hover:bg-surface-hover"
+                    }`}
+                  >
+                    <span className={activeSection === item.key && item.key !== "invite" ? "text-primary" : "text-text-muted"}>{item.icon}</span>
+                    {item.label}
+                  </button>
+                ))}
               </div>
             </Card>
           )}
@@ -256,7 +272,7 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
 
         {/* Right Content Area */}
         <div className="space-y-6">
-          {/* ─── General Info ─── */}
+          {/* ─── General Info (always visible) ─── */}
           <Card className="py-5 px-6" id="info-gerais">
             <h2 className="text-base font-bold mb-5 flex items-center gap-2">
               <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -269,13 +285,7 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
                 <div>
                   <label className="block text-xs font-semibold text-text-muted mb-1.5">Nome da Liga</label>
                   {isEditing ? (
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      required
-                      className={inputClass}
-                    />
+                    <input type="text" value={name} onChange={(e) => setName(e.target.value)} required className={inputClass} />
                   ) : (
                     <div className={disabledClass}>{league.name}</div>
                   )}
@@ -283,13 +293,7 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
                 <div>
                   <label className="block text-xs font-semibold text-text-muted mb-1.5">Localização</label>
                   {isEditing ? (
-                    <input
-                      type="text"
-                      value={location}
-                      onChange={(e) => setLocation(e.target.value)}
-                      placeholder="Ex: Lisboa, Porto..."
-                      className={inputClass}
-                    />
+                    <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Ex: Lisboa, Porto..." className={inputClass} />
                   ) : (
                     <div className={disabledClass}>{league.location || "—"}</div>
                   )}
@@ -305,157 +309,233 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
             </form>
           </Card>
 
-          {/* ─── Members ─── */}
-          <Card className="py-5 px-6" id="membros">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-bold flex items-center gap-2">
-                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Membros
-              </h2>
-              {canManage && (
-                <Link href={`/ligas/${league.id}/membros`}>
-                  <Button size="sm" variant="secondary">Gerir Membros</Button>
-                </Link>
-              )}
-            </div>
-            <p className="text-sm text-text-muted">
-              {canManage
-                ? "Gerir jogadores, aprovar pedidos de adesão e atribuir funções."
-                : `${league._count?.memberships ?? 0} jogadores inscritos nesta liga.`}
-            </p>
-          </Card>
-
-          {/* ─── Clubs ─── */}
-          <Card className="py-5 px-6" id="clubes">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold flex items-center gap-2">
-                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-                Clubes Associados
-              </h2>
-            </div>
-            {leagueClubs.length === 0 ? (
-              <p className="text-sm text-text-muted">Nenhum clube associado a esta liga.</p>
-            ) : (
-              <div className="space-y-2">
-                {leagueClubs.map((club) => (
-                  <div key={club.id} className="flex items-center justify-between px-4 py-3 rounded-lg border border-border">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(to bottom right, #5766da, #8b9cf7)" }}>
-                        <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                        </svg>
-                      </div>
-                      <div>
-                        <span className="text-sm font-semibold">{club.name}</span>
-                        {club.location && (
-                          <p className="text-xs text-text-muted">{club.location}</p>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge variant="default">{club._count.courts} campos</Badge>
-                      {isEditing && (
-                        <button
-                          onClick={async () => {
-                            try {
-                              await removeClubFromLeague(club.id, league.id);
-                              toast.success(`${club.name} removido da liga.`);
-                              router.refresh();
-                            } catch (err) {
-                              toast.error(sanitizeError(err, "Erro ao remover clube."));
-                            }
-                          }}
-                          className="text-xs text-danger hover:text-danger/80 font-medium"
-                        >
-                          Remover
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+          {/* ─── Épocas Table ─── */}
+          {activeSection === "epocas" && (
+            <Card className="py-5 px-6" id="epocas">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold flex items-center gap-2">
+                  <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Épocas
+                </h2>
+                {adminUser && isEditing && <CreateSeasonForm leagueId={league.id} />}
               </div>
-            )}
-            {/* Add club (edit mode) */}
-            {isEditing && availableClubs.length > 0 && (
-              <div className="mt-4 pt-4 border-t border-border">
-                <label className="block text-xs font-semibold text-text-muted mb-1.5">Associar Clube</label>
-                <div className="flex gap-2">
-                  <select
-                    id="add-club-select"
-                    className={inputClass}
-                    defaultValue=""
-                  >
-                    <option value="" disabled>Selecionar clube...</option>
-                    {availableClubs.map((club) => (
-                      <option key={club.id} value={club.id}>
-                        {club.name} {club.location ? `(${club.location})` : ""} — {club._count.courts} campos
-                      </option>
-                    ))}
-                  </select>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={async () => {
-                      const select = document.getElementById("add-club-select") as HTMLSelectElement;
-                      if (!select.value) return;
-                      try {
-                        await addClubToLeague(select.value, league.id);
-                        toast.success("Clube associado à liga!");
-                        router.refresh();
-                      } catch (err) {
-                        toast.error(sanitizeError(err, "Erro ao associar clube."));
-                      }
-                    }}
-                  >
-                    Associar
-                  </Button>
+              {league.seasons.length === 0 ? (
+                <EmptyState title="Sem épocas" description="Crie uma época para começar a organizar torneios." />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Época</th>
+                        <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Torneios</th>
+                        <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Empates</th>
+                        <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Estado</th>
+                        <th className="text-right py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {league.seasons.map((season: any) => (
+                        <tr key={season.id} className="border-b border-border/50 hover:bg-surface-hover transition-colors">
+                          <td className="py-3 px-4 font-semibold">{season.name}</td>
+                          <td className="py-3 px-4 text-center text-text-muted">{season._count?.tournaments ?? 0}</td>
+                          <td className="py-3 px-4 text-center">
+                            {season.allowDraws ? (
+                              <Badge variant="warning">Sim</Badge>
+                            ) : (
+                              <span className="text-text-muted">Não</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-center">
+                            <Badge variant={season.isActive ? "success" : "default"} pulse={season.isActive}>
+                              {season.isActive ? "Ativa" : "Encerrada"}
+                            </Badge>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <Link href={`/ligas/${league.id}/epocas/${season.id}`}>
+                              <Button size="sm" variant="ghost" className="text-xs">
+                                Ver
+                              </Button>
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            )}
-          </Card>
+              )}
+            </Card>
+          )}
 
-          {/* ─── Seasons ─── */}
-          <Card className="py-5 px-6" id="epocas">
-            <h2 className="text-base font-bold mb-4 flex items-center gap-2">
-              <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              Épocas
-            </h2>
-            {adminUser && isEditing && <div className="mb-4"><CreateSeasonForm leagueId={league.id} /></div>}
-
-            {league.seasons.length === 0 ? (
-              <EmptyState
-                title="Sem épocas"
-                description="Crie uma época para começar a organizar torneios."
-              />
-            ) : (
-              <div className="space-y-2">
-                {league.seasons.map((season: any) => (
-                  <Link key={season.id} href={`/ligas/${league.id}/epocas/${season.id}`}>
-                    <div className="flex items-center justify-between px-4 py-3 rounded-lg hover:bg-surface-hover transition-colors border border-border">
-                      <span className="font-semibold text-sm">{season.name}</span>
-                      <div className="flex items-center gap-2">
-                        {season.allowDraws && (
-                          <span className="text-xs text-warning font-medium flex items-center gap-1">
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
-                            Empates
-                          </span>
-                        )}
-                        <Badge variant={season.isActive ? "success" : "default"} pulse={season.isActive}>
-                          {season.isActive ? "Ativa" : "Encerrada"}
-                        </Badge>
-                      </div>
-                    </div>
+          {/* ─── Membros Table ─── */}
+          {activeSection === "membros" && (
+            <Card className="py-5 px-6" id="membros">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold flex items-center gap-2">
+                  <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Membros ({league.memberships?.length ?? 0})
+                </h2>
+                {canManage && (
+                  <Link href={`/ligas/${league.id}/membros`}>
+                    <Button size="sm" variant="secondary">Gerir Membros</Button>
                   </Link>
-                ))}
+                )}
               </div>
-            )}
-          </Card>
+              {(!league.memberships || league.memberships.length === 0) ? (
+                <EmptyState title="Sem membros" description="Convide jogadores para se juntarem à liga." />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Nome</th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Alcunha</th>
+                        <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Elo</th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Email</th>
+                        <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Função</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {league.memberships.map((m: MembershipData) => (
+                        <tr key={m.id} className="border-b border-border/50 hover:bg-surface-hover transition-colors">
+                          <td className="py-3 px-4 font-semibold">{m.user.player?.fullName ?? "—"}</td>
+                          <td className="py-3 px-4 text-text-muted">{m.user.player?.nickname ?? "—"}</td>
+                          <td className="py-3 px-4 text-center">
+                            <span className="font-mono font-medium text-primary">{m.user.player?.eloRating ?? "—"}</span>
+                          </td>
+                          <td className="py-3 px-4 text-text-muted text-xs">{m.user.email}</td>
+                          <td className="py-3 px-4 text-center">
+                            <Badge variant={m.role === "MANAGER" ? "warning" : "default"}>
+                              {m.role === "MANAGER" ? "Gestor" : "Membro"}
+                            </Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* ─── Clubes Associados Table ─── */}
+          {activeSection === "clubes" && (
+            <Card className="py-5 px-6" id="clubes">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-base font-bold flex items-center gap-2">
+                  <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  Clubes Associados
+                </h2>
+              </div>
+              {leagueClubs.length === 0 ? (
+                <EmptyState title="Sem clubes" description="Nenhum clube associado a esta liga." />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border">
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Clube</th>
+                        <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Localização</th>
+                        <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Campos</th>
+                        {isEditing && (
+                          <th className="text-right py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Ações</th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {leagueClubs.map((club) => (
+                        <tr key={club.id} className="border-b border-border/50 hover:bg-surface-hover transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(to bottom right, #5766da, #8b9cf7)" }}>
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                </svg>
+                              </div>
+                              <span className="font-semibold">{club.name}</span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-text-muted">{club.location || "—"}</td>
+                          <td className="py-3 px-4 text-center">
+                            <Badge variant="default">{club._count.courts} campos</Badge>
+                          </td>
+                          {isEditing && (
+                            <td className="py-3 px-4 text-right">
+                              <button
+                                onClick={async () => {
+                                  try {
+                                    await removeClubFromLeague(club.id, league.id);
+                                    toast.success(`${club.name} removido da liga.`);
+                                    router.refresh();
+                                  } catch (err) {
+                                    toast.error(sanitizeError(err, "Erro ao remover clube."));
+                                  }
+                                }}
+                                className="text-xs text-danger hover:text-danger/80 font-medium"
+                              >
+                                Remover
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {/* Add club (edit mode) */}
+              {isEditing && availableClubs.length > 0 && (
+                <div className="mt-4 pt-4 border-t border-border">
+                  <label className="block text-xs font-semibold text-text-muted mb-1.5">Associar Clube</label>
+                  <div className="flex gap-2">
+                    <select id="add-club-select" className={inputClass} defaultValue="">
+                      <option value="" disabled>Selecionar clube...</option>
+                      {availableClubs.map((club) => (
+                        <option key={club.id} value={club.id}>
+                          {club.name} {club.location ? `(${club.location})` : ""} — {club._count.courts} campos
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={async () => {
+                        const select = document.getElementById("add-club-select") as HTMLSelectElement;
+                        if (!select.value) return;
+                        try {
+                          await addClubToLeague(select.value, league.id);
+                          toast.success("Clube associado à liga!");
+                          router.refresh();
+                        } catch (err) {
+                          toast.error(sanitizeError(err, "Erro ao associar clube."));
+                        }
+                      }}
+                    >
+                      Associar
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* ─── Atividade Recente Table ─── */}
+          {activeSection === "atividade" && canManage && (
+            <Card className="py-5 px-6" id="atividade">
+              <h2 className="text-base font-bold mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+                Atividade Recente
+              </h2>
+              <ActivityLog leagueId={league.id} />
+            </Card>
+          )}
 
           {/* ─── WhatsApp ─── */}
           {adminUser && isEditing && (
@@ -476,19 +556,6 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
                   whatsappGroupId={league.whatsappGroupId}
                 />
               </div>
-            </Card>
-          )}
-
-          {/* ─── Activity Log ─── */}
-          {canManage && (
-            <Card className="py-5 px-6" id="atividade">
-              <h2 className="text-base font-bold mb-4 flex items-center gap-2">
-                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                Atividade Recente
-              </h2>
-              <ActivityLog leagueId={league.id} />
             </Card>
           )}
 

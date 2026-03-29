@@ -32,11 +32,14 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_FROM: "CopaPro <plataform@bitclever.pt>"
       SMTP_PASS: ${SMTP_PASS:-}
-      APP_URL: ${APP_URL:-https://copapro.bitclever.pt}
+      AUTH_SECRET: ${AUTH_SECRET:-copapro-dev-secret-change-in-production-abc123xyz}
+      AUTH_URL: ${AUTH_URL:-https://copapro.pt}
+      AUTH_TRUST_HOST: "true"
+      APP_URL: ${APP_URL:-https://copapro.pt}
       WHATSAPP_API_URL: ${WHATSAPP_API_URL:-https://evo.bitclever.pt}
       WHATSAPP_API_KEY: ${WHATSAPP_API_KEY:-F7348E2454D2-46A3-B5CA-12B378EF10B6}
       WHATSAPP_INSTANCE: ${WHATSAPP_INSTANCE:-Bitclever}
-      WHATSAPP_GROUP_AVATAR_URL: ${WHATSAPP_GROUP_AVATAR_URL:-https://copapro.bitclever.pt/whatsapp-group-avatar.png}
+      WHATSAPP_GROUP_AVATAR_URL: ${WHATSAPP_GROUP_AVATAR_URL:-https://copapro.pt/whatsapp-group-avatar.png}
       TZ: Europe/Lisbon
     depends_on:
       db:
