@@ -4,7 +4,7 @@ import { ScoreInput } from "./ui/score-input";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { toast } from "sonner";
-import { saveMatchScore, resetMatch, submitMatchResult, confirmMatchResult, rejectMatchResult } from "@/lib/actions";
+import { saveMatchScore, resetMatch, startMatch, submitMatchResult, confirmMatchResult, rejectMatchResult } from "@/lib/actions";
 
 interface MatchCardProps {
   match: {
@@ -67,6 +67,7 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
   const [confirmed, setConfirmed] = useState(false);
 
   const isFinished = match.status === "FINISHED";
+  const isInProgress = match.status === "IN_PROGRESS";
 
   // Determine if current player is in one of the teams
   const isInTeamA = currentPlayerId && (
@@ -169,6 +170,9 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
     if (submitted || (pendingSubmission && !confirmed)) {
       return <Badge variant="warning">Aguarda confirmacao</Badge>;
     }
+    if (isInProgress) {
+      return <Badge variant="info" pulse>Em curso</Badge>;
+    }
     switch (match.resultType) {
       case "WIN_A":
         return <Badge variant="success">Vitoria {match.teamA.name}</Badge>;
@@ -182,7 +186,7 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
   };
 
   return (
-    <div className={`bg-surface rounded-2xl border p-4 space-y-3 transition-all duration-200 ${isFinished ? "border-border" : "border-border hover:border-primary/30 hover:shadow-sm"}`}>
+    <div className={`bg-surface rounded-2xl border p-4 space-y-3 transition-all duration-200 ${isInProgress ? "border-blue-400 shadow-sm ring-1 ring-blue-200" : isFinished ? "border-border" : "border-border hover:border-primary/30 hover:shadow-sm"}`}>
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-semibold text-text-muted uppercase tracking-wider flex items-center gap-1.5">
           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>

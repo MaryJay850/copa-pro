@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useTransition } from "react";
-import { saveScoreboardMatch } from "@/lib/actions";
+import { saveScoreboardMatch, startMatch } from "@/lib/actions";
 import { useRouter } from "next/navigation";
 
 type Player = { id: string; fullName: string; nickname: string | null };
@@ -98,7 +98,7 @@ export function ScoreboardClient({ tournament }: { tournament: Tournament }) {
     setShowConfirmStart(true);
   };
 
-  const confirmStart = () => {
+  const confirmStart = async () => {
     setShowConfirmStart(false);
     setIsActive(true);
     setScoreA(0);
@@ -106,6 +106,14 @@ export function ScoreboardClient({ tournament }: { tournament: Tournament }) {
     setCurrentSet(1);
     setSavedSets([]);
     setErrorMsg("");
+    // Mark match as IN_PROGRESS in database
+    if (currentMatch) {
+      try {
+        await startMatch(currentMatch.id);
+      } catch {
+        // Non-critical: match still playable if this fails
+      }
+    }
   };
 
   const handleTapA = () => {

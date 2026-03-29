@@ -1258,6 +1258,24 @@ export async function getTournament(id: string) {
 
 // ── Match scoring ──
 
+export async function startMatch(matchId: string) {
+  const match = await prisma.match.findUnique({
+    where: { id: matchId },
+    include: { tournament: { select: { seasonId: true, season: { select: { leagueId: true } } } } },
+  });
+  if (!match) throw new Error("Jogo não encontrado.");
+  await requireLeagueManager(match.tournament.season.leagueId);
+  if (match.status !== "SCHEDULED") throw new Error("Jogo já foi iniciado ou terminado.");
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: { status: "IN_PROGRESS" },
+  });
+
+  revalidatePath(`/torneios`);
+  return { success: true };
+}
+
 export async function saveMatchScore(
   matchId: string,
   scores: {
