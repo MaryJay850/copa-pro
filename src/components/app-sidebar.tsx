@@ -120,6 +120,7 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
         items: [
           { href: "/dashboard", label: "Painel", icon: icons.dashboard },
           { href: "/ligas", label: "As Minhas Ligas", icon: icons.leagues },
+          { href: "/torneios", label: "Os Meus Torneios", icon: icons.stats },
           { href: "/easy-mix", label: "Easy Mix", icon: icons.easyMix },
         ],
       },
