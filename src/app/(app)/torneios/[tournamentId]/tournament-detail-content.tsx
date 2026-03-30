@@ -19,7 +19,8 @@ import { AmericanoStandings, type AmericanoPlayer } from "@/components/americano
 import { SobeDesceCourtMap, type SobeDesceCourtInfo } from "@/components/sobe-desce-view";
 import { NonstopView, type NonstopQueueEntry, type NonstopActiveMatch } from "@/components/nonstop-view";
 import { LadderView, type LadderPlayer, type LadderChallengeInfo } from "@/components/ladder-view";
-import { getAmericanoStandings, generateNextAmericanoRoundAction, getSobeDesceStandings, generateNextSobeDesceRoundAction, getNonstopQueueStatus, joinNonstopQueue, leaveNonstopQueue, rejoinNonstopQueue, getLadderStatus, createLadderChallenge, acceptLadderChallenge, declineLadderChallenge } from "@/lib/actions";
+import { PhotoGallery } from "@/components/photo-gallery";
+import { getAmericanoStandings, generateNextAmericanoRoundAction, getSobeDesceStandings, generateNextSobeDesceRoundAction, getNonstopQueueStatus, joinNonstopQueue, leaveNonstopQueue, rejoinNonstopQueue, getLadderStatus, createLadderChallenge, acceptLadderChallenge, declineLadderChallenge, getTournamentPhotos, uploadTournamentPhoto, deleteTournamentPhoto, getTournamentPhoto } from "@/lib/actions";
 
 const statusLabels: Record<
   string,
@@ -73,6 +74,14 @@ export function TournamentDetailContent({
   const [nonstopActiveMatches, setNonstopActiveMatches] = useState<NonstopActiveMatch[]>([]);
   const [nonstopAvailableCourts, setNonstopAvailableCourts] = useState(0);
   const [nonstopStandings, setNonstopStandings] = useState<AmericanoPlayer[]>([]);
+
+  // Photo gallery state
+  const [photos, setPhotos] = useState<{ id: string; thumbnailData: string | null; caption: string | null; createdAt: string }[]>([]);
+
+  // Load photos on mount
+  React.useEffect(() => {
+    getTournamentPhotos(tournament.id).then(setPhotos).catch(() => {});
+  }, [tournament.id]);
 
   // Load Americano standings on mount
   React.useEffect(() => {
@@ -267,6 +276,12 @@ export function TournamentDetailContent({
     });
   }
 
+  navItems.push({
+    key: "fotos",
+    label: "Fotos",
+    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
+  });
+
   return (
     <div className="space-y-6 animate-fade-in-up">
       {/* ─── Top Header Card ─── */}
@@ -329,6 +344,20 @@ export function TournamentDetailContent({
                 <p className="text-[11px] font-semibold text-text-muted uppercase tracking-wider">Campos</p>
               </div>
             </div>
+
+            {/* TV Mode link */}
+            {tournament.rounds?.length > 0 && (
+              <Link
+                href={`/torneios/${tournament.id}/tv`}
+                target="_blank"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-text-muted hover:text-primary transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+                Modo TV
+              </Link>
+            )}
 
             {/* Edit link */}
             {canManage && (tournament.status === "DRAFT" || (tournament.status !== "FINISHED" && finishedMatches === 0)) && (
@@ -873,6 +902,36 @@ export function TournamentDetailContent({
                 tournamentId={tournament.id}
                 inscriptions={tournament.inscriptions}
                 readOnly={tournament.status === "FINISHED"}
+              />
+            </Card>
+          )}
+
+          {/* ─── Photo Gallery Section ─── */}
+          {activeSection === "fotos" && (
+            <Card className="py-5 px-6">
+              <h2 className="text-base font-bold mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                Fotos do Torneio
+              </h2>
+              <PhotoGallery
+                photos={photos}
+                canUpload={canManage}
+                onUpload={async (imageData, thumbnailData, caption) => {
+                  await uploadTournamentPhoto(tournament.id, imageData, thumbnailData, caption);
+                  const updated = await getTournamentPhotos(tournament.id);
+                  setPhotos(updated);
+                }}
+                onDelete={async (photoId) => {
+                  await deleteTournamentPhoto(photoId);
+                  const updated = await getTournamentPhotos(tournament.id);
+                  setPhotos(updated);
+                }}
+                onLoadFull={async (photoId) => {
+                  const photo = await getTournamentPhoto(photoId);
+                  return photo.imageData;
+                }}
               />
             </Card>
           )}

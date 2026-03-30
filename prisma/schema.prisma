@@ -70,6 +70,7 @@ model User {
   notifications     Notification[]
   submittedResults  MatchResultSubmission[] @relation("SubmittedBy")
   confirmedResults  MatchResultSubmission[] @relation("ConfirmedBy")
+  uploadedPhotos    TournamentPhoto[]
 
   @@map("users")
 }
@@ -261,6 +262,7 @@ model Tournament {
   ladderChallenges LadderChallenge[]
   ladderPositions  LadderPosition[]
   matchQueues      MatchQueue[]
+  photos           TournamentPhoto[]
 
   @@map("tournaments")
 }
@@ -629,6 +631,23 @@ model LadderPosition {
   @@unique([tournamentId, playerId])
   @@unique([tournamentId, position])
   @@map("ladder_positions")
+}
+
+// ── Tournament Photos ──
+
+model TournamentPhoto {
+  id            String   @id @default(cuid())
+  tournamentId  String
+  caption       String?
+  imageData     String   @db.Text   // base64 data URL
+  thumbnailData String?  @db.Text   // smaller base64 for grid view
+  uploadedById  String?
+  createdAt     DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  uploadedBy User?      @relation(fields: [uploadedById], references: [id])
+
+  @@map("tournament_photos")
 }
 
 // ── Nonstop Queue ──

@@ -6649,6 +6649,123 @@ export async function completeLadderMatch(matchId: string) {
   revalidatePath(`/torneios/${challenge.tournamentId}`);
 }
 
+// ══════════════════════════════════════════════════════════════════════
+// Feature C1: Tournament Photo Gallery
+// ══════════════════════════════════════════════════════════════════════
+
+export async function uploadTournamentPhoto(
+  tournamentId: string,
+  imageData: string,
+  thumbnailData: string,
+  caption?: string
+) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Não autenticado.");
+
+  // Validate base64 data sizes (imageData max ~2MB, thumbnail max ~200KB)
+  if (imageData.length > 2 * 1024 * 1024) {
+    throw new Error("A imagem é demasiado grande. Máximo 2MB.");
+  }
+  if (thumbnailData.length > 200 * 1024) {
+    throw new Error("A miniatura é demasiado grande. Máximo 200KB.");
+  }
+
+  // Verify tournament exists
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+    select: { id: true, leagueId: true },
+  });
+  if (!tournament) throw new Error("Torneio não encontrado.");
+
+  // Check permissions: must be league manager or admin
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true },
+  });
+  if (user?.role !== "ADMINISTRADOR") {
+    if (tournament.leagueId) {
+      const isManager = await prisma.leagueManager.findFirst({
+        where: { userId: session.user.id, leagueId: tournament.leagueId },
+      });
+      if (!isManager) throw new Error("Sem permissão para adicionar fotos.");
+    } else {
+      throw new Error("Sem permissão para adicionar fotos.");
+    }
+  }
+
+  const photo = await prisma.tournamentPhoto.create({
+    data: {
+      tournamentId,
+      imageData,
+      thumbnailData,
+      caption: caption?.trim() || null,
+      uploadedById: session.user.id,
+    },
+  });
+
+  revalidatePath(`/torneios/${tournamentId}`);
+  return { id: photo.id };
+}
+
+export async function getTournamentPhotos(tournamentId: string) {
+  const photos = await prisma.tournamentPhoto.findMany({
+    where: { tournamentId },
+    select: {
+      id: true,
+      thumbnailData: true,
+      caption: true,
+      createdAt: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+  return photos.map((p) => ({
+    ...p,
+    createdAt: p.createdAt.toISOString(),
+  }));
+}
+
+export async function getTournamentPhoto(photoId: string) {
+  const photo = await prisma.tournamentPhoto.findUnique({
+    where: { id: photoId },
+    select: { id: true, imageData: true, caption: true },
+  });
+  if (!photo) throw new Error("Foto não encontrada.");
+  return photo;
+}
+
+export async function deleteTournamentPhoto(photoId: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Não autenticado.");
+
+  const photo = await prisma.tournamentPhoto.findUnique({
+    where: { id: photoId },
+    include: { tournament: { select: { leagueId: true } } },
+  });
+  if (!photo) throw new Error("Foto não encontrada.");
+
+  // Check permissions: uploader, league manager, or admin
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { role: true },
+  });
+  const isUploader = photo.uploadedById === session.user.id;
+  const isAdmin = user?.role === "ADMINISTRADOR";
+  let isManager = false;
+  if (photo.tournament.leagueId) {
+    const mgr = await prisma.leagueManager.findFirst({
+      where: { userId: session.user.id, leagueId: photo.tournament.leagueId },
+    });
+    isManager = !!mgr;
+  }
+  if (!isUploader && !isAdmin && !isManager) {
+    throw new Error("Sem permissão para apagar esta foto.");
+  }
+
+  await prisma.tournamentPhoto.delete({ where: { id: photoId } });
+  revalidatePath(`/torneios/${photo.tournamentId}`);
+  return { success: true };
+}
+
 export async function getLadderStatus(tournamentId: string) {
   const [positions, challenges] = await Promise.all([
     getLadderPositions(tournamentId),
