@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, FieldLabel } from "@/components/ui/tooltip";
 import { createTournament, generateSchedule, updateTournament, updateTournamentBasic, getPlayersWithRanking, saveTemplate, getTemplates, deleteTemplate } from "@/lib/actions";
-import { getClubsForLeague, getAvailableCourtsForClub } from "@/lib/actions/club-actions";
+import { getClubsForLeague, getAvailableCourtsForClub, searchClubs } from "@/lib/actions/club-actions";
 import { sanitizeError } from "@/lib/error-utils";
 
 type ClubCourt = { id: string; name: string; quality: "GOOD" | "MEDIUM" | "BAD"; orderIndex: number };
@@ -103,6 +103,9 @@ export function TournamentWizard({
   const [clubs, setClubs] = useState<{ id: string; name: string }[]>([]);
   const [clubsLoaded, setClubsLoaded] = useState(false);
   const [clubId, setClubId] = useState<string>(editMode?.initialData.clubId ?? "");
+  const [clubSearchQuery, setClubSearchQuery] = useState("");
+  const [clubDropdownOpen, setClubDropdownOpen] = useState(false);
+  const clubDropdownRef = useRef<HTMLDivElement>(null);
   const [clubCourts, setClubCourts] = useState<ClubCourt[]>([]);
   const [selectedCourtIds, setSelectedCourtIds] = useState<string[]>(editMode?.initialData.courtIds ?? []);
   const [courtGroupLabels, setCourtGroupLabels] = useState<Record<string, string>>(editMode?.initialData.courtGroupLabels ?? {});
@@ -232,9 +235,14 @@ export function TournamentWizard({
   }, []);
 
   const loadClubs = useCallback(async () => {
-    if (clubsLoaded || !leagueId) return;
+    if (clubsLoaded) return;
     try {
-      const data = await getClubsForLeague(leagueId);
+      let data: any[];
+      if (leagueId) {
+        data = await getClubsForLeague(leagueId);
+      } else {
+        data = await searchClubs();
+      }
       setClubs(data.map((c: any) => ({ id: c.id, name: c.name })));
       setClubsLoaded(true);
       // Auto-select first club if only one and none selected
@@ -245,6 +253,21 @@ export function TournamentWizard({
       }
     } catch {}
   }, [leagueId, clubsLoaded, clubId]);
+
+  // Close club dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (clubDropdownRef.current && !clubDropdownRef.current.contains(e.target as Node)) {
+        setClubDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const filteredClubs = clubs.filter((c) =>
+    c.name.toLowerCase().includes(clubSearchQuery.toLowerCase())
+  );
 
   const handleClubChange = async (newClubId: string) => {
     setClubId(newClubId);
@@ -852,20 +875,64 @@ export function TournamentWizard({
             {/* Club & Court Selection */}
             <div>
               <FieldLabel label="Clube" tooltip="Selecione o clube onde o torneio sera realizado. Os campos do clube ficam disponiveis para selecao." htmlFor="club-select" />
-              <select
-                id="club-select"
-                value={clubId}
-                onChange={(e) => handleClubChange(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="">Selecionar clube...</option>
-                {clubs.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              {clubsLoaded && clubs.length === 0 && (
+              <div className="relative mt-1" ref={clubDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => { setClubDropdownOpen(!clubDropdownOpen); setClubSearchQuery(""); }}
+                  className="w-full rounded-lg border border-border bg-white dark:bg-surface px-3 py-2 text-sm text-left focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 flex items-center justify-between"
+                >
+                  <span className={clubId ? "text-text" : "text-text-muted"}>
+                    {clubId ? clubs.find((c) => c.id === clubId)?.name || "Clube selecionado" : "Selecionar clube..."}
+                  </span>
+                  <svg className={`w-4 h-4 text-text-muted transition-transform ${clubDropdownOpen ? "rotate-180" : ""}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {clubDropdownOpen && (
+                  <div className="absolute z-50 mt-1 w-full bg-white dark:bg-surface border border-border rounded-lg shadow-lg overflow-hidden">
+                    <div className="p-2 border-b border-border">
+                      <input
+                        type="text"
+                        placeholder="Pesquisar clube..."
+                        value={clubSearchQuery}
+                        onChange={(e) => setClubSearchQuery(e.target.value)}
+                        className="w-full rounded-md border border-border bg-surface-alt px-3 py-1.5 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/20"
+                        autoFocus
+                      />
+                    </div>
+                    <div className="max-h-48 overflow-y-auto">
+                      <button
+                        type="button"
+                        onClick={() => { handleClubChange(""); setClubDropdownOpen(false); }}
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-surface-hover transition-colors ${!clubId ? "bg-primary/5 text-primary font-medium" : "text-text-muted"}`}
+                      >
+                        Nenhum (sem clube)
+                      </button>
+                      {filteredClubs.map((c) => (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => { handleClubChange(c.id); setClubDropdownOpen(false); }}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-surface-hover transition-colors ${c.id === clubId ? "bg-primary/5 text-primary font-medium" : "text-text"}`}
+                        >
+                          {c.name}
+                        </button>
+                      ))}
+                      {filteredClubs.length === 0 && clubSearchQuery && (
+                        <p className="px-3 py-2 text-sm text-text-muted">Nenhum clube encontrado</p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {clubsLoaded && clubs.length === 0 && leagueId && (
                 <p className="text-xs text-amber-600 mt-1">
                   Nenhum clube associado. <a href={`/ligas/${leagueId}?modo=editar#clubes`} className="underline font-medium">Associar clube</a>
+                </p>
+              )}
+              {clubsLoaded && clubs.length === 0 && !leagueId && (
+                <p className="text-xs text-text-muted mt-1">
+                  Nenhum clube registado no sistema. Os campos serão criados automaticamente.
                 </p>
               )}
             </div>

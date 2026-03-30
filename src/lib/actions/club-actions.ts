@@ -26,6 +26,17 @@ export async function getAllClubs() {
   return JSON.parse(JSON.stringify(clubs));
 }
 
+export async function searchClubs(query?: string) {
+  // Available to any authenticated user — for standalone tournament creation
+  const clubs = await prisma.club.findMany({
+    where: query ? { name: { contains: query, mode: "insensitive" } } : undefined,
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+    take: 50,
+  });
+  return clubs;
+}
+
 export async function getClubsForLeague(leagueId: string) {
   // No auth check - viewing clubs is open to league members
   const leagueClubs = await prisma.leagueClub.findMany({
