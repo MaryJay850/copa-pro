@@ -86,7 +86,7 @@ export function TVMonitor({ tournament: initialTournament }: TVMonitorProps) {
             : "";
 
   return (
-    <div className="fixed inset-0 bg-gray-950 text-white overflow-hidden flex flex-col">
+    <div className="fixed inset-0 z-[100] bg-gray-950 text-white overflow-hidden flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between px-8 py-4 bg-gray-900 border-b border-gray-800">
         <div>
