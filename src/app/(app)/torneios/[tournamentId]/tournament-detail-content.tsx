@@ -21,7 +21,8 @@ import { NonstopView, type NonstopQueueEntry, type NonstopActiveMatch } from "@/
 import { LadderView, type LadderPlayer, type LadderChallengeInfo } from "@/components/ladder-view";
 import { PhotoGallery } from "@/components/photo-gallery";
 import { PlayerAvailabilityView } from "@/components/player-availability";
-import { getAmericanoStandings, generateNextAmericanoRoundAction, getSobeDesceStandings, generateNextSobeDesceRoundAction, getNonstopQueueStatus, joinNonstopQueue, leaveNonstopQueue, rejoinNonstopQueue, getLadderStatus, createLadderChallenge, acceptLadderChallenge, declineLadderChallenge, getTournamentPhotos, uploadTournamentPhoto, deleteTournamentPhoto, getTournamentPhoto, setTournamentPlayerAvailability, getTournamentPlayerAvailabilities, getMyTournamentAvailability } from "@/lib/actions";
+import { TournamentChat } from "@/components/tournament-chat";
+import { getAmericanoStandings, generateNextAmericanoRoundAction, getSobeDesceStandings, generateNextSobeDesceRoundAction, getNonstopQueueStatus, joinNonstopQueue, leaveNonstopQueue, rejoinNonstopQueue, getLadderStatus, createLadderChallenge, acceptLadderChallenge, declineLadderChallenge, getTournamentPhotos, uploadTournamentPhoto, deleteTournamentPhoto, getTournamentPhoto, setTournamentPlayerAvailability, getTournamentPlayerAvailabilities, getMyTournamentAvailability, sendChatMessage, getChatMessages, deleteChatMessage } from "@/lib/actions";
 
 const statusLabels: Record<
   string,
@@ -298,6 +299,12 @@ export function TournamentDetailContent({
       icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
     });
   }
+
+  navItems.push({
+    key: "chat",
+    label: "Chat",
+    icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>,
+  });
 
   navItems.push({
     key: "fotos",
@@ -952,6 +959,32 @@ export function TournamentDetailContent({
                   setMyAvailabilityStatus(status);
                   const updated = await getTournamentPlayerAvailabilities(tournament.id);
                   setAvailabilityEntries(updated);
+                }}
+              />
+            </Card>
+          )}
+
+          {/* ─── Chat Section ─── */}
+          {activeSection === "chat" && (
+            <Card className="py-5 px-6">
+              <h2 className="text-base font-bold mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                </svg>
+                Chat do Torneio
+              </h2>
+              <TournamentChat
+                tournamentId={tournament.id}
+                currentPlayerId={currentPlayerId}
+                canManage={canManage}
+                onSend={async (message) => {
+                  return await sendChatMessage(tournament.id, message);
+                }}
+                onDelete={async (messageId) => {
+                  await deleteChatMessage(messageId);
+                }}
+                onLoadMessages={async (limit, before) => {
+                  return await getChatMessages(tournament.id, limit, before);
                 }}
               />
             </Card>

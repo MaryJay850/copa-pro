@@ -208,6 +208,7 @@ model Player {
   ladderChallengesAsDefender   LadderChallenge[] @relation("defender")
   ladderPositions              LadderPosition[]
   matchQueues                  MatchQueue[]
+  chatMessages                 ChatMessage[]
 
   @@map("players")
 }
@@ -264,6 +265,7 @@ model Tournament {
   matchQueues           MatchQueue[]
   photos                TournamentPhoto[]
   playerAvailabilities  PlayerAvailability[]
+  chatMessages          ChatMessage[]
 
   @@map("tournaments")
 }
@@ -665,4 +667,19 @@ model MatchQueue {
   player     Player     @relation(fields: [playerId], references: [id])
 
   @@map("match_queues")
+}
+
+// ── Tournament Chat ──
+
+model ChatMessage {
+  id            String   @id @default(cuid())
+  tournamentId  String
+  playerId      String
+  message       String
+  createdAt     DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player     Player     @relation(fields: [playerId], references: [id])
+
+  @@map("chat_messages")
 }

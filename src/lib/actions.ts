@@ -6801,3 +6801,95 @@ export async function reorderMatches(
 
   revalidatePath(`/torneios/${tournamentId}`);
 }
+
+// ── C4: Tournament Chat ──
+
+export async function sendChatMessage(tournamentId: string, message: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Autenticação necessária.");
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { playerId: true, player: { select: { fullName: true, nickname: true } } },
+  });
+  if (!user?.playerId) throw new Error("Jogador não encontrado.");
+
+  const trimmed = message.trim();
+  if (!trimmed) throw new Error("Mensagem não pode estar vazia.");
+  if (trimmed.length > 500) throw new Error("Mensagem demasiado longa (máx. 500 caracteres).");
+
+  const msg = await prisma.chatMessage.create({
+    data: {
+      tournamentId,
+      playerId: user.playerId,
+      message: trimmed,
+    },
+  });
+
+  return {
+    id: msg.id,
+    playerId: user.playerId,
+    playerName: user.player!.nickname || user.player!.fullName,
+    message: msg.message,
+    createdAt: msg.createdAt.toISOString(),
+  };
+}
+
+export async function getChatMessages(tournamentId: string, limit?: number, before?: string) {
+  const take = limit || 50;
+
+  const where: any = { tournamentId };
+  if (before) {
+    const cursor = await prisma.chatMessage.findUnique({ where: { id: before }, select: { createdAt: true } });
+    if (cursor) {
+      where.createdAt = { lt: cursor.createdAt };
+    }
+  }
+
+  const messages = await prisma.chatMessage.findMany({
+    where,
+    orderBy: { createdAt: "desc" },
+    take,
+    include: {
+      player: { select: { fullName: true, nickname: true } },
+    },
+  });
+
+  return messages.map((m) => ({
+    id: m.id,
+    playerId: m.playerId,
+    playerName: m.player.nickname || m.player.fullName,
+    message: m.message,
+    createdAt: m.createdAt.toISOString(),
+  }));
+}
+
+export async function deleteChatMessage(messageId: string) {
+  const session = await auth();
+  if (!session?.user?.id) throw new Error("Autenticação necessária.");
+
+  const msg = await prisma.chatMessage.findUnique({
+    where: { id: messageId },
+    include: { tournament: { select: { leagueId: true } } },
+  });
+  if (!msg) throw new Error("Mensagem não encontrada.");
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { playerId: true, role: true },
+  });
+
+  const isAuthor = user?.playerId === msg.playerId;
+  let isManager = false;
+  if (!isAuthor && msg.tournament.leagueId) {
+    const mgr = await prisma.leagueManager.findFirst({
+      where: { userId: session.user.id, leagueId: msg.tournament.leagueId },
+    });
+    isManager = !!mgr;
+  }
+  if (!isAuthor && !isManager && user?.role !== "ADMINISTRADOR") {
+    throw new Error("Sem permissão para apagar esta mensagem.");
+  }
+
+  await prisma.chatMessage.delete({ where: { id: messageId } });
+}
