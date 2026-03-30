@@ -17,8 +17,15 @@ function getBreadcrumbs(pathname: string): { label: string; href?: string }[] {
     crumbs.push({ label: "Ligas", href: "/ligas" });
     if (pathname.match(/\/ligas\/[^/]+$/)) {
       crumbs.push({ label: "Detalhes" });
+    } else if (pathname.includes("/reservas")) {
+      crumbs.push({ label: "Reservas" });
+    } else if (pathname.includes("/financeiro")) {
+      crumbs.push({ label: "Financeiro" });
     } else if (pathname.includes("/clubes")) {
       crumbs.push({ label: "Clubes" });
+      if (pathname.includes("/socios")) {
+        crumbs.push({ label: "Socios" });
+      }
     } else if (pathname.includes("/epocas")) {
       crumbs.push({ label: "Epoca" });
       if (pathname.includes("/torneios/novo")) {
