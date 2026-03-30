@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AuthNav } from "@/components/auth-nav";
 import { DarkModeToggle } from "@/components/dark-mode-toggle";
 import { NotificationBell } from "@/components/notification-bell";
+import { PushNotificationButton } from "@/components/push-notification-button";
 
 // Map routes to breadcrumb labels
 function getBreadcrumbs(pathname: string): { label: string; href?: string }[] {
@@ -102,6 +103,7 @@ export function AppTopbar({ onMenuToggle }: { onMenuToggle: () => void }) {
       {/* Right: actions */}
       <div className="flex items-center gap-2">
         <div className="hidden sm:flex items-center gap-2">
+          <PushNotificationButton />
           <NotificationBell />
           <DarkModeToggle />
         </div>

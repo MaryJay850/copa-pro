@@ -16,6 +16,17 @@ function serialize<T>(obj: T): Serialized<T> {
   return JSON.parse(JSON.stringify(obj));
 }
 
+// ── Push notification helper (fire-and-forget) ──
+
+async function sendPushSafe(userId: string, title: string, body: string, url?: string) {
+  try {
+    const { sendPushToUser } = await import("./push-actions");
+    await sendPushToUser(userId, title, body, url);
+  } catch {
+    // Ignore push errors — user may not have push enabled
+  }
+}
+
 // ── Create notifications ──
 
 interface NotificationData {
@@ -43,6 +54,8 @@ export async function createNotification(
         href: data.href ?? null,
       },
     });
+    // Also send push notification (fire-and-forget)
+    sendPushSafe(userId, data.title, data.message, data.href);
   } catch {
     // Fire-and-forget: swallow errors so callers are never disrupted
   }
@@ -68,6 +81,10 @@ export async function createNotificationBulk(
         href: data.href ?? null,
       })),
     });
+    // Also send push notifications (fire-and-forget)
+    for (const userId of userIds) {
+      sendPushSafe(userId, data.title, data.message, data.href);
+    }
   } catch {
     // Fire-and-forget: swallow errors so callers are never disrupted
   }

@@ -71,6 +71,7 @@ model User {
   submittedResults  MatchResultSubmission[] @relation("SubmittedBy")
   confirmedResults  MatchResultSubmission[] @relation("ConfirmedBy")
   uploadedPhotos    TournamentPhoto[]
+  pushSubscriptions PushSubscription[]
 
   @@map("users")
 }
@@ -784,4 +785,19 @@ model ClubMembership {
   player Player @relation(fields: [playerId], references: [id])
 
   @@map("club_memberships")
+}
+
+// ── Push Notifications (E2) ──
+
+model PushSubscription {
+  id       String @id @default(cuid())
+  userId   String
+  endpoint String
+  p256dh   String
+  auth     String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+  @@map("push_subscriptions")
 }
