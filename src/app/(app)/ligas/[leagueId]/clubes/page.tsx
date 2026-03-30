@@ -36,14 +36,8 @@ export default async function ClubsPage({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in-up">
       <div>
-        <div className="flex items-center gap-2 text-sm text-text-muted mb-1">
-          <Link href="/ligas" className="hover:text-text">Ligas</Link>
-          <span>/</span>
-          <Link href={`/ligas/${leagueId}`} className="hover:text-text">{league.name}</Link>
-          <span>/</span>
-        </div>
         <h1 className="text-2xl font-bold">Clubes</h1>
         <p className="text-sm text-text-muted mt-1">
           Gerir clubes de padel e os seus campos. Os campos dos clubes ficam disponiveis ao criar torneios.

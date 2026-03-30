@@ -98,9 +98,9 @@ export default async function GestorPage() {
   });
 
   return (
-    <div className="space-y-8 animate-fade-in-up">
+    <div className="space-y-6 animate-fade-in-up">
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Painel de Gestão</h1>
+        <h1 className="text-2xl font-bold">Painel de Gestão</h1>
         <p className="text-sm text-text-muted mt-1 font-medium">
           Visão geral das suas ligas
         </p>

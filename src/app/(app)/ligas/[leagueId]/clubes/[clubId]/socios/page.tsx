@@ -2,7 +2,6 @@ import { prisma } from "@/lib/db";
 import { auth } from "@/lib/auth";
 import { notFound } from "next/navigation";
 import { MembershipManager } from "./membership-manager";
-import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -40,18 +39,8 @@ export default async function SociosPage({ params }: { params: Promise<{ leagueI
     .map(m => ({ id: m.user.player!.id, name: m.user.player!.fullName, nickname: m.user.player!.nickname }));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in-up">
       <div>
-        <div className="flex items-center gap-2 text-sm text-text-muted mb-1">
-          <Link href="/ligas" className="hover:text-text">Ligas</Link>
-          <span>/</span>
-          <Link href={`/ligas/${leagueId}`} className="hover:text-text">{league.name}</Link>
-          <span>/</span>
-          <Link href={`/ligas/${leagueId}/clubes`} className="hover:text-text">Clubes</Link>
-          <span>/</span>
-          <Link href={`/ligas/${leagueId}/clubes/${clubId}`} className="hover:text-text">{club.name}</Link>
-          <span>/</span>
-        </div>
         <h1 className="text-2xl font-bold">Socios — {club.name}</h1>
         <p className="text-sm text-text-muted mt-1">Gerir socios e quotas do clube</p>
       </div>

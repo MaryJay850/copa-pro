@@ -24,7 +24,7 @@ export default async function FinanceiroPage({ params }: { params: Promise<{ lea
   if (!isManager) redirect(`/ligas/${leagueId}`);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in-up">
       <div>
         <h1 className="text-2xl font-bold">Gestão Financeira</h1>
         <p className="text-sm text-text-muted mt-1">{league.name} — Pagamentos e receitas</p>

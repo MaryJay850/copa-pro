@@ -10,8 +10,11 @@ export default async function AdminUsersPage() {
   ]);
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Gestão de Utilizadores</h1>
+    <div className="space-y-6 animate-fade-in-up">
+      <div>
+        <h1 className="text-2xl font-bold">Gestão de Utilizadores</h1>
+        <p className="text-sm text-text-muted mt-1">Gerir contas, papéis e permissões dos utilizadores.</p>
+      </div>
       <UsersTable users={users} unlinkedPlayers={unlinkedPlayers} />
     </div>
   );

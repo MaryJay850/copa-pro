@@ -34,8 +34,11 @@ export default async function AdminLeaguesPage() {
   });
 
   return (
-    <div>
-      <h1 className="text-2xl font-bold mb-6">Gestão de Ligas</h1>
+    <div className="space-y-6 animate-fade-in-up">
+      <div>
+        <h1 className="text-2xl font-bold">Gestão de Ligas</h1>
+        <p className="text-sm text-text-muted mt-1">Gerir ligas, gestores e configurações.</p>
+      </div>
       <div className="space-y-4">
         {leagues.map((league) => (
           <Card

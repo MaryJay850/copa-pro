@@ -14,13 +14,10 @@ export default async function AnalyticsPage() {
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in-up">
       <div>
-        <div className="flex items-center gap-2 text-sm text-text-muted mb-1">
-          <Link href="/admin" className="hover:text-text">Admin</Link>
-          <span>/</span>
-        </div>
         <h1 className="text-2xl font-bold">Analytics</h1>
+        <p className="text-sm text-text-muted mt-1">Estatísticas e métricas detalhadas da plataforma.</p>
       </div>
 
       {/* KPI Cards */}

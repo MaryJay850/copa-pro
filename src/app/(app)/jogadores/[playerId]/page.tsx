@@ -32,19 +32,15 @@ export default async function PlayerProfilePage({
     : 0;
 
   return (
-    <div className="space-y-8 animate-fade-in-up">
+    <div className="space-y-6 animate-fade-in-up">
       {/* Header */}
       <div>
-        <div className="flex items-center gap-2 text-sm text-text-muted mb-2 font-medium">
-          <Link href="/dashboard" className="hover:text-primary transition-colors">Painel</Link>
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-        </div>
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary to-primary-light flex items-center justify-center flex-shrink-0 shadow-md">
             <span className="text-2xl font-extrabold text-white">{initials}</span>
           </div>
           <div>
-            <h1 className="text-2xl font-extrabold tracking-tight">{profile.fullName}</h1>
+            <h1 className="text-2xl font-bold">{profile.fullName}</h1>
             {profile.nickname && (
               <p className="text-sm text-text-muted font-medium">&quot;{profile.nickname}&quot;</p>
             )}

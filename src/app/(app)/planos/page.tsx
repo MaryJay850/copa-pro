@@ -30,9 +30,9 @@ export default async function PlansPage({
   ]);
 
   return (
-    <div className="max-w-5xl mx-auto space-y-8 animate-fade-in-up">
+    <div className="space-y-6 animate-fade-in-up">
       <div>
-        <h1 className="text-2xl font-extrabold tracking-tight">Planos & Subscrição</h1>
+        <h1 className="text-2xl font-bold">Planos & Subscrição</h1>
         <p className="text-sm text-text-muted mt-1 font-medium">
           Gira o seu plano e aceda a mais funcionalidades.
         </p>

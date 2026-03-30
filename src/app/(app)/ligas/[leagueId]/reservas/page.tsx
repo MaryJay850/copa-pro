@@ -37,7 +37,7 @@ export default async function ReservasPage({ params }: { params: Promise<{ leagu
   })));
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in-up">
       <div>
         <h1 className="text-2xl font-bold">Reservas de Campos</h1>
         <p className="text-sm text-text-muted mt-1">{league.name} — Gerir reservas de campos</p>

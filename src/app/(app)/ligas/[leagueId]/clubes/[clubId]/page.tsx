@@ -20,16 +20,8 @@ export default async function ClubDetailPage({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-in-up">
       <div>
-        <div className="flex items-center gap-2 text-sm text-text-muted mb-1">
-          <Link href="/ligas" className="hover:text-text">Ligas</Link>
-          <span>/</span>
-          <Link href={`/ligas/${leagueId}`} className="hover:text-text">{club.league.name}</Link>
-          <span>/</span>
-          <Link href={`/ligas/${leagueId}/clubes`} className="hover:text-text">Clubes</Link>
-          <span>/</span>
-        </div>
         <h1 className="text-2xl font-bold">{club.name}</h1>
         <p className="text-sm text-text-muted mt-1">
           Gerir os campos deste clube. A qualidade afeta a distribuicao nos torneios.
