@@ -9,6 +9,7 @@ import { requireAuth, requireAdmin, requireLeagueManager } from "./auth-guards";
 import { auth } from "./auth";
 import { requireFeature, checkLimit } from "./plan-guards";
 import { logAudit } from "./actions/audit-actions";
+import { createNotification, createNotificationBulk } from "./actions/notification-actions";
 import { sendEmail } from "./email";
 import {
   welcomeEmail,
@@ -2138,6 +2139,41 @@ export async function saveMatchScore(
     );
 
     logAudit("SAVE_MATCH", "Match", matchId, { scores }).catch(() => {});
+
+    // Notify players about match result (fire-and-forget)
+    (async () => {
+      try {
+        const playerIds = [
+          match.teamA.player1Id,
+          match.teamA.player2Id,
+          match.teamB.player1Id,
+          match.teamB.player2Id,
+        ].filter(Boolean) as string[];
+
+        const users = await prisma.user.findMany({
+          where: { playerId: { in: playerIds } },
+          select: { id: true },
+        });
+
+        const userIds = users.map((u) => u.id);
+        if (userIds.length > 0) {
+          const scoreText = [
+            scores.set1A != null && scores.set1B != null ? `${scores.set1A}-${scores.set1B}` : null,
+            scores.set2A != null && scores.set2B != null ? `${scores.set2A}-${scores.set2B}` : null,
+            scores.set3A != null && scores.set3B != null ? `${scores.set3A}-${scores.set3B}` : null,
+          ].filter(Boolean).join(", ");
+
+          await createNotificationBulk(userIds, {
+            title: "Resultado registado",
+            message: `${match.teamA.name} vs ${match.teamB.name}: ${scoreText}`,
+            type: "RESULT",
+            href: `/torneios/${match.tournamentId}`,
+          });
+        }
+      } catch {
+        // Fire-and-forget: never disrupt the main flow
+      }
+    })();
 
     revalidatePath(`/torneios/${match.tournamentId}`);
     return { success: true };
@@ -4613,6 +4649,139 @@ export async function getPlayerProfile(playerId: string) {
 }
 
 // ══════════════════════════════════════════════════════════════════════
+// Player Stats (D1) – Enhanced profile with partner/opponent tracking
+// ══════════════════════════════════════════════════════════════════════
+
+export async function getPlayerStats(playerId: string) {
+  await requireAuth();
+
+  const player = await prisma.player.findUnique({
+    where: { id: playerId },
+    include: {
+      teamsAsPlayer1: { include: { tournament: { select: { id: true, name: true, teamMode: true } } } },
+      teamsAsPlayer2: { include: { tournament: { select: { id: true, name: true, teamMode: true } } } },
+    },
+  });
+
+  if (!player) throw new Error("Jogador não encontrado");
+
+  // Get all matches where this player participated
+  const matches = await prisma.match.findMany({
+    where: {
+      status: "FINISHED",
+      OR: [
+        { teamA: { OR: [{ player1Id: playerId }, { player2Id: playerId }] } },
+        { teamB: { OR: [{ player1Id: playerId }, { player2Id: playerId }] } },
+      ],
+    },
+    include: {
+      teamA: { include: { player1: true, player2: true } },
+      teamB: { include: { player1: true, player2: true } },
+      round: { include: { tournament: { select: { id: true, name: true } } } },
+    },
+    orderBy: { round: { tournament: { createdAt: "desc" } } },
+  });
+
+  let wins = 0, losses = 0, setsWon = 0, setsLost = 0, totalPoints = 0;
+  const partnerStats = new Map<string, { name: string; played: number; wins: number }>();
+  const opponentStats = new Map<string, { name: string; played: number; wins: number }>();
+  const recentMatches: Array<{
+    id: string;
+    tournamentName: string;
+    tournamentId: string | undefined;
+    partner: string | null;
+    opponents: string[];
+    won: boolean;
+    score: string;
+  }> = [];
+
+  for (const match of matches) {
+    const isTeamA = match.teamA?.player1Id === playerId || match.teamA?.player2Id === playerId;
+    const myTeam = isTeamA ? match.teamA : match.teamB;
+    const oppTeam = isTeamA ? match.teamB : match.teamA;
+    const won = match.winnerTeamId === myTeam?.id;
+
+    if (won) wins++; else losses++;
+
+    // Sets
+    const sets: [number | null, number | null][] = [[match.set1A, match.set1B], [match.set2A, match.set2B], [match.set3A, match.set3B]];
+    for (const [a, b] of sets) {
+      if (a === null || b === null) continue;
+      const myScore = isTeamA ? a : b;
+      const oppScore = isTeamA ? b : a;
+      if (myScore > oppScore) { setsWon++; totalPoints += 2; }
+      else if (oppScore > myScore) setsLost++;
+    }
+    if (won) totalPoints += 3;
+
+    // Partner tracking
+    const partner = myTeam?.player1Id === playerId ? myTeam?.player2 : myTeam?.player1;
+    if (partner) {
+      const key = partner.id;
+      const existing = partnerStats.get(key) || { name: partner.nickname || partner.fullName, played: 0, wins: 0 };
+      existing.played++;
+      if (won) existing.wins++;
+      partnerStats.set(key, existing);
+    }
+
+    // Opponent tracking
+    for (const opp of [oppTeam?.player1, oppTeam?.player2].filter(Boolean)) {
+      const key = opp!.id;
+      const existing = opponentStats.get(key) || { name: opp!.nickname || opp!.fullName, played: 0, wins: 0 };
+      existing.played++;
+      if (won) existing.wins++;
+      opponentStats.set(key, existing);
+    }
+
+    // Recent matches (last 20)
+    if (recentMatches.length < 20) {
+      recentMatches.push({
+        id: match.id,
+        tournamentName: match.round?.tournament?.name || "?",
+        tournamentId: match.round?.tournament?.id,
+        partner: partner ? (partner.nickname || partner.fullName) : null,
+        opponents: [oppTeam?.player1, oppTeam?.player2].filter(Boolean).map(p => p!.nickname || p!.fullName),
+        won,
+        score: sets.filter(([a, b]) => a !== null).map(([a, b]) => isTeamA ? `${a}-${b}` : `${b}-${a}`).join(" / "),
+      });
+    }
+  }
+
+  // Tournaments participated
+  const tournamentIds = new Set<string>();
+  [...player.teamsAsPlayer1, ...player.teamsAsPlayer2].forEach(t => {
+    if (t.tournament) tournamentIds.add(t.tournament.id);
+  });
+
+  return serialize({
+    player: {
+      id: player.id,
+      fullName: player.fullName,
+      nickname: player.nickname,
+      elo: player.eloRating,
+    },
+    stats: {
+      totalMatches: wins + losses,
+      wins,
+      losses,
+      winRate: wins + losses > 0 ? Math.round((wins / (wins + losses)) * 100) : 0,
+      setsWon,
+      setsLost,
+      setDiff: setsWon - setsLost,
+      totalPoints,
+      tournamentsPlayed: tournamentIds.size,
+    },
+    topPartners: Array.from(partnerStats.values())
+      .sort((a, b) => b.played - a.played)
+      .slice(0, 5),
+    topOpponents: Array.from(opponentStats.values())
+      .sort((a, b) => b.played - a.played)
+      .slice(0, 5),
+    recentMatches,
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════
 // Feature 5: Pending Requests Count (for nav badge)
 // ══════════════════════════════════════════════════════════════════════
 
@@ -6518,6 +6687,31 @@ export async function createLadderChallenge(tournamentId: string, defenderId: st
     data: { tournamentId, challengerId, defenderId, status: "PENDING" },
   });
 
+  // Notify defender about the challenge (fire-and-forget)
+  (async () => {
+    try {
+      const defenderUser = await prisma.user.findFirst({
+        where: { playerId: defenderId },
+        select: { id: true },
+      });
+      const challengerPlayer = await prisma.player.findUnique({
+        where: { id: challengerId },
+        select: { fullName: true, nickname: true },
+      });
+      if (defenderUser) {
+        const name = challengerPlayer?.nickname || challengerPlayer?.fullName || "Jogador";
+        await createNotification(defenderUser.id, {
+          title: "Novo desafio na escada",
+          message: `${name} desafiou-te! Aceita ou recusa o desafio.`,
+          type: "MATCH",
+          href: `/torneios/${tournamentId}`,
+        });
+      }
+    } catch {
+      // Fire-and-forget
+    }
+  })();
+
   revalidatePath(`/torneios/${tournamentId}`);
   return challenge.id;
 }
@@ -6580,6 +6774,27 @@ export async function acceptLadderChallenge(challengeId: string) {
     data: { status: "ACCEPTED", matchId: match.id },
   });
 
+  // Notify challenger that the challenge was accepted (fire-and-forget)
+  (async () => {
+    try {
+      const challengerUser = await prisma.user.findFirst({
+        where: { playerId: challenge.challengerId },
+        select: { id: true },
+      });
+      const defName = defenderPlayer?.nickname || defenderPlayer?.fullName || "Defensor";
+      if (challengerUser) {
+        await createNotification(challengerUser.id, {
+          title: "Desafio aceite",
+          message: `${defName} aceitou o teu desafio! O jogo foi criado.`,
+          type: "MATCH",
+          href: `/torneios/${challenge.tournamentId}`,
+        });
+      }
+    } catch {
+      // Fire-and-forget
+    }
+  })();
+
   revalidatePath(`/torneios/${challenge.tournamentId}`);
   return match.id;
 }
@@ -6601,6 +6816,31 @@ export async function declineLadderChallenge(challengeId: string) {
     where: { id: challengeId },
     data: { status: "DECLINED" },
   });
+
+  // Notify challenger that the challenge was declined (fire-and-forget)
+  (async () => {
+    try {
+      const challengerUser = await prisma.user.findFirst({
+        where: { playerId: challenge.challengerId },
+        select: { id: true },
+      });
+      const defenderPlayer = await prisma.player.findUnique({
+        where: { id: challenge.defenderId },
+        select: { fullName: true, nickname: true },
+      });
+      const defName = defenderPlayer?.nickname || defenderPlayer?.fullName || "Defensor";
+      if (challengerUser) {
+        await createNotification(challengerUser.id, {
+          title: "Desafio recusado",
+          message: `${defName} recusou o teu desafio.`,
+          type: "MATCH",
+          href: `/torneios/${challenge.tournamentId}`,
+        });
+      }
+    } catch {
+      // Fire-and-forget
+    }
+  })();
 
   revalidatePath(`/torneios/${challenge.tournamentId}`);
 }
