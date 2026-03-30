@@ -15,6 +15,7 @@ import {
   deleteCourt,
 } from "@/lib/actions/club-actions";
 import { sanitizeError } from "@/lib/error-utils";
+import Link from "next/link";
 
 type Court = {
   id: string;
@@ -176,7 +177,13 @@ export function AdminClubsContent({ clubs }: { clubs: Club[] }) {
           <div className="pt-14 flex flex-col sm:flex-row sm:items-center gap-4">
             <div className="flex-1">
               <h1 className="text-xl font-extrabold tracking-tight">Gestão de Clubes</h1>
-              <p className="text-sm text-text-muted mt-0.5">Criar e gerir clubes de padel e os seus campos</p>
+              <p className="text-sm text-text-muted mt-0.5">
+                Criar e gerir clubes de padel e os seus campos
+                {" · "}
+                <Link href="/admin/importar-clubes" className="text-primary hover:underline font-medium">
+                  Importar clubes de Portugal
+                </Link>
+              </p>
             </div>
             <div className="flex items-center gap-6">
               <div className="text-center">
