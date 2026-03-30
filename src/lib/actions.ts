@@ -4881,81 +4881,71 @@ export async function updateEloAfterMatch(matchId: string) {
 // Feature 16: Player Availability
 // ══════════════════════════════════════════════════════════════════════
 
+// Legacy wrapper — kept so existing calendar component doesn't break at import level
 export async function setPlayerAvailability(
-  dates: { date: string; available: boolean; note?: string }[]
+  _dates: { date: string; available: boolean; note?: string }[]
+) {
+  // No-op: availability is now per-tournament via setTournamentPlayerAvailability
+}
+
+// ── Tournament-based Player Availability (C3) ──
+
+export async function setTournamentPlayerAvailability(
+  tournamentId: string,
+  status: "AVAILABLE" | "UNAVAILABLE" | "MAYBE",
+  note?: string
 ) {
   const session = await requireAuth();
 
   if (!session.playerId) throw new Error("Sem jogador associado.");
   const playerId = session.playerId;
 
-  for (const entry of dates) {
-    await prisma.playerAvailability.upsert({
-      where: {
-        playerId_date: { playerId, date: new Date(entry.date) },
-      },
-      update: { available: entry.available, note: entry.note || null },
-      create: {
-        playerId,
-        date: new Date(entry.date),
-        available: entry.available,
-        note: entry.note || null,
-      },
-    });
-  }
+  await prisma.playerAvailability.upsert({
+    where: {
+      tournamentId_playerId: { tournamentId, playerId },
+    },
+    update: { status, note: note || null },
+    create: {
+      tournamentId,
+      playerId,
+      status,
+      note: note || null,
+    },
+  });
 
-  revalidatePath("/dashboard");
+  revalidatePath(`/torneios/${tournamentId}`);
 }
 
-export async function getPlayerAvailability(playerId: string, month: number, year: number) {
+export async function getTournamentPlayerAvailabilities(tournamentId: string) {
   await requireAuth();
-
-  const start = new Date(year, month, 1);
-  const end = new Date(year, month + 1, 0);
 
   const entries = await prisma.playerAvailability.findMany({
-    where: {
-      playerId,
-      date: { gte: start, lte: end },
+    where: { tournamentId },
+    include: {
+      player: { select: { id: true, fullName: true, nickname: true } },
     },
-    orderBy: { date: "asc" },
   });
 
-  return serialize(entries);
+  return entries.map((e) => ({
+    playerId: e.player.id,
+    playerName: e.player.nickname || e.player.fullName,
+    status: e.status,
+    note: e.note,
+  }));
 }
 
-export async function getLeagueAvailability(leagueId: string, date: string) {
-  await requireAuth();
+export async function getMyTournamentAvailability(tournamentId: string) {
+  const session = await requireAuth();
 
-  const targetDate = new Date(date);
+  if (!session.playerId) return null;
 
-  const members = await prisma.leagueMembership.findMany({
-    where: { leagueId, status: "APPROVED" },
-    include: {
-      user: {
-        include: {
-          player: {
-            include: {
-              availabilities: {
-                where: { date: targetDate },
-              },
-            },
-          },
-        },
-      },
+  const entry = await prisma.playerAvailability.findUnique({
+    where: {
+      tournamentId_playerId: { tournamentId, playerId: session.playerId },
     },
   });
 
-  return serialize(
-    members
-      .filter((m) => m.user.player)
-      .map((m) => ({
-        playerId: m.user.player!.id,
-        playerName: m.user.player!.nickname || m.user.player!.fullName,
-        available: m.user.player!.availabilities[0]?.available ?? null,
-        note: m.user.player!.availabilities[0]?.note ?? null,
-      }))
-  );
+  return entry ? { status: entry.status, note: entry.note } : null;
 }
 
 // ══════════════════════════════════════════════════════════════════════
@@ -6787,4 +6777,27 @@ export async function getLadderStatus(tournamentId: string) {
       createdAt: c.createdAt.toISOString(),
     })),
   };
+}
+
+// ── C6: Drag-and-Drop Schedule Reordering ──
+
+export async function reorderMatches(
+  tournamentId: string,
+  updates: { matchId: string; courtId: string | null; slotIndex: number }[]
+) {
+  const tournament = await prisma.tournament.findUnique({
+    where: { id: tournamentId },
+  });
+  if (!tournament) throw new Error("Torneio não encontrado");
+  await requireLeagueManager(tournament.leagueId ?? "");
+
+  // Batch update all matches
+  for (const update of updates) {
+    await prisma.match.update({
+      where: { id: update.matchId },
+      data: { courtId: update.courtId, slotIndex: update.slotIndex },
+    });
+  }
+
+  revalidatePath(`/torneios/${tournamentId}`);
 }

@@ -85,24 +85,13 @@ export default async function GestorPage() {
     },
   });
 
-  const today = new Date();
-  const next7 = new Date();
-  next7.setDate(today.getDate() + 7);
-
   const availabilityCount = await prisma.playerAvailability.count({
     where: {
-      available: true,
-      date: { gte: today, lte: next7 },
-      player: {
-        user: {
-          leagueMemberships: {
-            some: {
-              status: "APPROVED",
-              league: {
-                managers: { some: { userId } },
-              },
-            },
-          },
+      status: "AVAILABLE",
+      tournament: {
+        status: { in: ["DRAFT", "PUBLISHED", "RUNNING"] },
+        league: {
+          managers: { some: { userId } },
         },
       },
     },

@@ -20,7 +20,8 @@ import { SobeDesceCourtMap, type SobeDesceCourtInfo } from "@/components/sobe-de
 import { NonstopView, type NonstopQueueEntry, type NonstopActiveMatch } from "@/components/nonstop-view";
 import { LadderView, type LadderPlayer, type LadderChallengeInfo } from "@/components/ladder-view";
 import { PhotoGallery } from "@/components/photo-gallery";
-import { getAmericanoStandings, generateNextAmericanoRoundAction, getSobeDesceStandings, generateNextSobeDesceRoundAction, getNonstopQueueStatus, joinNonstopQueue, leaveNonstopQueue, rejoinNonstopQueue, getLadderStatus, createLadderChallenge, acceptLadderChallenge, declineLadderChallenge, getTournamentPhotos, uploadTournamentPhoto, deleteTournamentPhoto, getTournamentPhoto } from "@/lib/actions";
+import { PlayerAvailabilityView } from "@/components/player-availability";
+import { getAmericanoStandings, generateNextAmericanoRoundAction, getSobeDesceStandings, generateNextSobeDesceRoundAction, getNonstopQueueStatus, joinNonstopQueue, leaveNonstopQueue, rejoinNonstopQueue, getLadderStatus, createLadderChallenge, acceptLadderChallenge, declineLadderChallenge, getTournamentPhotos, uploadTournamentPhoto, deleteTournamentPhoto, getTournamentPhoto, setTournamentPlayerAvailability, getTournamentPlayerAvailabilities, getMyTournamentAvailability } from "@/lib/actions";
 
 const statusLabels: Record<
   string,
@@ -78,10 +79,24 @@ export function TournamentDetailContent({
   // Photo gallery state
   const [photos, setPhotos] = useState<{ id: string; thumbnailData: string | null; caption: string | null; createdAt: string }[]>([]);
 
+  // Player availability state
+  const [availabilityEntries, setAvailabilityEntries] = useState<{ playerId: string; playerName: string; status: string; note: string | null }[]>([]);
+  const [myAvailabilityStatus, setMyAvailabilityStatus] = useState<string | null>(null);
+
   // Load photos on mount
   React.useEffect(() => {
     getTournamentPhotos(tournament.id).then(setPhotos).catch(() => {});
   }, [tournament.id]);
+
+  // Load availability data on mount
+  React.useEffect(() => {
+    if (tournament.status !== "FINISHED") {
+      getTournamentPlayerAvailabilities(tournament.id).then(setAvailabilityEntries).catch(() => {});
+      getMyTournamentAvailability(tournament.id).then((data) => {
+        setMyAvailabilityStatus(data?.status ?? null);
+      }).catch(() => {});
+    }
+  }, [tournament.id, tournament.status]);
 
   // Load Americano standings on mount
   React.useEffect(() => {
@@ -273,6 +288,14 @@ export function TournamentDetailContent({
       key: "jogadores",
       label: "Gestão Jogadores",
       icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
+    });
+  }
+
+  if (tournament.status !== "FINISHED") {
+    navItems.push({
+      key: "disponibilidade",
+      label: "Disponibilidade",
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
     });
   }
 
@@ -902,6 +925,34 @@ export function TournamentDetailContent({
                 tournamentId={tournament.id}
                 inscriptions={tournament.inscriptions}
                 readOnly={tournament.status === "FINISHED"}
+              />
+            </Card>
+          )}
+
+          {/* ─── Player Availability Section ─── */}
+          {activeSection === "disponibilidade" && tournament.status !== "FINISHED" && (
+            <Card className="py-5 px-6">
+              <h2 className="text-base font-bold mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Disponibilidade
+              </h2>
+              <PlayerAvailabilityView
+                entries={availabilityEntries}
+                myStatus={myAvailabilityStatus}
+                canRespond={!!currentPlayerId}
+                isManager={canManage}
+                onSetStatus={async (status, note) => {
+                  await setTournamentPlayerAvailability(
+                    tournament.id,
+                    status as "AVAILABLE" | "UNAVAILABLE" | "MAYBE",
+                    note
+                  );
+                  setMyAvailabilityStatus(status);
+                  const updated = await getTournamentPlayerAvailabilities(tournament.id);
+                  setAvailabilityEntries(updated);
+                }}
               />
             </Card>
           )}

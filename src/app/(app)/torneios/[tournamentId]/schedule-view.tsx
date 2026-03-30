@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { MatchCard } from "@/components/match-card";
 import { MatchCalendar } from "@/components/match-calendar";
+import { DraggableSchedule } from "@/components/draggable-schedule";
+import { reorderMatches } from "@/lib/actions";
 
 type ScheduleRound = {
   id: string;
@@ -42,6 +44,7 @@ export function ScheduleView({
   numberOfRounds?: number;
 }) {
   const [view, setView] = useState<"generated" | "list" | "calendar" | "print">("generated");
+  const [editMode, setEditMode] = useState(false);
   const printRef = useRef<HTMLDivElement>(null);
 
   // Get unique courts from all rounds
@@ -386,42 +389,120 @@ export function ScheduleView({
           </Card>
         </div>
       ) : (
-        rounds.map((round, rIdx) => {
-          const finished = round.matches.filter((m: any) => m.status === "FINISHED").length;
-          const total = round.matches.length;
-          return (
-            <Card key={round.id} className={`animate-fade-in-up stagger-${Math.min(rIdx + 1, 8)}`}>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
-                      <span className="text-sm font-extrabold text-primary">R{round.index}</span>
+        <>
+          {canManage && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setEditMode(!editMode)}
+                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 border ${
+                  editMode
+                    ? "bg-emerald-600 text-white border-emerald-600"
+                    : "bg-surface text-text-muted border-border hover:text-text hover:bg-surface-hover"
+                }`}
+              >
+                {editMode ? "Sair do Modo Edição" : "Modo Edição"}
+              </button>
+              {editMode && (
+                <span className="text-xs text-text-muted">
+                  Arraste os jogos para reordenar ou mover entre campos
+                </span>
+              )}
+            </div>
+          )}
+          {rounds.map((round, rIdx) => {
+            const finished = round.matches.filter((m: any) => m.status === "FINISHED").length;
+            const total = round.matches.length;
+
+            // Build court-grouped data for DraggableSchedule
+            const courtMap = new Map<string, { id: string; name: string; matches: any[] }>();
+            for (const match of round.matches) {
+              const courtId = match.court?.id || match.courtId || "unassigned";
+              const courtName = match.court?.name || (courtId === "unassigned" ? "Sem campo" : `Campo ${courtId}`);
+              if (!courtMap.has(courtId)) {
+                courtMap.set(courtId, { id: courtId, name: courtName, matches: [] });
+              }
+              const p1A = match.teamA?.player1?.nickname || match.teamA?.player1?.fullName?.split(" ")[0] || "";
+              const p2A = match.teamA?.player2 ? (match.teamA.player2.nickname || match.teamA.player2.fullName?.split(" ")[0] || "") : null;
+              const teamAName = p2A ? `${p1A} & ${p2A}` : (match.teamA?.name || p1A || "—");
+              const p1B = match.teamB?.player1?.nickname || match.teamB?.player1?.fullName?.split(" ")[0] || "";
+              const p2B = match.teamB?.player2 ? (match.teamB.player2.nickname || match.teamB.player2.fullName?.split(" ")[0] || "") : null;
+              const teamBName = p2B ? `${p1B} & ${p2B}` : (match.teamB?.name || p1B || "—");
+
+              let score: string | undefined;
+              if (match.status === "FINISHED") {
+                const sets: string[] = [];
+                if (match.set1A != null && match.set1B != null) sets.push(`${match.set1A}-${match.set1B}`);
+                if (match.set2A != null && match.set2B != null) sets.push(`${match.set2A}-${match.set2B}`);
+                if (match.set3A != null && match.set3B != null) sets.push(`${match.set3A}-${match.set3B}`);
+                score = sets.join(" / ");
+              }
+
+              courtMap.get(courtId)!.matches.push({
+                id: match.id,
+                slotIndex: match.slotIndex ?? 0,
+                courtId: courtId === "unassigned" ? null : courtId,
+                courtName,
+                teamAName,
+                teamBName,
+                status: match.status,
+                score,
+              });
+            }
+            // Sort matches within each court by slotIndex
+            for (const court of courtMap.values()) {
+              court.matches.sort((a: any, b: any) => a.slotIndex - b.slotIndex);
+            }
+            const dragCourts = Array.from(courtMap.values());
+
+            return (
+              <Card key={round.id} className={`animate-fade-in-up stagger-${Math.min(rIdx + 1, 8)}`}>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <span className="text-sm font-extrabold text-primary">R{round.index}</span>
+                      </div>
+                      <CardTitle>Ronda {round.index}</CardTitle>
                     </div>
-                    <CardTitle>Ronda {round.index}</CardTitle>
+                    <span className="text-xs font-semibold text-text-muted tabular-nums">
+                      {finished}/{total} jogos
+                    </span>
                   </div>
-                  <span className="text-xs font-semibold text-text-muted tabular-nums">
-                    {finished}/{total} jogos
-                  </span>
-                </div>
-              </CardHeader>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {round.matches.map((match: any) => (
-                  <MatchCard
-                    key={match.id}
-                    match={match}
-                    numberOfSets={numberOfSets}
-                    canEdit={canManage}
-                    currentPlayerId={currentPlayerId}
-                    currentUserId={currentUserId}
-                    pendingSubmission={
-                      pendingSubmissionsMap?.[match.id] ?? null
-                    }
-                  />
-                ))}
-              </div>
-            </Card>
-          );
-        })
+                </CardHeader>
+                {editMode && canManage ? (
+                  <div className="px-4 pb-4">
+                    <DraggableSchedule
+                      courts={dragCourts}
+                      roundId={round.id}
+                      canManage={canManage}
+                      onReorder={async (updates) => {
+                        if (tournamentId) {
+                          await reorderMatches(tournamentId, updates);
+                        }
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {round.matches.map((match: any) => (
+                      <MatchCard
+                        key={match.id}
+                        match={match}
+                        numberOfSets={numberOfSets}
+                        canEdit={canManage}
+                        currentPlayerId={currentPlayerId}
+                        currentUserId={currentUserId}
+                        pendingSubmission={
+                          pendingSubmissionsMap?.[match.id] ?? null
+                        }
+                      />
+                    ))}
+                  </div>
+                )}
+              </Card>
+            );
+          })}
+        </>
       )}
     </div>
   );

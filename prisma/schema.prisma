@@ -260,9 +260,10 @@ model Tournament {
   inscriptions     TournamentInscription[]
   groups           TournamentGroup[]
   ladderChallenges LadderChallenge[]
-  ladderPositions  LadderPosition[]
-  matchQueues      MatchQueue[]
-  photos           TournamentPhoto[]
+  ladderPositions       LadderPosition[]
+  matchQueues           MatchQueue[]
+  photos                TournamentPhoto[]
+  playerAvailabilities  PlayerAvailability[]
 
   @@map("tournaments")
 }
@@ -407,16 +408,17 @@ model SeasonRankingEntry {
 // ── Availability ──
 
 model PlayerAvailability {
-  id        String   @id @default(cuid())
-  playerId  String
-  date      DateTime @db.Date
-  available Boolean  @default(true)
-  note      String?
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  tournamentId  String
+  playerId      String
+  status        String   @default("AVAILABLE")  // AVAILABLE | UNAVAILABLE | MAYBE
+  note          String?
+  updatedAt     DateTime @updatedAt
 
-  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player     Player     @relation(fields: [playerId], references: [id])
 
-  @@unique([playerId, date])
+  @@unique([tournamentId, playerId])
   @@map("player_availabilities")
 }
 
