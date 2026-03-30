@@ -26,7 +26,7 @@ interface TeamPair {
   player2Id: string | null;
 }
 
-type TeamMode = "FIXED_TEAMS" | "RANDOM_TEAMS" | "MANUAL_TEAMS" | "RANDOM_PER_ROUND" | "RANKED_SPLIT" | "AMERICANO" | "SOBE_DESCE";
+type TeamMode = "FIXED_TEAMS" | "RANDOM_TEAMS" | "MANUAL_TEAMS" | "RANDOM_PER_ROUND" | "RANKED_SPLIT" | "AMERICANO" | "SOBE_DESCE" | "NONSTOP" | "LADDER";
 
 export function TournamentWizard({
   leagueId,
@@ -209,7 +209,7 @@ export function TournamentWizard({
   const maxPossibleRounds = Math.max(effectivePlayerCount - 1, 1);
 
   // Total steps: 1v1 skips step 3, RANDOM_PER_ROUND and RANKED_SPLIT skip step 3
-  const skipsTeamStep = teamSize === 1 || teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE";
+  const skipsTeamStep = teamSize === 1 || teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || teamMode === "NONSTOP" || teamMode === "LADDER";
   const totalSteps = skipsTeamStep ? 3 : 4;
   const reviewStep = skipsTeamStep ? 3 : 4;
 
@@ -357,7 +357,7 @@ export function TournamentWizard({
 
   // Detect if structural changes require schedule regeneration (only relevant in edit mode)
   const roundsChanged = editMode &&
-    (teamMode === "RANDOM_PER_ROUND" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || (teamMode === "RANKED_SPLIT" && rankedSplitSubMode === "per_round")) &&
+    (teamMode === "RANDOM_PER_ROUND" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || teamMode === "NONSTOP" || teamMode === "LADDER" || (teamMode === "RANKED_SPLIT" && rankedSplitSubMode === "per_round")) &&
     numberOfRounds !== (editMode.initialData.numberOfRounds ?? 3);
 
   const needsRegeneration = !editMode ? true : (
@@ -365,8 +365,8 @@ export function TournamentWizard({
     matchesPerPair !== editMode.initialData.matchesPerPair ||
     (teamSize === 1 ? "FIXED_TEAMS" : teamMode) !== editMode.initialData.teamMode ||
     teamSize !== editMode.initialData.teamSize ||
-    ((teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE") && roundsChanged) ||
-    (["RANDOM_TEAMS", "RANDOM_PER_ROUND", "RANKED_SPLIT", "AMERICANO", "SOBE_DESCE"].includes(teamMode) && randomSeed !== editMode.initialData.randomSeed) ||
+    ((teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || teamMode === "NONSTOP" || teamMode === "LADDER") && roundsChanged) ||
+    (["RANDOM_TEAMS", "RANDOM_PER_ROUND", "RANKED_SPLIT", "AMERICANO", "SOBE_DESCE", "NONSTOP", "LADDER"].includes(teamMode) && randomSeed !== editMode.initialData.randomSeed) ||
     // Player set changed (added/removed players)
     selectionOrder.length !== editMode.initialData.selectedPlayerIds.length ||
     !selectionOrder.every((id) => editMode.initialData.selectedPlayerIds.includes(id))
@@ -374,7 +374,7 @@ export function TournamentWizard({
 
   const handleSubmit = async () => {
     // For RANDOM_PER_ROUND and RANKED_SPLIT, skip team validation — teams are generated server-side
-    if (teamMode !== "RANDOM_PER_ROUND" && teamMode !== "RANKED_SPLIT" && teamMode !== "AMERICANO" && teamMode !== "SOBE_DESCE" && teams.length > 0) {
+    if (teamMode !== "RANDOM_PER_ROUND" && teamMode !== "RANKED_SPLIT" && teamMode !== "AMERICANO" && teamMode !== "SOBE_DESCE" && teamMode !== "NONSTOP" && teamMode !== "LADDER" && teams.length > 0) {
       const usedIds = new Set<string>();
       for (const t of teams) {
         if (!t.player1Id) { setError("Todos os lugares devem ser preenchidos."); return; }
@@ -396,6 +396,8 @@ export function TournamentWizard({
       const effectiveTeamMode = teamSize === 1 ? "FIXED_TEAMS" : teamMode;
       const needsRounds = teamMode === "RANDOM_PER_ROUND" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || (teamMode === "RANKED_SPLIT" && rankedSplitSubMode === "per_round");
       const needsSeed = ["RANDOM_TEAMS", "RANDOM_PER_ROUND", "RANKED_SPLIT", "AMERICANO", "SOBE_DESCE"].includes(teamMode);
+      const isNonstop = teamMode === "NONSTOP";
+      const isLadder = teamMode === "LADDER";
       // Derive court names from selected club courts for backward compat
       const selectedCourts = clubCourts.filter((c) => selectedCourtIds.includes(c.id));
       const derivedCourtNames = selectedCourts.map((c) => c.name);
@@ -424,7 +426,7 @@ export function TournamentWizard({
         randomSeed: needsSeed && teamSize === 2 ? randomSeed : undefined,
         numberOfRounds: needsRounds ? numberOfRounds : undefined,
         rankedSplitSubMode: teamMode === "RANKED_SPLIT" ? rankedSplitSubMode : undefined,
-        teams: (teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE") ? [] : teams,
+        teams: (teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || teamMode === "NONSTOP" || teamMode === "LADDER") ? [] : teams,
         allPlayerIds: selectionOrder,
       };
 
@@ -432,7 +434,7 @@ export function TournamentWizard({
         if (needsRegeneration) {
           // Structural change: full reset + regenerate schedule
           await updateTournament({ tournamentId: editMode.tournamentId, ...payload });
-          const hasTeamsOrPerRound = teams.length > 0 || teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE";
+          const hasTeamsOrPerRound = teams.length > 0 || teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || teamMode === "NONSTOP" || teamMode === "LADDER";
           if (hasTeamsOrPerRound) await generateSchedule(editMode.tournamentId);
         } else {
           // Light update: preserve existing schedule
@@ -449,7 +451,7 @@ export function TournamentWizard({
         router.push(`/torneios/${editMode.tournamentId}`);
       } else {
         const tournament = await createTournament({ leagueId: leagueId!, seasonId: seasonId!, ...payload });
-        const hasTeamsOrPerRound = teams.length > 0 || teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE";
+        const hasTeamsOrPerRound = teams.length > 0 || teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || teamMode === "NONSTOP" || teamMode === "LADDER";
         if (hasTeamsOrPerRound) await generateSchedule(tournament.id);
         router.push(`/torneios/${tournament.id}`);
       }
@@ -488,6 +490,8 @@ export function TournamentWizard({
       case "RANKED_SPLIT": return "Aleatórias por Nível";
       case "AMERICANO": return "Americano";
       case "SOBE_DESCE": return "Sobe e Desce";
+      case "NONSTOP": return "Nonstop";
+      case "LADDER": return "Escada";
       default: return "Fixas";
     }
   };
@@ -521,6 +525,14 @@ export function TournamentWizard({
 
     if (teamSize === 1) {
       init1v1Teams();
+      setStep(reviewStep);
+    } else if (teamMode === "NONSTOP") {
+      // Nonstop: skip team formation — matches created dynamically
+      setTeams([]);
+      setStep(reviewStep);
+    } else if (teamMode === "LADDER") {
+      // Ladder: skip team formation — matches created via challenges
+      setTeams([]);
       setStep(reviewStep);
     } else if (teamMode === "RANDOM_PER_ROUND" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE") {
       // Skip team formation — teams generated server-side per round
@@ -1031,10 +1043,10 @@ export function TournamentWizard({
               <div>
                 <FieldLabel label="Modo de Equipas" tooltip="Fixas: pares por ordem de seleção. Aleatórias: pares gerados aleatoriamente. Manuais: escolha manual. Aleatórias por Ronda: novas equipas em cada ronda. Por Nível: divide jogadores por classificação." />
                 <div className="flex flex-wrap gap-3 mt-1">
-                  {(["FIXED_TEAMS", "RANDOM_TEAMS", "MANUAL_TEAMS", "RANDOM_PER_ROUND", "RANKED_SPLIT", "AMERICANO", "SOBE_DESCE"] as const).map((mode) => (
+                  {(["FIXED_TEAMS", "RANDOM_TEAMS", "MANUAL_TEAMS", "RANDOM_PER_ROUND", "RANKED_SPLIT", "AMERICANO", "SOBE_DESCE", "NONSTOP", "LADDER"] as const).map((mode) => (
                     <label key={mode} className="flex items-center gap-2 text-sm cursor-pointer">
                       <input type="radio" checked={teamMode === mode} onChange={() => { setTeamMode(mode); if (mode === "RANKED_SPLIT" && !rankingLoaded && seasonId) { getPlayersWithRanking(seasonId).then((data) => { setRankingData(data); setRankingLoaded(true); }).catch(() => {}); } }} className="text-primary focus:ring-primary" />
-                      {mode === "FIXED_TEAMS" ? "Equipas Fixas" : mode === "RANDOM_TEAMS" ? "Equipas Aleatórias" : mode === "MANUAL_TEAMS" ? "Equipas Manuais" : mode === "RANDOM_PER_ROUND" ? "Aleatórias por Ronda" : mode === "RANKED_SPLIT" ? "Aleatórias por Nível" : mode === "AMERICANO" ? "Americano" : "Sobe e Desce"}
+                      {mode === "FIXED_TEAMS" ? "Equipas Fixas" : mode === "RANDOM_TEAMS" ? "Equipas Aleatórias" : mode === "MANUAL_TEAMS" ? "Equipas Manuais" : mode === "RANDOM_PER_ROUND" ? "Aleatórias por Ronda" : mode === "RANKED_SPLIT" ? "Aleatórias por Nível" : mode === "AMERICANO" ? "Americano" : mode === "SOBE_DESCE" ? "Sobe e Desce" : mode === "NONSTOP" ? "Nonstop" : "Escada"}
                     </label>
                   ))}
                 </div>
@@ -1190,6 +1202,28 @@ export function TournamentWizard({
               </div>
             )}
 
+            {teamSize === 2 && teamMode === "NONSTOP" && (
+              <div className="bg-cyan-50 border border-cyan-200 rounded-lg px-4 py-3 space-y-3">
+                <p className="text-sm text-cyan-800">
+                  Formato cont&iacute;nuo &mdash; os jogos s&atilde;o criados automaticamente quando h&aacute; jogadores na fila e campos dispon&iacute;veis.
+                </p>
+                <p className="text-xs text-cyan-700">
+                  N&atilde;o existem rondas fixas. Os jogadores entram na fila, e quando h&aacute; 4 jogadores &agrave; espera e um campo livre, um jogo &eacute; criado automaticamente. Ranking individual (mesma pontua&ccedil;&atilde;o: 2pts por set ganho + 3pts por vit&oacute;ria).
+                </p>
+              </div>
+            )}
+
+            {teamSize === 2 && teamMode === "LADDER" && (
+              <div className="bg-indigo-50 border border-indigo-200 rounded-lg px-4 py-3 space-y-3">
+                <p className="text-sm text-indigo-800">
+                  Formato Escada: jogadores desafiam quem est&aacute; acima. O vencedor sobe de posi&ccedil;&atilde;o.
+                </p>
+                <p className="text-xs text-indigo-700">
+                  Os jogadores s&atilde;o ordenados por ELO. Cada jogador pode desafiar at&eacute; 2 posi&ccedil;&otilde;es acima. Se ganhar, troca de posi&ccedil;&atilde;o com o adversário. Jogos 1v1 criados por desafio.
+                </p>
+              </div>
+            )}
+
             <Button onClick={() => { if (!name.trim()) { setError("Nome é obrigatório."); return; } if (!startDate) { setError("Data do torneio é obrigatória."); return; } setError(null); setStep(2); }}>Seguinte</Button>
           </div>
         </Card>
@@ -1231,6 +1265,18 @@ export function TournamentWizard({
             <div className="bg-orange-50 border border-orange-200 text-orange-800 text-xs px-3 py-2 rounded-lg mb-3">
               Formato Sobe e Desce: <strong>{numberOfRounds}</strong> ronda(s). Ranking individual. Vencedores sobem, perdedores descem.
               {titularIds.length % 4 !== 0 && <span className="text-red-600 font-bold"> O n&uacute;mero de jogadores deve ser m&uacute;ltiplo de 4!</span>}
+            </div>
+          )}
+
+          {teamMode === "NONSTOP" && titularIds.length >= 4 && (
+            <div className="bg-cyan-50 border border-cyan-200 text-cyan-800 text-xs px-3 py-2 rounded-lg mb-3">
+              Formato Nonstop: jogos criados automaticamente. Ranking individual.
+            </div>
+          )}
+
+          {teamMode === "LADDER" && titularIds.length >= 2 && (
+            <div className="bg-indigo-50 border border-indigo-200 text-indigo-800 text-xs px-3 py-2 rounded-lg mb-3">
+              Formato Escada: jogadores desafiam quem est&aacute; acima. O vencedor sobe de posi&ccedil;&atilde;o.
             </div>
           )}
 
@@ -1302,7 +1348,7 @@ export function TournamentWizard({
       )}
 
       {/* Step 3: Teams (only for 2v2, not RANDOM_PER_ROUND/AMERICANO) */}
-      {step === 3 && teamSize === 2 && teamMode !== "RANDOM_PER_ROUND" && teamMode !== "AMERICANO" && teamMode !== "SOBE_DESCE" && (
+      {step === 3 && teamSize === 2 && teamMode !== "RANDOM_PER_ROUND" && teamMode !== "AMERICANO" && teamMode !== "SOBE_DESCE" && teamMode !== "NONSTOP" && (
         <Card className="py-5 px-6">
           <h2 className="text-base font-bold mb-5 flex items-center gap-2">
             <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
@@ -1396,6 +1442,16 @@ export function TournamentWizard({
                   Equipas {rankedSplitSubMode === "per_round" ? `aleatórias por ronda (${numberOfRounds} rondas)` : "fixas aleatórias"} dentro de cada grupo.
                   Grupo A joga só contra Grupo A, Grupo B só contra Grupo B.
                 </div>
+              ) : teamMode === "NONSTOP" ? (
+                <div className="bg-cyan-50 border border-cyan-200 text-cyan-800 text-sm px-4 py-3 rounded-lg">
+                  Formato Nonstop: {titularIds.length} jogadores. Jogos criados automaticamente quando h&aacute; 4 jogadores na fila e campos dispon&iacute;veis.
+                  Ranking individual (2pts por set ganho + 3pts por vit&oacute;ria).
+                </div>
+              ) : teamMode === "LADDER" ? (
+                <div className="bg-indigo-50 border border-indigo-200 text-indigo-800 text-sm px-4 py-3 rounded-lg">
+                  Formato Escada: {titularIds.length} jogadores ordenados por ELO. Jogadores desafiam at&eacute; 2 posi&ccedil;&otilde;es acima.
+                  O vencedor sobe de posi&ccedil;&atilde;o. Jogos criados por desafio.
+                </div>
               ) : teamMode === "RANDOM_PER_ROUND" ? (
                 <div className="bg-indigo-50 border border-indigo-200 text-indigo-800 text-sm px-4 py-3 rounded-lg">
                   As equipas serão geradas automaticamente em cada ronda. {titularIds.length} jogadores titulares, {numberOfRounds} ronda(s) com equipas diferentes.
@@ -1460,20 +1516,20 @@ export function TournamentWizard({
           )}
 
           <div className="flex gap-2 mt-4">
-            <Button variant="ghost" onClick={() => setStep(teams.length === 0 && teamMode !== "RANDOM_PER_ROUND" && teamMode !== "RANKED_SPLIT" && teamMode !== "AMERICANO" && teamMode !== "SOBE_DESCE" ? 2 : (skipsTeamStep ? 2 : 3))}>Anterior</Button>
+            <Button variant="ghost" onClick={() => setStep(teams.length === 0 && teamMode !== "RANDOM_PER_ROUND" && teamMode !== "RANKED_SPLIT" && teamMode !== "AMERICANO" && teamMode !== "SOBE_DESCE" && teamMode !== "NONSTOP" && teamMode !== "LADDER" ? 2 : (skipsTeamStep ? 2 : 3))}>Anterior</Button>
             <Button onClick={handleSubmit} disabled={loading}>
               {loading
                 ? (editMode ? (needsRegeneration ? "A regenerar..." : "A guardar...") : "A criar torneio...")
                 : (editMode
                     ? (needsRegeneration ? "Guardar e Regenerar Calendário" : "Guardar Alterações")
-                    : (teams.length > 0 || teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" ? "Criar Torneio e Gerar Calendário" : "Criar Torneio")
+                    : (teams.length > 0 || teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || teamMode === "NONSTOP" || teamMode === "LADDER" ? "Criar Torneio e Gerar Calendário" : "Criar Torneio")
                   )
               }
             </Button>
             {editMode && !needsRegeneration && (
               <span className="text-xs text-emerald-600 self-center">O calendário existente será preservado</span>
             )}
-            {editMode && needsRegeneration && (teams.length > 0 || teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE") && (
+            {editMode && needsRegeneration && (teams.length > 0 || teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || teamMode === "NONSTOP" || teamMode === "LADDER") && (
               <span className="text-xs text-amber-600 self-center">O calendário será regenerado</span>
             )}
           </div>

@@ -203,6 +203,10 @@ model Player {
   inscriptions     TournamentInscription[]
   availabilities   PlayerAvailability[]
   eloHistory       EloHistory[]
+  ladderChallengesAsChallenger LadderChallenge[] @relation("challenger")
+  ladderChallengesAsDefender   LadderChallenge[] @relation("defender")
+  ladderPositions              LadderPosition[]
+  matchQueues                  MatchQueue[]
 
   @@map("players")
 }
@@ -254,6 +258,9 @@ model Tournament {
   matches          Match[]
   inscriptions     TournamentInscription[]
   groups           TournamentGroup[]
+  ladderChallenges LadderChallenge[]
+  ladderPositions  LadderPosition[]
+  matchQueues      MatchQueue[]
 
   @@map("tournaments")
 }
@@ -345,6 +352,7 @@ model Match {
   teamB      Team       @relation("TeamB", fields: [teamBId], references: [id])
   winner     Team?      @relation("Winner", fields: [winnerTeamId], references: [id])
   resultSubmissions MatchResultSubmission[]
+  ladderChallenge   LadderChallenge?
 
   @@map("matches")
 }
@@ -588,4 +596,52 @@ model CourtTimeSlot {
   court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
 
   @@map("court_time_slots")
+}
+
+// ── Ladder (Escada) Tournament Format ──
+
+model LadderChallenge {
+  id              String   @id @default(cuid())
+  tournamentId    String
+  challengerId    String
+  defenderId      String
+  matchId         String?  @unique
+  status          String   @default("PENDING") // PENDING | ACCEPTED | DECLINED | COMPLETED
+  createdAt       DateTime @default(now())
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  challenger Player     @relation("challenger", fields: [challengerId], references: [id])
+  defender   Player     @relation("defender", fields: [defenderId], references: [id])
+  match      Match?     @relation(fields: [matchId], references: [id])
+
+  @@map("ladder_challenges")
+}
+
+model LadderPosition {
+  id              String @id @default(cuid())
+  tournamentId    String
+  playerId        String
+  position        Int
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player     Player     @relation(fields: [playerId], references: [id])
+
+  @@unique([tournamentId, playerId])
+  @@unique([tournamentId, position])
+  @@map("ladder_positions")
+}
+
+// ── Nonstop Queue ──
+
+model MatchQueue {
+  id           String   @id @default(cuid())
+  tournamentId String
+  playerId     String
+  joinedAt     DateTime @default(now())
+  status       String   @default("WAITING") // WAITING | PLAYING | DONE
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player     Player     @relation(fields: [playerId], references: [id])
+
+  @@map("match_queues")
 }

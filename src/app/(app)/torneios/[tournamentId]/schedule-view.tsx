@@ -163,7 +163,11 @@ export function ScheduleView({
         <Card>
           <CardHeader>
             <CardTitle>
-              {teamMode === "AMERICANO"
+              {teamMode === "LADDER"
+                ? "Escada - Desafios"
+                : teamMode === "NONSTOP"
+                ? "Nonstop - Jogos"
+                : teamMode === "AMERICANO"
                 ? "Americano - Equipas por Ronda"
                 : teamMode === "SOBE_DESCE"
                 ? "Sobe e Desce - Equipas por Ronda"
@@ -173,7 +177,7 @@ export function ScheduleView({
             </CardTitle>
           </CardHeader>
           <div className="px-1 pb-1">
-            {teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" ? (
+            {teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || teamMode === "NONSTOP" || teamMode === "LADDER" ? (
               <>
                 <p className="text-sm text-text-muted mb-3 font-medium">
                   Cada ronda tem equipas diferentes geradas aleatoriamente.

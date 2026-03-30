@@ -17,7 +17,9 @@ import { BracketView } from "@/components/bracket-view";
 import { AdvanceToKnockoutButton } from "./advance-knockout-button";
 import { AmericanoStandings, type AmericanoPlayer } from "@/components/americano-standings";
 import { SobeDesceCourtMap, type SobeDesceCourtInfo } from "@/components/sobe-desce-view";
-import { getAmericanoStandings, generateNextAmericanoRoundAction, getSobeDesceStandings, generateNextSobeDesceRoundAction } from "@/lib/actions";
+import { NonstopView, type NonstopQueueEntry, type NonstopActiveMatch } from "@/components/nonstop-view";
+import { LadderView, type LadderPlayer, type LadderChallengeInfo } from "@/components/ladder-view";
+import { getAmericanoStandings, generateNextAmericanoRoundAction, getSobeDesceStandings, generateNextSobeDesceRoundAction, getNonstopQueueStatus, joinNonstopQueue, leaveNonstopQueue, rejoinNonstopQueue, getLadderStatus, createLadderChallenge, acceptLadderChallenge, declineLadderChallenge } from "@/lib/actions";
 
 const statusLabels: Record<
   string,
@@ -53,7 +55,7 @@ export function TournamentDetailContent({
   groupStandings,
 }: Props) {
   const [activeSection, setActiveSection] = useState<string>(
-    tournament.teamMode === "AMERICANO" ? "americano" : tournament.teamMode === "SOBE_DESCE" ? "sobedesce" : "calendario"
+    tournament.teamMode === "LADDER" ? "escada" : tournament.teamMode === "NONSTOP" ? "nonstop" : tournament.teamMode === "AMERICANO" ? "americano" : tournament.teamMode === "SOBE_DESCE" ? "sobedesce" : "calendario"
   );
   const [americanoStandings, setAmericanoStandings] = useState<AmericanoPlayer[]>([]);
   const [americanoLoading, setAmericanoLoading] = useState(false);
@@ -61,6 +63,16 @@ export function TournamentDetailContent({
   const [generatingRound, setGeneratingRound] = useState(false);
   const [sobeDesceStandings, setSobeDesceStandings] = useState<AmericanoPlayer[]>([]);
   const [sobeDesceError, setSobeDesceError] = useState<string | null>(null);
+
+  // Ladder state
+  const [ladderPositions, setLadderPositions] = useState<LadderPlayer[]>([]);
+  const [ladderChallenges, setLadderChallenges] = useState<LadderChallengeInfo[]>([]);
+
+  // Nonstop state
+  const [nonstopQueue, setNonstopQueue] = useState<NonstopQueueEntry[]>([]);
+  const [nonstopActiveMatches, setNonstopActiveMatches] = useState<NonstopActiveMatch[]>([]);
+  const [nonstopAvailableCourts, setNonstopAvailableCourts] = useState(0);
+  const [nonstopStandings, setNonstopStandings] = useState<AmericanoPlayer[]>([]);
 
   // Load Americano standings on mount
   React.useEffect(() => {
@@ -79,6 +91,35 @@ export function TournamentDetailContent({
       }).catch(() => {});
     }
   }, [tournament.id, tournament.teamMode, tournament.rounds.length]);
+
+  // Load Nonstop queue data on mount + polling
+  const loadNonstopData = React.useCallback(async () => {
+    if (tournament.teamMode !== "NONSTOP") return;
+    try {
+      const data = await getNonstopQueueStatus(tournament.id);
+      setNonstopQueue(data.queue);
+      setNonstopActiveMatches(data.activeMatches);
+      setNonstopAvailableCourts(data.availableCourts);
+      setNonstopStandings(data.standings);
+    } catch {}
+  }, [tournament.id, tournament.teamMode]);
+
+  React.useEffect(() => {
+    if (tournament.teamMode !== "NONSTOP") return;
+    loadNonstopData();
+    const interval = setInterval(loadNonstopData, 10000);
+    return () => clearInterval(interval);
+  }, [tournament.teamMode, loadNonstopData]);
+
+  // Load Ladder data on mount
+  React.useEffect(() => {
+    if (tournament.teamMode === "LADDER") {
+      getLadderStatus(tournament.id).then((status) => {
+        setLadderPositions(status.positions);
+        setLadderChallenges(status.challenges);
+      }).catch(() => {});
+    }
+  }, [tournament.id, tournament.teamMode]);
 
   // Check if current round is all finished (for Americano "next round" button)
   const americanoCurrentRoundFinished = tournament.teamMode === "AMERICANO" && tournament.rounds.length > 0
@@ -170,6 +211,14 @@ export function TournamentDetailContent({
     },
   ];
 
+  if (tournament.teamMode === "NONSTOP") {
+    navItems.push({
+      key: "nonstop",
+      label: "Nonstop",
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>,
+    });
+  }
+
   if (tournament.teamMode === "AMERICANO") {
     navItems.push({
       key: "americano",
@@ -183,6 +232,14 @@ export function TournamentDetailContent({
       key: "sobedesce",
       label: "Sobe e Desce",
       icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" /></svg>,
+    });
+  }
+
+  if (tournament.teamMode === "LADDER") {
+    navItems.push({
+      key: "escada",
+      label: "Escada",
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>,
     });
   }
 
@@ -255,7 +312,7 @@ export function TournamentDetailContent({
             <div className="flex items-center gap-6">
               <div className="text-center">
                 <p className="text-2xl font-extrabold text-primary">
-                  {tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "AMERICANO" || tournament.teamMode === "SOBE_DESCE"
+                  {tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "AMERICANO" || tournament.teamMode === "SOBE_DESCE" || tournament.teamMode === "NONSTOP" || tournament.teamMode === "LADDER"
                     ? swapPlayers.length
                     : tournament.teams.length}
                 </p>
@@ -321,7 +378,7 @@ export function TournamentDetailContent({
                 <div className="min-w-0">
                   <p className="text-xs text-text-muted">Formato</p>
                   <p className="text-sm font-medium text-text">
-                    {tournament.teamSize === 1 ? "1v1" : "2v2"} &middot; {tournament.teamMode === "AMERICANO" ? "Americano" : tournament.teamMode === "SOBE_DESCE" ? "Sobe e Desce" : tournament.teamMode === "RANDOM_PER_ROUND" ? "Aleatórias" : tournament.teamMode === "RANKED_SPLIT" ? "Ranked Split" : "Fixas"}
+                    {tournament.teamSize === 1 ? "1v1" : "2v2"} &middot; {tournament.teamMode === "LADDER" ? "Escada" : tournament.teamMode === "NONSTOP" ? "Nonstop" : tournament.teamMode === "AMERICANO" ? "Americano" : tournament.teamMode === "SOBE_DESCE" ? "Sobe e Desce" : tournament.teamMode === "RANDOM_PER_ROUND" ? "Aleatórias" : tournament.teamMode === "RANKED_SPLIT" ? "Ranked Split" : "Fixas"}
                   </p>
                 </div>
               </div>
@@ -338,7 +395,7 @@ export function TournamentDetailContent({
                   </p>
                 </div>
               </div>
-              {(tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "AMERICANO" || tournament.teamMode === "SOBE_DESCE") && (
+              {(tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "AMERICANO" || tournament.teamMode === "SOBE_DESCE") && tournament.teamMode !== "NONSTOP" && (
                 <div className="flex items-center gap-3">
                   <div className="w-7 h-7 rounded-lg bg-warning/10 flex items-center justify-center flex-shrink-0">
                     <svg className="w-3.5 h-3.5 text-warning" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -664,6 +721,72 @@ export function TournamentDetailContent({
                 </Card>
               )}
             </div>
+          )}
+
+          {/* ─── Nonstop Section ─── */}
+          {activeSection === "nonstop" && tournament.teamMode === "NONSTOP" && (
+            <div className="space-y-4">
+              <NonstopView
+                queue={nonstopQueue}
+                activeMatches={nonstopActiveMatches}
+                availableCourts={nonstopAvailableCourts}
+                currentPlayerInQueue={nonstopQueue.some((e) => e.playerId === currentPlayerId)}
+                currentPlayerPlaying={false}
+                onJoinQueue={async () => {
+                  await joinNonstopQueue(tournament.id);
+                  await loadNonstopData();
+                }}
+                onLeaveQueue={async () => {
+                  await leaveNonstopQueue(tournament.id);
+                  await loadNonstopData();
+                }}
+                onRejoinQueue={async () => {
+                  await rejoinNonstopQueue(tournament.id);
+                  await loadNonstopData();
+                }}
+              />
+
+              {nonstopStandings.length > 0 && (
+                <AmericanoStandings players={nonstopStandings} />
+              )}
+
+              {nonstopStandings.length === 0 && nonstopQueue.length === 0 && nonstopActiveMatches.length === 0 && (
+                <Card className="py-5 px-6">
+                  <EmptyState
+                    title="Sem dados"
+                    description="Entre na fila para começar a jogar."
+                  />
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* ─── Ladder (Escada) Section ─── */}
+          {activeSection === "escada" && tournament.teamMode === "LADDER" && (
+            <LadderView
+              positions={ladderPositions}
+              challenges={ladderChallenges}
+              currentPlayerId={currentPlayerId}
+              canManage={canManage}
+              onChallenge={async (defenderId) => {
+                await createLadderChallenge(tournament.id, defenderId);
+                const status = await getLadderStatus(tournament.id);
+                setLadderPositions(status.positions);
+                setLadderChallenges(status.challenges);
+              }}
+              onAccept={async (challengeId) => {
+                await acceptLadderChallenge(challengeId);
+                const status = await getLadderStatus(tournament.id);
+                setLadderPositions(status.positions);
+                setLadderChallenges(status.challenges);
+              }}
+              onDecline={async (challengeId) => {
+                await declineLadderChallenge(challengeId);
+                const status = await getLadderStatus(tournament.id);
+                setLadderPositions(status.positions);
+                setLadderChallenges(status.challenges);
+              }}
+            />
           )}
 
           {/* ─── Group Knockout Section ─── */}
