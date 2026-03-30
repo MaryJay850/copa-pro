@@ -218,6 +218,40 @@ export function SeasonDetailContent({
       <div className="grid gap-6 lg:grid-cols-[260px_1fr]">
         {/* Left Sidebar */}
         <div className="space-y-5">
+          {/* Quick Links - Navigation (must be first so user can see it) */}
+          <Card className="py-5 px-5">
+            <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Navegação</h3>
+            <div className="space-y-1.5">
+              {[
+                { key: "ranking", label: "Ranking", icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> },
+                { key: "torneios", label: "Torneios", icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  onClick={() => setActiveSection(item.key)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    activeSection === item.key
+                      ? "bg-primary/10 text-primary"
+                      : "text-text hover:bg-surface-hover"
+                  }`}
+                >
+                  <span className={activeSection === item.key ? "text-primary" : "text-text-muted"}>{item.icon}</span>
+                  {item.label}
+                </button>
+              ))}
+              {canManage && isEditing && (
+                <button
+                  onClick={handleClone}
+                  disabled={saving}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
+                >
+                  <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
+                  {saving ? "A duplicar..." : "Duplicar Época"}
+                </button>
+              )}
+            </div>
+          </Card>
+
           {/* Info Card */}
           <Card className="py-5 px-5">
             <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Informação</h3>
@@ -277,39 +311,6 @@ export function SeasonDetailContent({
             </div>
           </Card>
 
-          {/* Quick Links */}
-          <Card className="py-5 px-5">
-            <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Navegação</h3>
-            <div className="space-y-1.5">
-              {[
-                { key: "ranking", label: "Ranking", icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg> },
-                { key: "torneios", label: "Torneios", icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg> },
-              ].map((item) => (
-                <button
-                  key={item.key}
-                  onClick={() => setActiveSection(item.key)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    activeSection === item.key
-                      ? "bg-primary/10 text-primary"
-                      : "text-text hover:bg-surface-hover"
-                  }`}
-                >
-                  <span className={activeSection === item.key ? "text-primary" : "text-text-muted"}>{item.icon}</span>
-                  {item.label}
-                </button>
-              ))}
-              {canManage && isEditing && (
-                <button
-                  onClick={handleClone}
-                  disabled={saving}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
-                >
-                  <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2" /></svg>
-                  {saving ? "A duplicar..." : "Duplicar Época"}
-                </button>
-              )}
-            </div>
-          </Card>
         </div>
 
         {/* Right Content Area */}
