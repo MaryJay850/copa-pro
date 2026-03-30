@@ -610,7 +610,10 @@ export async function generateSchedule(tournamentId: string) {
   });
 
   if (!tournament) throw new Error("Torneio não encontrado.");
-  await requireLeagueManager(tournament.leagueId ?? "");
+  // Easy Mix tournaments have no league — skip league manager check
+  if (tournament.leagueId) {
+    await requireLeagueManager(tournament.leagueId);
+  }
 
   // Check if results exist
   const hasResults = tournament.matches.some((m) => m.status === "FINISHED");
