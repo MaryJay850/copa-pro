@@ -147,8 +147,9 @@ model League {
   managers    LeagueManager[]
   memberships LeagueMembership[]
   invites     LeagueInvite[]
-  leagueClubs LeagueClub[]
-  templates   TournamentTemplate[]
+  leagueClubs  LeagueClub[]
+  templates    TournamentTemplate[]
+  reservations Reservation[]
 
   @@map("leagues")
 }
@@ -209,6 +210,9 @@ model Player {
   ladderPositions              LadderPosition[]
   matchQueues                  MatchQueue[]
   chatMessages                 ChatMessage[]
+  reservations                 Reservation[]
+  tournamentPayments           TournamentPayment[]
+  clubMemberships              ClubMembership[]
 
   @@map("players")
 }
@@ -250,6 +254,10 @@ model Tournament {
   isEasyMix   Boolean @default(false)
   publicSlug  String? @unique          // slug for public URL
 
+  // Payment (D2)
+  inscriptionFee  Float?              // null = free
+  requiresPayment Boolean @default(false)
+
   league           League?                 @relation(fields: [leagueId], references: [id], onDelete: Cascade)
   season           Season?                 @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   club             Club?                   @relation(fields: [clubId], references: [id])
@@ -266,6 +274,7 @@ model Tournament {
   photos                TournamentPhoto[]
   playerAvailabilities  PlayerAvailability[]
   chatMessages          ChatMessage[]
+  payments              TournamentPayment[]
 
   @@map("tournaments")
 }
@@ -305,6 +314,8 @@ model Court {
   tournamentCourts TournamentCourt[]
   matches          Match[]
   timeSlots        CourtTimeSlot[]
+  reservations     Reservation[]
+  pricing          CourtPricing[]
 
   @@map("courts")
 }
@@ -531,9 +542,10 @@ model Club {
   location  String?
   createdAt DateTime @default(now())
 
-  courts      Court[]
-  tournaments Tournament[]
-  leagueClubs LeagueClub[]
+  courts          Court[]
+  tournaments     Tournament[]
+  leagueClubs     LeagueClub[]
+  clubMemberships ClubMembership[]
 
   @@map("clubs")
 }
@@ -682,4 +694,94 @@ model ChatMessage {
   player     Player     @relation(fields: [playerId], references: [id])
 
   @@map("chat_messages")
+}
+
+// ── Court Reservations (D1) ──
+
+enum ReservationStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
+
+model Reservation {
+  id          String            @id @default(cuid())
+  courtId     String
+  playerId    String?
+  playerName  String?           // For non-registered users
+  leagueId    String?
+  date        DateTime          @db.Date
+  startTime   String            // "09:00"
+  endTime     String            // "10:30"
+  status      ReservationStatus @default(PENDING)
+  price       Float?
+  notes       String?
+  createdBy   String?           // userId who created
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  court  Court   @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  player Player? @relation(fields: [playerId], references: [id])
+  league League? @relation(fields: [leagueId], references: [id])
+
+  @@unique([courtId, date, startTime])
+  @@map("reservations")
+}
+
+model CourtPricing {
+  id        String @id @default(cuid())
+  courtId   String
+  dayOfWeek Int    // 0=Sunday, 1=Monday, ..., 6=Saturday
+  startTime String // "09:00"
+  endTime   String // "23:00"
+  price     Float  // Price in EUR
+
+  court Court @relation(fields: [courtId], references: [id], onDelete: Cascade)
+
+  @@map("court_pricing")
+}
+
+// ── Tournament Payments (D2) ──
+
+model TournamentPayment {
+  id                String   @id @default(cuid())
+  tournamentId      String
+  playerId          String
+  amount            Float
+  currency          String   @default("EUR")
+  stripePaymentId   String?
+  stripeSessionId   String?
+  status            String   @default("PENDING") // PENDING | PAID | REFUNDED | MANUAL
+  paidAt            DateTime?
+  refundedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player     Player     @relation(fields: [playerId], references: [id])
+
+  @@unique([tournamentId, playerId])
+  @@map("tournament_payments")
+}
+
+// ── Club Memberships (D4) ──
+
+model ClubMembership {
+  id        String   @id @default(cuid())
+  clubId    String
+  playerId  String
+  type      String   @default("MENSAL") // ANUAL | MENSAL | TRIMESTRAL
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  amount    Float
+  status    String   @default("ACTIVE") // ACTIVE | EXPIRED | CANCELLED
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  club   Club   @relation(fields: [clubId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@map("club_memberships")
 }

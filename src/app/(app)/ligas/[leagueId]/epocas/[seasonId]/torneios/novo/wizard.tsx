@@ -123,6 +123,10 @@ export function TournamentWizard({
       : ["POINTS", "HEAD_TO_HEAD", "SETS_DIFF", "GAMES_DIFF", "SETS_WON", "GAMES_WON", "RANDOM"]
   );
 
+  // Payment / inscription fee
+  const [requiresPayment, setRequiresPayment] = useState(false);
+  const [inscriptionFee, setInscriptionFee] = useState<number | null>(null);
+
   // Step 2 — ordered selection
   const [players] = useState<Player[]>(existingPlayers);
   const [selectionOrder, setSelectionOrder] = useState<string[]>(
@@ -428,6 +432,8 @@ export function TournamentWizard({
         rankedSplitSubMode: teamMode === "RANKED_SPLIT" ? rankedSplitSubMode : undefined,
         teams: (teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || teamMode === "NONSTOP" || teamMode === "LADDER") ? [] : teams,
         allPlayerIds: selectionOrder,
+        requiresPayment,
+        inscriptionFee: requiresPayment ? inscriptionFee : null,
       };
 
       if (editMode) {
@@ -1037,6 +1043,37 @@ export function TournamentWizard({
                   </label>
                 ))}
               </div>
+            </div>
+
+            {/* Payment / Inscription Fee */}
+            <div>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={requiresPayment}
+                  onChange={(e) => {
+                    setRequiresPayment(e.target.checked);
+                    if (!e.target.checked) setInscriptionFee(null);
+                  }}
+                  className="text-primary focus:ring-primary rounded"
+                />
+                <FieldLabel label="Requer pagamento de inscrição" tooltip="Ativar para cobrar uma taxa de inscrição aos jogadores. Pode ser pago online (Stripe) ou marcado manualmente pelo gestor." />
+              </label>
+              {requiresPayment && (
+                <div className="mt-2">
+                  <FieldLabel label="Valor da inscrição (€)" tooltip="Montante em euros que cada jogador deverá pagar para se inscrever no torneio." htmlFor="inscription-fee" />
+                  <input
+                    id="inscription-fee"
+                    type="number"
+                    min={0}
+                    step={0.5}
+                    value={inscriptionFee ?? ""}
+                    onChange={(e) => setInscriptionFee(e.target.value ? parseFloat(e.target.value) : null)}
+                    placeholder="Ex: 5.00"
+                    className="mt-1 w-full rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+              )}
             </div>
 
             {teamSize === 2 && (

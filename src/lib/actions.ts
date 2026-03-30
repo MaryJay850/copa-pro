@@ -419,6 +419,8 @@ export async function createTournament(data: {
   randomSeed?: string;
   numberOfRounds?: number;
   rankedSplitSubMode?: string;
+  requiresPayment?: boolean;
+  inscriptionFee?: number | null;
   teams: { name: string; player1Id: string; player2Id: string | null }[];
   allPlayerIds?: string[];
 }) {
@@ -467,6 +469,8 @@ export async function createTournament(data: {
       hasThirdPlace: data.hasThirdPlace ?? false,
       knockoutSets: data.knockoutSets || null,
       tiebreakerCriteria: data.tiebreakerCriteria || null,
+      requiresPayment: data.requiresPayment ?? false,
+      inscriptionFee: data.inscriptionFee ?? null,
       currentPhase: data.format === "GROUP_KNOCKOUT" ? "GROUPS" : "GROUPS",
       status: "DRAFT",
     },

@@ -23,6 +23,7 @@ import { PhotoGallery } from "@/components/photo-gallery";
 import { PlayerAvailabilityView } from "@/components/player-availability";
 import { TournamentChat } from "@/components/tournament-chat";
 import { getAmericanoStandings, generateNextAmericanoRoundAction, getSobeDesceStandings, generateNextSobeDesceRoundAction, getNonstopQueueStatus, joinNonstopQueue, leaveNonstopQueue, rejoinNonstopQueue, getLadderStatus, createLadderChallenge, acceptLadderChallenge, declineLadderChallenge, getTournamentPhotos, uploadTournamentPhoto, deleteTournamentPhoto, getTournamentPhoto, setTournamentPlayerAvailability, getTournamentPlayerAvailabilities, getMyTournamentAvailability, sendChatMessage, getChatMessages, deleteChatMessage } from "@/lib/actions";
+import { getTournamentPayments, markPaymentManual, type TournamentPaymentInfo } from "@/lib/actions/payment-actions";
 
 const statusLabels: Record<
   string,
@@ -84,6 +85,11 @@ export function TournamentDetailContent({
   const [availabilityEntries, setAvailabilityEntries] = useState<{ playerId: string; playerName: string; status: string; note: string | null }[]>([]);
   const [myAvailabilityStatus, setMyAvailabilityStatus] = useState<string | null>(null);
 
+  // Payment state
+  const [payments, setPayments] = useState<TournamentPaymentInfo[]>([]);
+  const [paymentsLoaded, setPaymentsLoaded] = useState(false);
+  const [markingManual, setMarkingManual] = useState<string | null>(null);
+
   // Load photos on mount
   React.useEffect(() => {
     getTournamentPhotos(tournament.id).then(setPhotos).catch(() => {});
@@ -98,6 +104,16 @@ export function TournamentDetailContent({
       }).catch(() => {});
     }
   }, [tournament.id, tournament.status]);
+
+  // Load payment data on mount
+  React.useEffect(() => {
+    if (tournament.requiresPayment) {
+      getTournamentPayments(tournament.id).then((data) => {
+        setPayments(data);
+        setPaymentsLoaded(true);
+      }).catch(() => { setPaymentsLoaded(true); });
+    }
+  }, [tournament.id, tournament.requiresPayment]);
 
   // Load Americano standings on mount
   React.useEffect(() => {
@@ -300,6 +316,14 @@ export function TournamentDetailContent({
     });
   }
 
+  if (tournament.requiresPayment) {
+    navItems.push({
+      key: "pagamentos",
+      label: "Pagamentos",
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" /></svg>,
+    });
+  }
+
   navItems.push({
     key: "chat",
     label: "Chat",
@@ -495,6 +519,19 @@ export function TournamentDetailContent({
                     <p className="text-sm font-medium text-text">
                       {tournament.currentPhase === "GROUPS" ? "Fase de Grupos" : tournament.currentPhase === "KNOCKOUT" ? "Eliminatórias" : "Terminado"}
                     </p>
+                  </div>
+                </div>
+              )}
+              {tournament.requiresPayment && tournament.inscriptionFee && (
+                <div className="flex items-center gap-3">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs text-text-muted">Inscrição</p>
+                    <p className="text-sm font-medium text-text">{tournament.inscriptionFee.toFixed(2)} €</p>
                   </div>
                 </div>
               )}
@@ -1001,6 +1038,133 @@ export function TournamentDetailContent({
                   return await getChatMessages(tournament.id, limit, before);
                 }}
               />
+            </Card>
+          )}
+
+          {/* ─── Payments Section ─── */}
+          {activeSection === "pagamentos" && tournament.requiresPayment && (
+            <Card className="py-5 px-6">
+              <h2 className="text-base font-bold mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                Pagamentos
+              </h2>
+
+              {/* Fee info */}
+              {tournament.inscriptionFee && (
+                <div className="bg-blue-50 border border-blue-200 text-blue-800 text-sm px-4 py-2.5 rounded-lg mb-4">
+                  Taxa de inscrição: <strong>{tournament.inscriptionFee.toFixed(2)} €</strong>
+                </div>
+              )}
+
+              {/* Summary */}
+              {paymentsLoaded && (() => {
+                const allPlayerIds = new Set<string>();
+                for (const team of tournament.teams) {
+                  if (team.player1) allPlayerIds.add(team.player1.id);
+                  if (team.player2) allPlayerIds.add(team.player2.id);
+                }
+                const totalPlayers = allPlayerIds.size;
+                const paidCount = payments.filter((p) => p.status === "PAID" || p.status === "MANUAL").length;
+
+                return (
+                  <div className="bg-surface-alt border border-border rounded-lg px-4 py-3 mb-4">
+                    <p className="text-sm font-semibold text-text">
+                      {paidCount} de {totalPlayers} jogadores pagaram
+                    </p>
+                    <div className="w-full bg-surface-hover rounded-full h-2 mt-2 overflow-hidden">
+                      <div
+                        className="bg-gradient-to-r from-green-500 to-emerald-500 rounded-full h-2 transition-all duration-500"
+                        style={{ width: `${totalPlayers > 0 ? Math.round((paidCount / totalPlayers) * 100) : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Player payment list */}
+              {paymentsLoaded ? (
+                <div className="space-y-2">
+                  {(() => {
+                    // Build full player list with payment status
+                    const playerMap = new Map<string, { name: string; nickname: string | null }>();
+                    for (const team of tournament.teams) {
+                      if (team.player1) playerMap.set(team.player1.id, { name: team.player1.fullName, nickname: team.player1.nickname });
+                      if (team.player2) playerMap.set(team.player2.id, { name: team.player2.fullName, nickname: team.player2.nickname });
+                    }
+
+                    const paymentByPlayer = new Map<string, TournamentPaymentInfo>();
+                    for (const p of payments) {
+                      paymentByPlayer.set(p.playerId, p);
+                    }
+
+                    const entries = Array.from(playerMap.entries())
+                      .map(([id, player]) => ({
+                        id,
+                        name: player.nickname || player.name,
+                        payment: paymentByPlayer.get(id) || null,
+                      }))
+                      .sort((a, b) => {
+                        // Pending first, then paid/manual, then no payment
+                        const statusOrder = (p: TournamentPaymentInfo | null) => {
+                          if (!p) return 0;
+                          if (p.status === "PENDING") return 0;
+                          if (p.status === "MANUAL") return 2;
+                          if (p.status === "PAID") return 2;
+                          return 3;
+                        };
+                        return statusOrder(a.payment) - statusOrder(b.payment) || a.name.localeCompare(b.name);
+                      });
+
+                    return entries.map((entry) => (
+                      <div key={entry.id} className="flex items-center justify-between px-3 py-2.5 rounded-lg border border-border hover:bg-surface-alt/50 transition-colors">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="text-sm font-medium text-text truncate">{entry.name}</span>
+                          {entry.payment ? (
+                            <Badge
+                              variant={
+                                entry.payment.status === "PAID" ? "success" :
+                                entry.payment.status === "MANUAL" ? "info" :
+                                entry.payment.status === "REFUNDED" ? "default" :
+                                "warning"
+                              }
+                            >
+                              {entry.payment.status === "PAID" ? "Pago" :
+                               entry.payment.status === "MANUAL" ? "Manual" :
+                               entry.payment.status === "REFUNDED" ? "Reembolsado" :
+                               "Pendente"}
+                            </Badge>
+                          ) : (
+                            <Badge variant="default">Pendente</Badge>
+                          )}
+                        </div>
+                        {canManage && (!entry.payment || entry.payment.status === "PENDING") && (
+                          <button
+                            disabled={markingManual === entry.id}
+                            onClick={async () => {
+                              setMarkingManual(entry.id);
+                              try {
+                                await markPaymentManual(tournament.id, entry.id);
+                                const updated = await getTournamentPayments(tournament.id);
+                                setPayments(updated);
+                              } catch {
+                                // ignore
+                              }
+                              setMarkingManual(null);
+                            }}
+                            className="text-xs font-medium text-primary hover:text-primary-dark disabled:opacity-50 whitespace-nowrap ml-2"
+                          >
+                            {markingManual === entry.id ? "A marcar..." : "Marcar Pagamento Manual"}
+                          </button>
+                        )}
+                      </div>
+                    ));
+                  })()}
+                </div>
+              ) : (
+                <p className="text-sm text-text-muted">A carregar pagamentos...</p>
+              )}
             </Card>
           )}
 

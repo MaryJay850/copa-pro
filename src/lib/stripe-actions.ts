@@ -308,6 +308,22 @@ export async function handleStripeWebhook(body: string, signature: string): Prom
   switch (event.type) {
     case "checkout.session.completed": {
       const session = event.data.object;
+
+      // Check if this is a tournament inscription payment
+      const tournamentId = session.metadata?.tournamentId;
+      const playerId = session.metadata?.playerId;
+      if (tournamentId && playerId) {
+        // Handle tournament inscription payment
+        try {
+          const { handlePaymentWebhook } = await import("./actions/payment-actions");
+          await handlePaymentWebhook(session.id);
+        } catch (err) {
+          console.error("[STRIPE WEBHOOK] Erro ao processar pagamento de inscrição:", err);
+        }
+        break;
+      }
+
+      // Handle subscription checkout
       const userId = session.metadata?.userId;
       const plan = session.metadata?.plan as SubscriptionPlan | undefined;
       const subscriptionId = session.subscription as string;
