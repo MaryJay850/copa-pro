@@ -378,7 +378,7 @@ export function TournamentDetailContent({
             {/* TV Mode link */}
             {tournament.rounds?.length > 0 && (
               <Link
-                href={`/torneios/${tournament.id}/tv`}
+                href={`/tv/${tournament.id}`}
                 target="_blank"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-text-muted hover:text-primary transition-colors"
               >
@@ -392,7 +392,7 @@ export function TournamentDetailContent({
             {/* Print/Export link */}
             {tournament.rounds?.length > 0 && (
               <Link
-                href={`/torneios/${tournament.id}/imprimir`}
+                href={`/imprimir/${tournament.id}`}
                 target="_blank"
                 className="inline-flex items-center gap-1.5 text-xs font-medium text-text-muted hover:text-primary transition-colors"
               >
