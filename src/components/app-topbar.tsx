@@ -35,11 +35,15 @@ function getBreadcrumbs(pathname: string): { label: string; href?: string }[] {
       crumbs.push({ label: "Membros" });
     }
   } else if (pathname.startsWith("/torneios")) {
-    crumbs.push({ label: "Torneios" });
-    if (pathname.includes("/editar")) {
+    crumbs.push({ label: "Torneios", href: "/torneios" });
+    if (pathname.includes("/novo")) {
+      crumbs.push({ label: "Novo Torneio" });
+    } else if (pathname.includes("/editar")) {
       crumbs.push({ label: "Editar" });
     } else if (pathname.includes("/placar")) {
       crumbs.push({ label: "Placar" });
+    } else if (pathname.match(/\/torneios\/[^/]+$/)) {
+      crumbs.push({ label: "Detalhes" });
     }
   } else if (pathname.startsWith("/gestor")) {
     crumbs.push({ label: "Gestao" });

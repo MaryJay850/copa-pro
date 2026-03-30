@@ -128,7 +128,8 @@ export function TournamentWizard({
   const [inscriptionFee, setInscriptionFee] = useState<number | null>(null);
 
   // Step 2 — ordered selection
-  const [players] = useState<Player[]>(existingPlayers);
+  const [players, setPlayers] = useState<Player[]>(existingPlayers);
+  const [adHocInput, setAdHocInput] = useState("");
   const [selectionOrder, setSelectionOrder] = useState<string[]>(
     editMode?.initialData.selectedPlayerIds ?? []
   );
@@ -434,6 +435,17 @@ export function TournamentWizard({
         allPlayerIds: selectionOrder,
         requiresPayment,
         inscriptionFee: requiresPayment ? inscriptionFee : null,
+        // Map ad-hoc player temp IDs to names
+        adHocPlayerNames: (() => {
+          const map: Record<string, string> = {};
+          for (const id of selectionOrder) {
+            if (id.startsWith("adhoc_")) {
+              const p = players.find((pl) => pl.id === id);
+              if (p) map[id] = p.fullName;
+            }
+          }
+          return Object.keys(map).length > 0 ? map : undefined;
+        })(),
       };
 
       if (editMode) {
@@ -456,7 +468,7 @@ export function TournamentWizard({
         }
         router.push(`/torneios/${editMode.tournamentId}`);
       } else {
-        const tournament = await createTournament({ leagueId: leagueId!, seasonId: seasonId!, ...payload });
+        const tournament = await createTournament({ leagueId: leagueId ?? null, seasonId: seasonId ?? null, ...payload });
         const hasTeamsOrPerRound = teams.length > 0 || teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || teamMode === "NONSTOP" || teamMode === "LADDER";
         if (hasTeamsOrPerRound) await generateSchedule(tournament.id);
         router.push(`/torneios/${tournament.id}`);
@@ -582,14 +594,21 @@ export function TournamentWizard({
           <div className="pt-14 flex flex-col sm:flex-row sm:items-center gap-4">
             {/* Name & breadcrumb */}
             <div className="flex-1">
-              <div className="flex items-center gap-2 text-xs text-text-muted mb-1 font-medium">
-                <Link href="/ligas" className="hover:text-primary transition-colors">Ligas</Link>
-                <span>&rsaquo;</span>
-                <Link href={`/ligas/${leagueId}`} className="hover:text-primary transition-colors">{leagueName || "Liga"}</Link>
-                <span>&rsaquo;</span>
-                <Link href={`/ligas/${leagueId}/epocas/${seasonId}`} className="hover:text-primary transition-colors">{seasonName || "Época"}</Link>
-                <span>&rsaquo;</span>
-              </div>
+              {leagueId ? (
+                <div className="flex items-center gap-2 text-xs text-text-muted mb-1 font-medium">
+                  <Link href="/ligas" className="hover:text-primary transition-colors">Ligas</Link>
+                  <span>&rsaquo;</span>
+                  <Link href={`/ligas/${leagueId}`} className="hover:text-primary transition-colors">{leagueName || "Liga"}</Link>
+                  <span>&rsaquo;</span>
+                  <Link href={`/ligas/${leagueId}/epocas/${seasonId}`} className="hover:text-primary transition-colors">{seasonName || "Época"}</Link>
+                  <span>&rsaquo;</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs text-text-muted mb-1 font-medium">
+                  <Link href="/torneios" className="hover:text-primary transition-colors">Os Meus Torneios</Link>
+                  <span>&rsaquo;</span>
+                </div>
+              )}
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-xl font-extrabold tracking-tight">{editMode ? "Editar Torneio" : "Novo Torneio"}</h1>
                 <Badge variant="info">Passo {step} de {totalSteps}</Badge>
@@ -710,24 +729,38 @@ export function TournamentWizard({
           <Card className="py-5 px-5">
             <h3 className="text-[11px] font-bold text-text-muted uppercase tracking-wider mb-4">Ligações</h3>
             <div className="space-y-1.5">
-              <Link
-                href={`/ligas/${leagueId}`}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
-              >
-                <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-                {leagueName || "Liga"}
-              </Link>
-              <Link
-                href={`/ligas/${leagueId}/epocas/${seasonId}`}
-                className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
-              >
-                <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                {seasonName || "Época"}
-              </Link>
+              {leagueId ? (
+                <>
+                  <Link
+                    href={`/ligas/${leagueId}`}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
+                  >
+                    <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    {leagueName || "Liga"}
+                  </Link>
+                  <Link
+                    href={`/ligas/${leagueId}/epocas/${seasonId}`}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
+                  >
+                    <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    {seasonName || "Época"}
+                  </Link>
+                </>
+              ) : (
+                <Link
+                  href="/torneios"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface-hover transition-colors"
+                >
+                  <svg className="w-4 h-4 text-text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  Os Meus Torneios
+                </Link>
+              )}
             </div>
           </Card>
         </div>
@@ -1341,10 +1374,50 @@ export function TournamentWizard({
             </div>
           )}
 
-          {players.length === 0 && (
+          {players.length === 0 && leagueId && (
             <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm px-4 py-3 rounded-lg mb-3">
               Nenhum membro na liga.{" "}
               <a href={`/ligas/${leagueId}/membros`} className="underline font-medium">Gestão de Membros</a>
+            </div>
+          )}
+          {players.length === 0 && !leagueId && (
+            <div className="bg-blue-50 border border-blue-200 text-blue-800 text-sm px-4 py-3 rounded-lg mb-3">
+              Torneio avulso — adicione jogadores manualmente na secção abaixo.
+            </div>
+          )}
+
+          {/* Ad-hoc player input for standalone tournaments */}
+          {!leagueId && (
+            <div className="flex gap-2 mb-3">
+              <Input
+                placeholder="Nome do jogador..."
+                value={adHocInput}
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => setAdHocInput(e.target.value)}
+                onKeyDown={(e: React.KeyboardEvent) => {
+                  if (e.key === "Enter" && adHocInput.trim()) {
+                    e.preventDefault();
+                    const tempId = `adhoc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+                    const newPlayer: Player = { id: tempId, fullName: adHocInput.trim(), nickname: null };
+                    setPlayers((prev) => [...prev, newPlayer]);
+                    setSelectionOrder((prev) => [...prev, tempId]);
+                    setAdHocInput("");
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  if (!adHocInput.trim()) return;
+                  const tempId = `adhoc_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+                  const newPlayer: Player = { id: tempId, fullName: adHocInput.trim(), nickname: null };
+                  setPlayers((prev) => [...prev, newPlayer]);
+                  setSelectionOrder((prev) => [...prev, tempId]);
+                  setAdHocInput("");
+                }}
+              >
+                Adicionar
+              </Button>
             </div>
           )}
 

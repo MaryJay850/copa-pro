@@ -395,8 +395,8 @@ export async function createPlayersFromList(names: string[]) {
 // ── Tournament actions ──
 
 export async function createTournament(data: {
-  leagueId: string;
-  seasonId: string;
+  leagueId: string | null;
+  seasonId: string | null;
   name: string;
   startDate?: string;
   courtsCount: number;
@@ -423,11 +423,19 @@ export async function createTournament(data: {
   inscriptionFee?: number | null;
   teams: { name: string; player1Id: string; player2Id: string | null }[];
   allPlayerIds?: string[];
+  adHocPlayerNames?: Record<string, string>; // temp ID → name for ad-hoc players
 }) {
-  await requireLeagueManager(data.leagueId);
+  // For league tournaments, require manager access
+  if (data.leagueId) {
+    await requireLeagueManager(data.leagueId);
+  } else {
+    // Standalone tournament — require authenticated user
+    const session = await auth();
+    if (!session?.user?.id) throw new Error("Autenticação necessária.");
+  }
 
-  // Plan check: tournament limit per season
-  {
+  // Plan check: tournament limit per season (only for league tournaments)
+  if (data.seasonId) {
     const existingTournaments = await prisma.tournament.count({ where: { seasonId: data.seasonId } });
     await checkLimit("maxTournamentsPerSeason", existingTournaments);
   }
@@ -445,10 +453,14 @@ export async function createTournament(data: {
   const teamSize = data.teamSize ?? 2;
   const maxTitulars = data.courtsCount * 2 * teamSize;
 
+  // Get creatorId for standalone tournaments
+  const standaloneSession = !data.leagueId ? await auth() : null;
+
   const tournament = await prisma.tournament.create({
     data: {
-      leagueId: data.leagueId,
-      seasonId: data.seasonId,
+      leagueId: data.leagueId || null,
+      seasonId: data.seasonId || null,
+      creatorId: standaloneSession?.user ? (standaloneSession.user as any).id : null,
       name: data.name,
       startDate: data.startDate ? new Date(data.startDate + "T00:00:00") : null,
       courtsCount: data.courtIds?.length ?? data.courtsCount,
@@ -512,6 +524,25 @@ export async function createTournament(data: {
     });
   }
 
+  // Resolve ad-hoc players (create Player records for temp IDs)
+  const adHocIdMap: Record<string, string> = {};
+  if (data.adHocPlayerNames && data.allPlayerIds) {
+    for (const [tempId, playerName] of Object.entries(data.adHocPlayerNames)) {
+      const player = await prisma.player.create({
+        data: { fullName: playerName.trim() },
+      });
+      adHocIdMap[tempId] = player.id;
+    }
+    // Replace temp IDs with real IDs in allPlayerIds
+    data.allPlayerIds = data.allPlayerIds.map((id) => adHocIdMap[id] || id);
+    // Also replace in teams
+    data.teams = data.teams.map((t) => ({
+      ...t,
+      player1Id: adHocIdMap[t.player1Id] || t.player1Id,
+      player2Id: t.player2Id ? (adHocIdMap[t.player2Id] || t.player2Id) : null,
+    }));
+  }
+
   // Create inscriptions (titulars + suplentes)
   if (data.allPlayerIds && data.allPlayerIds.length > 0) {
     for (let i = 0; i < data.allPlayerIds.length; i++) {
@@ -526,7 +557,7 @@ export async function createTournament(data: {
     }
 
     // Send inscription confirmation emails (fire-and-forget)
-    const league = await prisma.league.findUnique({ where: { id: data.leagueId } });
+    const league = data.leagueId ? await prisma.league.findUnique({ where: { id: data.leagueId } }) : null;
     for (let i = 0; i < data.allPlayerIds.length; i++) {
       const player = await prisma.player.findUnique({
         where: { id: data.allPlayerIds[i] },
@@ -552,10 +583,10 @@ export async function createTournament(data: {
   logAudit("CREATE_TOURNAMENT", "Tournament", tournament.id, { name: data.name }).catch(() => {});
 
   // ── WhatsApp: anunciar torneio no grupo da liga (fire-and-forget) ──
-  (async () => {
+  if (data.leagueId) (async () => {
     try {
       const league = await prisma.league.findUnique({
-        where: { id: data.leagueId },
+        where: { id: data.leagueId! },
         select: { whatsappGroupId: true },
       });
       if (league?.whatsappGroupId) {
