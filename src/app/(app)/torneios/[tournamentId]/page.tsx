@@ -20,7 +20,8 @@ export default async function TournamentPage({
 
   if (!tournament) notFound();
 
-  const canManage = tournament.leagueId ? await isLeagueManager(tournament.leagueId) : false;
+  const isCreator = !!(session?.user && (session.user as any).id === tournament.creatorId);
+  const canManage = tournament.leagueId ? await isLeagueManager(tournament.leagueId) : isCreator;
   const adminUser = await isAdmin();
 
   const currentUserId = (session?.user as any)?.id ?? null;

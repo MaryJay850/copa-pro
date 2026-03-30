@@ -251,9 +251,10 @@ model Tournament {
   pointsLoss         Int       @default(0)
   currentPhase       String    @default("GROUPS") // "GROUPS" | "KNOCKOUT" | "FINISHED"
 
-  // Easy Mix
+  // Easy Mix / Standalone
   isEasyMix   Boolean @default(false)
   publicSlug  String? @unique          // slug for public URL
+  creatorId   String?                  // userId of the creator (for standalone tournaments)
 
   // Payment (D2)
   inscriptionFee  Float?              // null = free

@@ -5689,6 +5689,7 @@ export async function createEasyMix(data: {
       randomSeed: Math.random().toString(36).substring(2, 8),
       isEasyMix: true,
       publicSlug: slug,
+      creatorId: session.user.id,
       status: "DRAFT",
     },
   });

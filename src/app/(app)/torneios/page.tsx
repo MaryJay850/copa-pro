@@ -7,47 +7,52 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
 
 export default async function MeusTorneiosPage() {
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
+  const userId = session.user.id;
+
   const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
+    where: { id: userId },
     select: { playerId: true },
   });
 
-  if (!user?.playerId) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold">Os Meus Torneios</h1>
-        <EmptyState
-          title="Sem perfil de jogador"
-          description="O seu perfil de jogador ainda não foi criado. Junte-se a uma liga para começar."
-          icon={
-            <svg className="w-12 h-12 text-text-muted/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-            </svg>
-          }
-        />
-      </div>
-    );
-  }
-
-  // Get all tournaments the player is inscribed in
-  const inscriptions = await prisma.tournamentInscription.findMany({
-    where: { playerId: user.playerId },
-    include: {
-      tournament: {
+  // Get tournaments where user is inscribed as a player
+  const inscriptions = user?.playerId
+    ? await prisma.tournamentInscription.findMany({
+        where: { playerId: user.playerId },
         include: {
-          league: true,
-          season: true,
-          _count: { select: { inscriptions: true, rounds: true } },
+          tournament: {
+            include: {
+              league: true,
+              season: true,
+              _count: { select: { inscriptions: true, rounds: true } },
+            },
+          },
         },
-      },
+        orderBy: { createdAt: "desc" },
+      })
+    : [];
+
+  // Get standalone tournaments created by this user (Easy Mix or standalone)
+  const createdTournaments = await prisma.tournament.findMany({
+    where: {
+      creatorId: userId,
+    },
+    include: {
+      league: true,
+      season: true,
+      _count: { select: { inscriptions: true, rounds: true } },
     },
     orderBy: { createdAt: "desc" },
   });
+
+  // Merge and deduplicate
+  const inscribedIds = new Set(inscriptions.map((i) => i.tournament.id));
+  const extraCreated = createdTournaments.filter((t) => !inscribedIds.has(t.id));
 
   // Separate into active and past
   const activeTournaments = inscriptions.filter(
@@ -57,12 +62,17 @@ export default async function MeusTorneiosPage() {
     (i) => i.tournament.status === "FINISHED"
   );
 
+  const activeCreated = extraCreated.filter((t) => t.status !== "FINISHED");
+  const pastCreated = extraCreated.filter((t) => t.status === "FINISHED");
+
   const statusBadge = (status: string) => {
     switch (status) {
       case "DRAFT":
         return <Badge variant="default">Rascunho</Badge>;
       case "PUBLISHED":
         return <Badge variant="info">Publicado</Badge>;
+      case "RUNNING":
+        return <Badge variant="warning">A Decorrer</Badge>;
       case "IN_PROGRESS":
         return <Badge variant="success">Em Curso</Badge>;
       case "FINISHED":
@@ -103,7 +113,7 @@ export default async function MeusTorneiosPage() {
   const TournamentCard = ({ inscription }: { inscription: typeof inscriptions[0] }) => {
     const t = inscription.tournament;
     return (
-      <Link href={`/torneios/${t.id}`} className="block group">
+      <Link href={t.isEasyMix && t.publicSlug ? `/mix/${t.publicSlug}` : `/torneios/${t.id}`} className="block group">
         <Card className="p-5 hover:border-primary/30 hover:shadow-md transition-all">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
@@ -111,6 +121,7 @@ export default async function MeusTorneiosPage() {
                 {t.name}
               </h3>
               <div className="flex items-center gap-2 mt-1 text-xs text-text-muted">
+                {t.isEasyMix && <span className="text-primary font-medium">Easy Mix</span>}
                 {t.league && <span>{t.league.name}</span>}
                 {t.league && t.season && <span>·</span>}
                 {t.season && <span>{t.season.name}</span>}
@@ -150,19 +161,80 @@ export default async function MeusTorneiosPage() {
     );
   };
 
+  const CreatedTournamentCard = ({ tournament: t }: { tournament: typeof createdTournaments[0] }) => {
+    return (
+      <Link href={t.isEasyMix && t.publicSlug ? `/mix/${t.publicSlug}` : `/torneios/${t.id}`} className="block group">
+        <Card className="p-5 hover:border-primary/30 hover:shadow-md transition-all">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <h3 className="font-semibold text-text group-hover:text-primary transition-colors truncate">
+                {t.name}
+              </h3>
+              <div className="flex items-center gap-2 mt-1 text-xs text-text-muted">
+                {t.isEasyMix && <span className="text-primary font-medium">Easy Mix</span>}
+                {t.league && <span>{t.league.name}</span>}
+                {!t.league && !t.isEasyMix && <span className="text-accent font-medium">Torneio Avulso</span>}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <Badge variant="info">Criador</Badge>
+              {statusBadge(t.status)}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4 mt-3 text-xs text-text-muted">
+            {t.startDate && (
+              <span className="flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                {new Date(t.startDate).toLocaleDateString("pt-PT", { day: "numeric", month: "short", year: "numeric" })}
+              </span>
+            )}
+            <span className="flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+              {t._count.inscriptions} jogadores
+            </span>
+            <span className="flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+              {t._count.rounds} rondas
+            </span>
+            <span>{teamModeLabel(t.teamMode)}</span>
+          </div>
+        </Card>
+      </Link>
+    );
+  };
+
+  const hasAnything = inscriptions.length > 0 || extraCreated.length > 0;
+
   return (
     <div className="space-y-6 animate-fade-in-up">
-      <div>
-        <h1 className="text-2xl font-bold">Os Meus Torneios</h1>
-        <p className="text-sm text-text-muted mt-1">
-          Todos os torneios em que estou inscrito
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold">Os Meus Torneios</h1>
+          <p className="text-sm text-text-muted mt-1">
+            Torneios em que participo e torneios que criei
+          </p>
+        </div>
+        <Link href="/easy-mix/novo">
+          <Button>
+            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Criar Torneio
+          </Button>
+        </Link>
       </div>
 
-      {inscriptions.length === 0 ? (
+      {!hasAnything ? (
         <EmptyState
           title="Sem torneios"
-          description="Ainda não está inscrito em nenhum torneio. Os seus torneios aparecerão aqui quando for inscrito."
+          description="Ainda não está inscrito em nenhum torneio e não criou nenhum. Crie o seu primeiro torneio ou junte-se a uma liga."
           icon={
             <svg className="w-12 h-12 text-text-muted/40" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -171,7 +243,21 @@ export default async function MeusTorneiosPage() {
         />
       ) : (
         <>
-          {/* Active Tournaments */}
+          {/* Created Tournaments (not inscribed) */}
+          {activeCreated.length > 0 && (
+            <div>
+              <h2 className="text-sm font-bold text-text-muted uppercase tracking-wider mb-3">
+                Torneios que Criei ({activeCreated.length})
+              </h2>
+              <div className="space-y-3">
+                {activeCreated.map((t) => (
+                  <CreatedTournamentCard key={t.id} tournament={t} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Active Tournaments (inscribed) */}
           {activeTournaments.length > 0 && (
             <div>
               <h2 className="text-sm font-bold text-text-muted uppercase tracking-wider mb-3">
@@ -186,12 +272,15 @@ export default async function MeusTorneiosPage() {
           )}
 
           {/* Past Tournaments */}
-          {pastTournaments.length > 0 && (
+          {(pastTournaments.length > 0 || pastCreated.length > 0) && (
             <div>
               <h2 className="text-sm font-bold text-text-muted uppercase tracking-wider mb-3">
-                Torneios Anteriores ({pastTournaments.length})
+                Torneios Anteriores ({pastTournaments.length + pastCreated.length})
               </h2>
               <div className="space-y-3">
+                {pastCreated.map((t) => (
+                  <CreatedTournamentCard key={t.id} tournament={t} />
+                ))}
                 {pastTournaments.map((insc) => (
                   <TournamentCard key={insc.id} inscription={insc} />
                 ))}
