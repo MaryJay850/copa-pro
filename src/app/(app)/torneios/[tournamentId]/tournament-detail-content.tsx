@@ -59,8 +59,10 @@ export function TournamentDetailContent({
   groupStandings,
 }: Props) {
   const [activeSection, setActiveSection] = useState<string>(
+    tournament.status === "FINISHED" && tournament.teamMode !== "LADDER" ? "ranking" :
     tournament.teamMode === "LADDER" ? "escada" : tournament.teamMode === "NONSTOP" ? "nonstop" : tournament.teamMode === "AMERICANO" ? "americano" : tournament.teamMode === "SOBE_DESCE" ? "sobedesce" : "calendario"
   );
+  const [finalStandings, setFinalStandings] = useState<AmericanoPlayer[]>([]);
   const [americanoStandings, setAmericanoStandings] = useState<AmericanoPlayer[]>([]);
   const [americanoLoading, setAmericanoLoading] = useState(false);
   const [americanoError, setAmericanoError] = useState<string | null>(null);
@@ -123,6 +125,15 @@ export function TournamentDetailContent({
       }).catch(() => {});
     }
   }, [tournament.id, tournament.teamMode, tournament.rounds.length]);
+
+  // Load final ranking standings when tournament is finished
+  React.useEffect(() => {
+    if (tournament.status === "FINISHED" && tournament.teamMode !== "LADDER" && tournament.rounds.length > 0) {
+      getAmericanoStandings(tournament.id).then((data) => {
+        setFinalStandings(data);
+      }).catch(() => {});
+    }
+  }, [tournament.id, tournament.status, tournament.teamMode, tournament.rounds.length]);
 
   // Load Sobe e Desce standings on mount
   React.useEffect(() => {
@@ -251,6 +262,14 @@ export function TournamentDetailContent({
       icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>,
     },
   ];
+
+  if (tournament.status === "FINISHED" && tournament.teamMode !== "LADDER") {
+    navItems.push({
+      key: "ranking",
+      label: "Ranking Final",
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>,
+    });
+  }
 
   if (tournament.teamMode === "NONSTOP") {
     navItems.push({
@@ -1012,6 +1031,23 @@ export function TournamentDetailContent({
                   setAvailabilityEntries(updated);
                 }}
               />
+            </Card>
+          )}
+
+          {/* ─── Final Ranking Section ─── */}
+          {activeSection === "ranking" && tournament.status === "FINISHED" && (
+            <Card className="py-5 px-6">
+              <h2 className="text-base font-bold mb-4 flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+                Ranking Final
+              </h2>
+              {finalStandings.length > 0 ? (
+                <AmericanoStandings players={finalStandings} />
+              ) : (
+                <p className="text-sm text-text-muted">Sem dados de ranking.</p>
+              )}
             </Card>
           )}
 
