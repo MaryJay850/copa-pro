@@ -165,6 +165,7 @@ export function EasyMixView({ tournament }: { tournament: any }) {
                   <th className="pb-2 pr-3 text-center">Pts</th>
                   <th className="pb-2 pr-3 text-center">J</th>
                   <th className="pb-2 pr-3 text-center">V</th>
+                  <th className="pb-2 pr-3 text-center">%V</th>
                   <th className="pb-2 text-center">Dif</th>
                 </tr>
               </thead>
@@ -176,6 +177,16 @@ export function EasyMixView({ tournament }: { tournament: any }) {
                     <td className="py-2 pr-3 text-center font-bold text-emerald-600">{p.points}</td>
                     <td className="py-2 pr-3 text-center text-text-muted">{p.matches}</td>
                     <td className="py-2 pr-3 text-center text-emerald-600">{p.wins}</td>
+                    <td className="py-2 pr-3 text-center">
+                      <span className={`text-xs font-semibold ${
+                        p.matches === 0 ? "text-text-muted" :
+                        Math.round((p.wins / p.matches) * 100) >= 60 ? "text-emerald-600" :
+                        Math.round((p.wins / p.matches) * 100) >= 40 ? "text-amber-600" :
+                        "text-red-500"
+                      }`}>
+                        {p.matches > 0 ? `${Math.round((p.wins / p.matches) * 100)}%` : "—"}
+                      </span>
+                    </td>
                     <td className="py-2 text-center font-medium">{p.setsWon - p.setsLost > 0 ? `+${p.setsWon - p.setsLost}` : p.setsWon - p.setsLost}</td>
                   </tr>
                 ))}

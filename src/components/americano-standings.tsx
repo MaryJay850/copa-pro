@@ -34,6 +34,7 @@ export function AmericanoStandings({ players }: { players: AmericanoPlayer[] }) 
               <th className="px-2 py-2 text-center text-xs font-bold text-text-muted w-12">Pts</th>
               <th className="px-2 py-2 text-center text-xs font-bold text-text-muted w-8">J</th>
               <th className="px-2 py-2 text-center text-xs font-bold text-text-muted w-8">V</th>
+              <th className="px-2 py-2 text-center text-xs font-bold text-text-muted w-14">%V</th>
               <th className="px-2 py-2 text-center text-xs font-bold text-text-muted w-12">SG</th>
               <th className="px-2 py-2 text-center text-xs font-bold text-text-muted w-12">SP</th>
               <th className="px-2 py-2 text-center text-xs font-bold text-text-muted w-12">Dif</th>
@@ -78,6 +79,16 @@ export function AmericanoStandings({ players }: { players: AmericanoPlayer[] }) 
                   </td>
                   <td className="px-2 py-2.5 text-center text-text-muted">{player.matches}</td>
                   <td className="px-2 py-2.5 text-center text-text-muted">{player.wins}</td>
+                  <td className="px-2 py-2.5 text-center">
+                    <span className={`text-xs font-semibold ${
+                      player.matches === 0 ? "text-text-muted" :
+                      Math.round((player.wins / player.matches) * 100) >= 60 ? "text-emerald-600" :
+                      Math.round((player.wins / player.matches) * 100) >= 40 ? "text-amber-600" :
+                      "text-red-500"
+                    }`}>
+                      {player.matches > 0 ? `${Math.round((player.wins / player.matches) * 100)}%` : "—"}
+                    </span>
+                  </td>
                   <td className="px-2 py-2.5 text-center text-text-muted">{player.setsWon}</td>
                   <td className="px-2 py-2.5 text-center text-text-muted">{player.setsLost}</td>
                   <td className="px-2 py-2.5 text-center">
