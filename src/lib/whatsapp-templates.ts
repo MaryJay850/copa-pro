@@ -71,7 +71,7 @@ export function scheduleAnnouncementMessage(
       const matchLines = r.matches
         .map((m) => `  ⚔️ ${m.teamA} vs ${m.teamB} — _${m.court}_`)
         .join("\n");
-      return `*Ronda ${r.roundIndex + 1}*\n${matchLines}`;
+      return `*Ronda ${r.roundIndex}*\n${matchLines}`;
     })
     .join("\n\n");
 
