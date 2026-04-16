@@ -214,6 +214,8 @@ model Player {
   reservations                 Reservation[]
   tournamentPayments           TournamentPayment[]
   clubMemberships              ClubMembership[]
+  finalResultsAsPlayer1        TournamentFinalResult[] @relation("FinalResultPlayer1")
+  finalResultsAsPlayer2        TournamentFinalResult[] @relation("FinalResultPlayer2")
 
   @@map("players")
 }
@@ -277,6 +279,7 @@ model Tournament {
   playerAvailabilities  PlayerAvailability[]
   chatMessages          ChatMessage[]
   payments              TournamentPayment[]
+  finalResults          TournamentFinalResult[]
 
   @@map("tournaments")
 }
@@ -418,6 +421,26 @@ model SeasonRankingEntry {
 
   @@unique([seasonId, playerId])
   @@map("season_ranking_entries")
+}
+
+// ── Tournament Final Results (Sobe e Desce position-based scoring) ──
+
+model TournamentFinalResult {
+  id           String @id @default(cuid())
+  tournamentId String
+  position     Int             // 1st, 2nd, 3rd...
+  player1Id    String          // First player of the pair
+  player2Id    String?         // Second player (null for 1v1)
+  positionPts  Int @default(0) // Points from position (10, 8, 7, 6...)
+  bonusPts     Int @default(5) // Participation bonus (default 5)
+  totalPts     Int @default(0) // positionPts + bonusPts
+
+  tournament Tournament @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  player1    Player     @relation("FinalResultPlayer1", fields: [player1Id], references: [id])
+  player2    Player?    @relation("FinalResultPlayer2", fields: [player2Id], references: [id])
+
+  @@unique([tournamentId, position])
+  @@map("tournament_final_results")
 }
 
 // ── Availability ──

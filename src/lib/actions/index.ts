@@ -13,3 +13,4 @@ export * from "./payment-actions";
 export * from "./reservation-actions";
 export * from "./membership-actions";
 export * from "./push-actions";
+export * from "./final-result-actions";

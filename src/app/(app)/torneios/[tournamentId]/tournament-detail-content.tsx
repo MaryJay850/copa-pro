@@ -24,6 +24,8 @@ import { PlayerAvailabilityView } from "@/components/player-availability";
 import { TournamentChat } from "@/components/tournament-chat";
 import { getAmericanoStandings, generateNextAmericanoRoundAction, getSobeDesceStandings, generateNextSobeDesceRoundAction, getNonstopQueueStatus, joinNonstopQueue, leaveNonstopQueue, rejoinNonstopQueue, getLadderStatus, createLadderChallenge, acceptLadderChallenge, declineLadderChallenge, getTournamentPhotos, uploadTournamentPhoto, deleteTournamentPhoto, getTournamentPhoto, setTournamentPlayerAvailability, getTournamentPlayerAvailabilities, getMyTournamentAvailability, sendChatMessage, getChatMessages, deleteChatMessage } from "@/lib/actions";
 import { getTournamentPayments, markPaymentManual, type TournamentPaymentInfo } from "@/lib/actions/payment-actions";
+import { FinalResultsManager } from "@/components/final-results-manager";
+import { getFinalResults } from "@/lib/actions/final-result-actions";
 
 const statusLabels: Record<
   string,
@@ -87,6 +89,10 @@ export function TournamentDetailContent({
   const [availabilityEntries, setAvailabilityEntries] = useState<{ playerId: string; playerName: string; status: string; note: string | null }[]>([]);
   const [myAvailabilityStatus, setMyAvailabilityStatus] = useState<string | null>(null);
 
+  // Final results state (Sobe e Desce position-based scoring)
+  const [finalResults, setFinalResults] = useState<any[]>([]);
+  const [finalResultsLoaded, setFinalResultsLoaded] = useState(false);
+
   // Payment state
   const [payments, setPayments] = useState<TournamentPaymentInfo[]>([]);
   const [paymentsLoaded, setPaymentsLoaded] = useState(false);
@@ -106,6 +112,16 @@ export function TournamentDetailContent({
       }).catch(() => {});
     }
   }, [tournament.id, tournament.status]);
+
+  // Load final results for Sobe e Desce tournaments
+  React.useEffect(() => {
+    if (tournament.teamMode === "SOBE_DESCE") {
+      getFinalResults(tournament.id).then((data) => {
+        setFinalResults(data);
+        setFinalResultsLoaded(true);
+      }).catch(() => { setFinalResultsLoaded(true); });
+    }
+  }, [tournament.id, tournament.teamMode]);
 
   // Load payment data on mount
   React.useEffect(() => {
@@ -292,6 +308,11 @@ export function TournamentDetailContent({
       key: "sobedesce",
       label: "Sobe e Desce",
       icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" /></svg>,
+    });
+    navItems.push({
+      key: "classificacao-final",
+      label: "Classificação Final",
+      icon: <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>,
     });
   }
 
@@ -852,6 +873,23 @@ export function TournamentDetailContent({
             </div>
           )}
 
+          {/* ─── Sobe e Desce - Classificação Final Section ─── */}
+          {activeSection === "classificacao-final" && tournament.teamMode === "SOBE_DESCE" && (
+            <Card className="py-5 px-6">
+              {finalResultsLoaded ? (
+                <FinalResultsManager
+                  tournamentId={tournament.id}
+                  inscriptions={tournament.inscriptions || []}
+                  teamSize={tournament.teamSize}
+                  canManage={canManage}
+                  existingResults={finalResults}
+                />
+              ) : (
+                <p className="text-sm text-text-muted">A carregar classificação final...</p>
+              )}
+            </Card>
+          )}
+
           {/* ─── Nonstop Section ─── */}
           {activeSection === "nonstop" && tournament.teamMode === "NONSTOP" && (
             <div className="space-y-4">
@@ -1043,7 +1081,19 @@ export function TournamentDetailContent({
                 </svg>
                 Ranking Final
               </h2>
-              {finalStandings.length > 0 ? (
+              {tournament.teamMode === "SOBE_DESCE" && finalResultsLoaded ? (
+                finalResults.length > 0 ? (
+                  <FinalResultsManager
+                    tournamentId={tournament.id}
+                    inscriptions={tournament.inscriptions || []}
+                    teamSize={tournament.teamSize}
+                    canManage={canManage}
+                    existingResults={finalResults}
+                  />
+                ) : (
+                  <p className="text-sm text-text-muted">A classificação final ainda não foi reportada.</p>
+                )
+              ) : finalStandings.length > 0 ? (
                 <AmericanoStandings players={finalStandings} />
               ) : (
                 <p className="text-sm text-text-muted">Sem dados de ranking.</p>

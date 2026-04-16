@@ -2561,11 +2561,19 @@ export async function recomputeSeasonRanking(seasonId: string) {
     pointsSetWon: season.pointsSetWon,
   };
 
-  // Get all finished matches in this season
+  // Get tournaments that use position-based scoring (Sobe e Desce)
+  const sobeDesceTournaments = await prisma.tournament.findMany({
+    where: { seasonId, teamMode: "SOBE_DESCE" },
+    select: { id: true },
+  });
+  const sobeDesceIds = new Set(sobeDesceTournaments.map((t) => t.id));
+
+  // Get all finished matches in this season, EXCLUDING Sobe e Desce tournaments
   const matches = await prisma.match.findMany({
     where: {
       tournament: { seasonId },
       status: "FINISHED",
+      tournamentId: sobeDesceIds.size > 0 ? { notIn: [...sobeDesceIds] } : undefined,
     },
     include: {
       teamA: true,
@@ -2573,7 +2581,7 @@ export async function recomputeSeasonRanking(seasonId: string) {
     },
   });
 
-  // Compute all deltas with configurable points
+  // Compute all deltas with configurable points (non-Sobe e Desce tournaments)
   const allDeltas = matches.flatMap((m) =>
     computeMatchContribution(
       {
@@ -2595,6 +2603,40 @@ export async function recomputeSeasonRanking(seasonId: string) {
       pointConfig
     )
   );
+
+  // Add position-based points from Sobe e Desce final results
+  if (sobeDesceIds.size > 0) {
+    const finalResults = await prisma.tournamentFinalResult.findMany({
+      where: { tournamentId: { in: [...sobeDesceIds] } },
+    });
+
+    for (const fr of finalResults) {
+      // Player 1 always exists
+      allDeltas.push({
+        playerId: fr.player1Id,
+        points: fr.totalPts,
+        wins: fr.position === 1 ? 1 : 0,
+        draws: 0,
+        losses: 0,
+        setsWon: 0,
+        setsLost: 0,
+        matchesPlayed: 1, // count as 1 tournament participation
+      });
+      // Player 2 (for 2v2)
+      if (fr.player2Id) {
+        allDeltas.push({
+          playerId: fr.player2Id,
+          points: fr.totalPts,
+          wins: fr.position === 1 ? 1 : 0,
+          draws: 0,
+          losses: 0,
+          setsWon: 0,
+          setsLost: 0,
+          matchesPlayed: 1,
+        });
+      }
+    }
+  }
 
   // Aggregate
   const playerMap = new Map<string, {
