@@ -32,7 +32,6 @@ export async function searchClubs(query?: string) {
     where: query ? { name: { contains: query, mode: "insensitive" } } : undefined,
     select: { id: true, name: true },
     orderBy: { name: "asc" },
-    take: 50,
   });
   return clubs;
 }
