@@ -662,8 +662,8 @@ export function TournamentDetailContent({
 
         {/* Right Content Area */}
         <div className="space-y-6">
-          {/* ─── Player Swap (admin only) ─── */}
-          {adminUser && tournament.status !== "FINISHED" && swapPlayers.length > 0 && (
+          {/* ─── Player Swap (admin only — available even on finished tournaments to fix data) ─── */}
+          {adminUser && swapPlayers.length > 0 && (
             <PlayerSwap
               tournamentId={tournament.id}
               players={swapPlayers}
