@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "../db";
-import { requireAdmin } from "../auth-guards";
+
 import { computeMatchContribution, type PointConfig, type PlayerDelta } from "../ranking";
 
 // ── Types ──
@@ -134,7 +134,7 @@ function playerDisplayName(player: { fullName: string; nickname: string | null }
 // ── Main function ──
 
 export async function getSeasonAuditData(seasonId: string): Promise<AuditData> {
-  await requireAdmin();
+  // Available to all authenticated users for transparency
 
   // 1. Fetch season with league info
   const season = await prisma.season.findUnique({
