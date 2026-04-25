@@ -273,6 +273,35 @@ html.dark .card-hover:hover {
   background: rgba(255, 255, 255, 0.2);
 }
 
+/* ─── Mobile menu animations ─── */
+@keyframes mobileMenuSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes mobileMenuFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Prevent body scroll when more menu is open */
+body.mobile-menu-open {
+  overflow: hidden;
+}
+
+/* Mobile bottom tab bar touch feedback */
+@media (max-width: 1023px) {
+  .mobile-tab-active {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
 /* ─── Print styles ─── */
 @media print {
   body {

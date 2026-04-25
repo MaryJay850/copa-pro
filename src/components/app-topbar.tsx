@@ -73,7 +73,7 @@ export function AppTopbar({ onMenuToggle }: { onMenuToggle: () => void }) {
 
   return (
     <header
-      className="sticky top-0 z-40 bg-surface/95 backdrop-blur-sm border-b border-border h-[var(--topbar-height)] flex items-center px-4 lg:px-8"
+      className="sticky top-0 z-40 bg-surface/95 backdrop-blur-sm border-b border-border h-[var(--topbar-height)] hidden lg:flex items-center px-4 lg:px-8"
     >
       {/* Left: hamburger + breadcrumbs */}
       <div className="flex items-center gap-3 flex-1 min-w-0">

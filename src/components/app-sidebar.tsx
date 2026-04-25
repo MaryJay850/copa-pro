@@ -207,18 +207,9 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
   const navSections = getNavSections();
 
   return (
-    <>
-      {/* Mobile overlay */}
-      {!collapsed && (
-        <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-[2px] z-40 lg:hidden"
-          onClick={onToggle}
-        />
-      )}
-
       <aside
-        className={`fixed top-0 left-0 h-screen z-50 flex flex-col transition-all duration-300 ease-in-out ${
-          collapsed ? "-translate-x-full lg:translate-x-0 lg:w-[var(--sidebar-collapsed-width)]" : "w-[var(--sidebar-width)]"
+        className={`fixed top-0 left-0 h-screen z-50 hidden lg:flex flex-col transition-all duration-300 ease-in-out ${
+          collapsed ? "lg:w-[var(--sidebar-collapsed-width)]" : "w-[var(--sidebar-width)]"
         }`}
         style={{ backgroundColor: "var(--color-sidebar)" }}
       >
@@ -456,6 +447,5 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
           </div>
         </div>
       </aside>
-    </>
   );
 }
