@@ -416,17 +416,21 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
                       <tr className="border-b border-border">
                         <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Época</th>
                         <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Torneios</th>
-                        <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Empates</th>
+                        <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider desktop-only">Empates</th>
                         <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Estado</th>
-                        <th className="text-right py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Ações</th>
+                        <th className="text-right py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider desktop-only">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
                       {league.seasons.map((season: any) => (
-                        <tr key={season.id} className="border-b border-border/50 hover:bg-surface-hover transition-colors">
+                        <tr
+                          key={season.id}
+                          className="border-b border-border/50 hover:bg-surface-hover transition-colors cursor-pointer"
+                          onClick={() => router.push(`/ligas/${league.id}/epocas/${season.id}`)}
+                        >
                           <td className="py-3 px-4 font-semibold">{season.name}</td>
                           <td className="py-3 px-4 text-center text-text-muted">{season._count?.tournaments ?? 0}</td>
-                          <td className="py-3 px-4 text-center">
+                          <td className="py-3 px-4 text-center desktop-only">
                             {season.allowDraws ? (
                               <Badge variant="warning">Sim</Badge>
                             ) : (
@@ -438,7 +442,7 @@ export function LeagueDetailContent({ league, canManage, adminUser, invites, lea
                               {season.isActive ? "Ativa" : "Encerrada"}
                             </Badge>
                           </td>
-                          <td className="py-3 px-4 text-right">
+                          <td className="py-3 px-4 text-right desktop-only">
                             <Link href={`/ligas/${league.id}/epocas/${season.id}`}>
                               <Button size="sm" variant="ghost" className="text-xs">
                                 Ver

@@ -134,10 +134,10 @@ export default async function LigasPage() {
                     <tr className="border-b border-border">
                       <th className="text-left py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Liga</th>
                       <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Época Ativa</th>
-                      <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Torneios</th>
-                      <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Membros</th>
+                      <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider desktop-only">Torneios</th>
+                      <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider desktop-only">Membros</th>
                       <th className="text-center py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Estado</th>
-                      <th className="text-right py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider">Ações</th>
+                      <th className="text-right py-3 px-4 text-xs font-semibold text-text-muted uppercase tracking-wider desktop-only">Ações</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -150,7 +150,7 @@ export default async function LigasPage() {
                           className="border-b border-border/50 hover:bg-surface-hover transition-colors"
                         >
                           <td className="py-3 px-4">
-                            <div className="flex items-center gap-3">
+                            <Link href={`/ligas/${league.id}`} className="flex items-center gap-3">
                               <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: "linear-gradient(to bottom right, #5766da, #8b9cf7)" }}>
                                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
@@ -168,7 +168,7 @@ export default async function LigasPage() {
                                   </p>
                                 )}
                               </div>
-                            </div>
+                            </Link>
                           </td>
                           <td className="py-3 px-4 text-center">
                             {activeSeason ? (
@@ -177,14 +177,14 @@ export default async function LigasPage() {
                               <span className="text-xs text-text-muted">—</span>
                             )}
                           </td>
-                          <td className="py-3 px-4 text-center text-text-muted">{league._count.tournaments}</td>
-                          <td className="py-3 px-4 text-center text-text-muted">{league._count.memberships}</td>
+                          <td className="py-3 px-4 text-center text-text-muted desktop-only">{league._count.tournaments}</td>
+                          <td className="py-3 px-4 text-center text-text-muted desktop-only">{league._count.memberships}</td>
                           <td className="py-3 px-4 text-center">
                             <Badge variant={activeSeason ? "success" : "default"} pulse={!!activeSeason}>
                               {activeSeason ? "Ativa" : "Inativa"}
                             </Badge>
                           </td>
-                          <td className="py-3 px-4 text-right">
+                          <td className="py-3 px-4 text-right desktop-only">
                             <div className="flex items-center justify-end gap-1">
                               <Link href={`/ligas/${league.id}`}>
                                 <Button size="sm" variant="ghost" className="text-xs">Ver</Button>
