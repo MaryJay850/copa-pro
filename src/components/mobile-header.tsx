@@ -71,7 +71,7 @@ export function MobileHeader() {
 
   return (
     <header
-      className="sticky top-0 z-40 lg:hidden flex items-center h-14 px-4"
+      className="mobile-only sticky top-0 z-40 flex items-center h-14 px-4"
       style={{
         backgroundColor: "var(--color-surface)",
         borderBottom: "1px solid var(--color-border)",

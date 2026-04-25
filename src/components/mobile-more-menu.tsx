@@ -182,7 +182,7 @@ export function MobileMoreMenu({ open, onClose }: { open: boolean; onClose: () =
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] lg:hidden">
+    <div className="mobile-only fixed inset-0 z-[60]">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-[2px]"

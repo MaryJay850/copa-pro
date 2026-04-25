@@ -92,7 +92,7 @@ export function MobileBottomTabs() {
   return (
     <>
       <nav
-        className="fixed bottom-0 left-0 right-0 z-50 lg:hidden"
+        className="mobile-only fixed bottom-0 left-0 right-0 z-50"
         style={{
           backgroundColor: "var(--color-surface)",
           borderTop: "1px solid var(--color-border)",

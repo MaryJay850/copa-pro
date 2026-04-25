@@ -208,8 +208,8 @@ export function AppSidebar({ collapsed, onToggle }: { collapsed: boolean; onTogg
 
   return (
       <aside
-        className={`fixed top-0 left-0 h-screen z-50 hidden lg:flex flex-col transition-all duration-300 ease-in-out ${
-          collapsed ? "lg:w-[var(--sidebar-collapsed-width)]" : "w-[var(--sidebar-width)]"
+        className={`desktop-only fixed top-0 left-0 h-screen z-50 flex flex-col transition-all duration-300 ease-in-out ${
+          collapsed ? "w-[var(--sidebar-collapsed-width)]" : "w-[var(--sidebar-width)]"
         }`}
         style={{ backgroundColor: "var(--color-sidebar)" }}
       >
