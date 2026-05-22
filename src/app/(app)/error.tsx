@@ -11,7 +11,7 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[APP ERROR]", error);
+    console.error("[APP ERROR]", error.message, error.digest, error.stack);
   }, [error]);
 
   return (

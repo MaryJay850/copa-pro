@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
@@ -19,6 +20,7 @@ interface PlayerSwapProps {
 }
 
 export function PlayerSwap({ tournamentId, players }: PlayerSwapProps) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [loadingAvailable, setLoadingAvailable] = useState(false);
@@ -50,7 +52,12 @@ export function PlayerSwap({ tournamentId, players }: PlayerSwapProps) {
     try {
       await swapTournamentPlayers(tournamentId, playerAId, playerBId);
       toast.success("Jogador substituído com sucesso. A recarregar...");
-      setTimeout(() => window.location.reload(), 500);
+      setOpen(false);
+      setPlayerAId("");
+      setPlayerBId("");
+      setAvailablePlayers([]);
+      // Use router.refresh() for a soft refresh (more reliable than full reload)
+      router.refresh();
     } catch (e) {
       toast.error(sanitizeError(e, "Erro ao substituir jogador."));
       setLoading(false);
