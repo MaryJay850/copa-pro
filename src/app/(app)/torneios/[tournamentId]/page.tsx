@@ -34,11 +34,15 @@ export default async function TournamentPage({
 
   const pendingSubmissionsMap: Record<string, any> = {};
   if (scheduledMatchIds.length > 0 && currentPlayerId) {
-    const submissions = await Promise.all(
-      scheduledMatchIds.map((id) => getPendingSubmissions(id).then((s) => [id, s] as const))
-    );
-    for (const [id, sub] of submissions) {
-      if (sub) pendingSubmissionsMap[id] = sub;
+    try {
+      const submissions = await Promise.all(
+        scheduledMatchIds.map((id) => getPendingSubmissions(id).then((s) => [id, s] as const).catch(() => [id, null] as const))
+      );
+      for (const [id, sub] of submissions) {
+        if (sub) pendingSubmissionsMap[id] = sub;
+      }
+    } catch {
+      // ignore — don't crash the page if pending submissions fail
     }
   }
 

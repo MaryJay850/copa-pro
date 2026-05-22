@@ -1625,6 +1625,7 @@ export async function getAmericanoStandings(tournamentId: string) {
   for (const round of tournament.rounds) {
     for (const match of round.matches) {
       if (match.status !== "FINISHED") continue;
+      if (!match.teamA || !match.teamB) continue;
 
       const teamAPlayerIds = [match.teamA.player1Id, match.teamA.player2Id].filter(Boolean) as string[];
       const teamBPlayerIds = [match.teamB.player1Id, match.teamB.player2Id].filter(Boolean) as string[];
@@ -2582,7 +2583,9 @@ export async function recomputeSeasonRanking(seasonId: string) {
   });
 
   // Compute all deltas with configurable points (non-Sobe e Desce tournaments)
-  const allDeltas = matches.flatMap((m) =>
+  const allDeltas = matches
+    .filter((m) => m.teamA && m.teamB) // skip matches with missing teams
+    .flatMap((m) =>
     computeMatchContribution(
       {
         set1A: m.set1A,
@@ -2595,8 +2598,8 @@ export async function recomputeSeasonRanking(seasonId: string) {
         resultType: m.resultType,
         teamAId: m.teamAId,
         teamBId: m.teamBId,
-        teamA: { player1Id: m.teamA.player1Id, player2Id: m.teamA.player2Id },
-        teamB: { player1Id: m.teamB.player1Id, player2Id: m.teamB.player2Id },
+        teamA: { player1Id: m.teamA!.player1Id, player2Id: m.teamA!.player2Id },
+        teamB: { player1Id: m.teamB!.player1Id, player2Id: m.teamB!.player2Id },
         event: (m as any).event || "NONE",
       },
       season.allowDraws,

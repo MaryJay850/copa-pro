@@ -675,12 +675,12 @@ export function TournamentDetailContent({
             <OcrResultsUpload
               tournamentId={tournament.id}
               matches={tournament.rounds.flatMap((r: any) =>
-                r.matches.map((m: any) => ({
+                r.matches.filter((m: any) => m.teamA && m.teamB).map((m: any) => ({
                   id: m.id,
                   roundIndex: r.index,
                   courtName: m.court?.name || "",
-                  teamAName: m.teamA.name,
-                  teamBName: m.teamB.name,
+                  teamAName: m.teamA?.name || "—",
+                  teamBName: m.teamB?.name || "—",
                   status: m.status,
                 }))
               )}
@@ -695,9 +695,9 @@ export function TournamentDetailContent({
               tournamentName={tournament.name}
               startDate={tournament.startDate ? tournament.startDate.toString() : null}
               matches={tournament.rounds.flatMap((r: any) =>
-                r.matches.map((m: any) => ({
-                  team1Name: m.teamA.name,
-                  team2Name: m.teamB.name,
+                r.matches.filter((m: any) => m.teamA && m.teamB).map((m: any) => ({
+                  team1Name: m.teamA?.name || "—",
+                  team2Name: m.teamB?.name || "—",
                   courtName: m.court?.name,
                   roundIndex: r.index,
                 }))
