@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { RankingTable } from "@/components/ranking-table";
 import { ExportPDF } from "@/components/export-pdf";
 import { updateSeasonSettings, cloneSeason, adjustPlayerRanking } from "@/lib/actions";
+import { DeleteSeasonButton } from "./delete-season-button";
 import Link from "next/link";
 
 const statusLabels: Record<string, { label: string; variant: "default" | "success" | "warning" | "info" }> = {
@@ -317,6 +318,19 @@ export function SeasonDetailContent({
               </div>
             </div>
           </Card>
+
+          {/* Danger Zone - Admin only, edit mode */}
+          {adminUser && isEditing && (
+            <Card className="py-5 px-5">
+              <h3 className="text-[11px] font-bold text-red-500 uppercase tracking-wider mb-4">Zona de Perigo</h3>
+              <DeleteSeasonButton
+                seasonId={seasonId}
+                seasonName={season.name}
+                leagueId={leagueId}
+                tournamentCount={season.tournaments.length}
+              />
+            </Card>
+          )}
 
         </div>
 

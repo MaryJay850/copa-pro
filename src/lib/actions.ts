@@ -2950,6 +2950,26 @@ export async function finishTournament(tournamentId: string) {
   revalidatePath(`/torneios/${tournamentId}`);
 }
 
+// ── Delete season ──
+
+export async function deleteSeason(seasonId: string) {
+  await requireAdmin();
+
+  const season = await prisma.season.findUnique({
+    where: { id: seasonId },
+    select: { name: true, leagueId: true },
+  });
+
+  if (!season) throw new Error("Época não encontrada.");
+
+  logAudit("DELETE_SEASON", "Season", seasonId, `Época: ${season.name}`).catch(() => {});
+
+  await prisma.season.delete({ where: { id: seasonId } });
+
+  revalidatePath(`/ligas/${season.leagueId}`);
+  return { leagueId: season.leagueId };
+}
+
 // ── Delete tournament ──
 
 export async function deleteTournament(tournamentId: string) {
