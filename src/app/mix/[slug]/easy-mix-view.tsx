@@ -24,7 +24,7 @@ export function EasyMixView({ tournament }: { tournament: any }) {
   const finishedMatches = tournament.rounds.reduce((acc: number, r: any) => acc + r.matches.filter((m: any) => m.status === "FINISHED").length, 0);
   const progress = totalMatches > 0 ? Math.round((finishedMatches / totalMatches) * 100) : 0;
 
-  const playerName = (p: any) => p?.nickname || p?.fullName?.split(" ")[0] || "?";
+  const playerName = (p: any) => p?.nickname || p?.fullName || "?";
 
   // Compute individual rankings from finished matches
   const playerStats: Record<string, { name: string; points: number; matches: number; wins: number; setsWon: number; setsLost: number }> = {};

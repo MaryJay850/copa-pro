@@ -2304,17 +2304,17 @@ export async function swapTournamentPlayers(
 
   if (!playerA || !playerB) throw new Error("Jogador não encontrado.");
 
-  const nameA = playerA.nickname || playerA.fullName.split(" ")[0];
-  const nameB = playerB.nickname || playerB.fullName.split(" ")[0];
+  const nameA = playerA.nickname || playerA.fullName;
+  const nameB = playerB.nickname || playerB.fullName;
 
   // Build a map of all player names (from teams) for team name generation
   const playerNames = new Map<string, string>();
   for (const team of tournament.teams) {
     if (team.player1) {
-      playerNames.set(team.player1.id, team.player1.nickname || team.player1.fullName.split(" ")[0]);
+      playerNames.set(team.player1.id, team.player1.nickname || team.player1.fullName);
     }
     if (team.player2) {
-      playerNames.set(team.player2.id, team.player2.nickname || team.player2.fullName.split(" ")[0]);
+      playerNames.set(team.player2.id, team.player2.nickname || team.player2.fullName);
     }
   }
   // Ensure swapped players have their names
@@ -2511,7 +2511,7 @@ export async function desistPlayer(tournamentId: string, playerId: string) {
           where: { id: nextSuplente.playerId },
         });
         if (substitutePlayer) {
-          updateData.name = substitutePlayer.nickname || substitutePlayer.fullName.split(" ")[0];
+          updateData.name = substitutePlayer.nickname || substitutePlayer.fullName;
         }
       }
 
@@ -4474,12 +4474,12 @@ export async function getLandingPageData() {
     if (m.set2A !== null && m.set2B !== null) scores.push(`${m.set2A}-${m.set2B}`);
     if (m.set3A !== null && m.set3B !== null) scores.push(`${m.set3A}-${m.set3B}`);
 
-    const p1A = m.teamA.player1.nickname || m.teamA.player1.fullName.split(" ")[0];
-    const p2A = m.teamA.player2 ? (m.teamA.player2.nickname || m.teamA.player2.fullName.split(" ")[0]) : null;
+    const p1A = m.teamA.player1.nickname || m.teamA.player1.fullName;
+    const p2A = m.teamA.player2 ? (m.teamA.player2.nickname || m.teamA.player2.fullName) : null;
     const teamAName = p2A ? `${p1A} / ${p2A}` : p1A;
 
-    const p1B = m.teamB.player1.nickname || m.teamB.player1.fullName.split(" ")[0];
-    const p2B = m.teamB.player2 ? (m.teamB.player2.nickname || m.teamB.player2.fullName.split(" ")[0]) : null;
+    const p1B = m.teamB.player1.nickname || m.teamB.player1.fullName;
+    const p2B = m.teamB.player2 ? (m.teamB.player2.nickname || m.teamB.player2.fullName) : null;
     const teamBName = p2B ? `${p1B} / ${p2B}` : p1B;
 
     return {

@@ -24,7 +24,7 @@ interface RecentMatch {
 }
 
 function playerLabel(p: { fullName: string; nickname: string | null }) {
-  return p.nickname || p.fullName.split(" ")[0];
+  return p.nickname || p.fullName;
 }
 
 function formatScore(match: RecentMatch) {

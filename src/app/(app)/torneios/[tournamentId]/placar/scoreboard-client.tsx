@@ -39,9 +39,9 @@ function getTeamLabel(team: Team, teamSize: number): string {
   if (teamSize === 1) {
     return team.player1.nickname || team.player1.fullName;
   }
-  const p1 = team.player1.nickname || team.player1.fullName.split(" ")[0];
+  const p1 = team.player1.nickname || team.player1.fullName;
   const p2 = team.player2
-    ? team.player2.nickname || team.player2.fullName.split(" ")[0]
+    ? team.player2.nickname || team.player2.fullName
     : "";
   return p2 ? `${p1} & ${p2}` : p1;
 }

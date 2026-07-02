@@ -64,7 +64,7 @@ export function PlayerSwap({ tournamentId, players }: PlayerSwapProps) {
     }
   };
 
-  const displayName = (p: Player) => p.nickname || p.fullName.split(" ")[0];
+  const displayName = (p: Player) => p.nickname || p.fullName;
 
   const playerAName = playerAId ? displayName(players.find((p) => p.id === playerAId)!) : "";
   const playerBName = playerBId ? displayName(availablePlayers.find((p) => p.id === playerBId)!) : "";

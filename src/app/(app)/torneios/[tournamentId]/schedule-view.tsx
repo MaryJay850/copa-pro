@@ -113,9 +113,9 @@ export function ScheduleView({
   // Helper to get team display name
   const getTeamName = (team: any): string => {
     if (!team) return "\u2014";
-    const p1 = team.player1?.nickname || team.player1?.fullName?.split(" ")[0] || "";
+    const p1 = team.player1?.nickname || team.player1?.fullName || "";
     const p2 = team.player2
-      ? team.player2.nickname || team.player2.fullName?.split(" ")[0] || ""
+      ? team.player2.nickname || team.player2.fullName || ""
       : null;
     return p2 ? `${p1} & ${p2}` : p1;
   };
@@ -224,11 +224,11 @@ export function ScheduleView({
                     <div>
                       <span className="font-bold text-sm">{team.name}</span>
                       <span className="text-text-muted text-xs ml-1.5">
-                        {team.player1?.nickname || team.player1?.fullName?.split(" ")[0]}
+                        {team.player1?.nickname || team.player1?.fullName}
                         {team.player2 && (
                           <>
                             {" & "}
-                            {team.player2.nickname || team.player2.fullName?.split(" ")[0]}
+                            {team.player2.nickname || team.player2.fullName}
                           </>
                         )}
                       </span>
@@ -421,11 +421,11 @@ export function ScheduleView({
               if (!courtMap.has(courtId)) {
                 courtMap.set(courtId, { id: courtId, name: courtName, matches: [] });
               }
-              const p1A = match.teamA?.player1?.nickname || match.teamA?.player1?.fullName?.split(" ")[0] || "";
-              const p2A = match.teamA?.player2 ? (match.teamA.player2.nickname || match.teamA.player2.fullName?.split(" ")[0] || "") : null;
+              const p1A = match.teamA?.player1?.nickname || match.teamA?.player1?.fullName || "";
+              const p2A = match.teamA?.player2 ? (match.teamA.player2.nickname || match.teamA.player2.fullName || "") : null;
               const teamAName = p2A ? `${p1A} & ${p2A}` : (match.teamA?.name || p1A || "—");
-              const p1B = match.teamB?.player1?.nickname || match.teamB?.player1?.fullName?.split(" ")[0] || "";
-              const p2B = match.teamB?.player2 ? (match.teamB.player2.nickname || match.teamB.player2.fullName?.split(" ")[0] || "") : null;
+              const p1B = match.teamB?.player1?.nickname || match.teamB?.player1?.fullName || "";
+              const p2B = match.teamB?.player2 ? (match.teamB.player2.nickname || match.teamB.player2.fullName || "") : null;
               const teamBName = p2B ? `${p1B} & ${p2B}` : (match.teamB?.name || p1B || "—");
 
               let score: string | undefined;

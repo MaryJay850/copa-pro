@@ -52,7 +52,7 @@ interface MatchCardProps {
 }
 
 function playerLabel(p: { fullName: string; nickname: string | null }) {
-  return p.nickname || p.fullName.split(" ")[0];
+  return p.nickname || p.fullName;
 }
 
 export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlayerId, pendingSubmission, currentUserId }: MatchCardProps) {

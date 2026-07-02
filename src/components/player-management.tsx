@@ -84,7 +84,7 @@ export function PlayerManagement({
   };
 
   const playerName = (p: { fullName: string; nickname: string | null }) =>
-    p.nickname || p.fullName.split(" ")[0];
+    p.nickname || p.fullName;
 
   return (
     <Card>

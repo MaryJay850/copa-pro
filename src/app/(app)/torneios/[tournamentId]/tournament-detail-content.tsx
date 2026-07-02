@@ -1006,7 +1006,7 @@ export function TournamentDetailContent({
                     }`}
                   >
                     <span className={insc.status === "DESISTIU" ? "text-text-muted" : "font-semibold"}>
-                      {insc.player.nickname || insc.player.fullName.split(" ")[0]}
+                      {insc.player.nickname || insc.player.fullName}
                     </span>
                     <Badge
                       variant={
