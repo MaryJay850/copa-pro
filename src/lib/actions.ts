@@ -3519,9 +3519,9 @@ export async function registerUser(formData: FormData) {
     throw new Error("A palavra-passe deve ter pelo menos 6 caracteres.");
   }
 
-  const phoneRegex = /^\+\d{1,3}\s\d{6,15}$/;
-  if (!phoneRegex.test(phone)) {
-    throw new Error("Número de telemóvel inválido. Formato esperado: +351 932539702");
+  const cleaned = phone.replace(/[\s\-()]/g, "");
+  if (!/^\+?\d{9,15}$/.test(cleaned)) {
+    throw new Error("Número de telemóvel inválido.");
   }
 
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -4236,11 +4236,11 @@ export async function updateUser(
     if (existing) throw new Error("Este email já está registado.");
   }
 
-  // Validate phone format (if non-empty)
+  // Validate phone format (if non-empty) — accept common formats
   if (newPhone) {
-    const phoneRegex = /^\+\d{1,3}\s\d{6,15}$/;
-    if (!phoneRegex.test(newPhone)) {
-      throw new Error("Número de telemóvel inválido. Formato esperado: +351 932539702");
+    const cleaned = newPhone.replace(/[\s\-()]/g, "");
+    if (!/^\+?\d{9,15}$/.test(cleaned)) {
+      throw new Error("Número de telemóvel inválido.");
     }
   }
 
