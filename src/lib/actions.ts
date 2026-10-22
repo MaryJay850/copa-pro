@@ -6406,6 +6406,7 @@ export async function getScoreboardData(tournamentId: string) {
       league: true,
       season: true,
       courts: { orderBy: { name: "asc" } },
+      tournamentCourts: { include: { court: true }, orderBy: { court: { orderIndex: "asc" } } },
       rounds: {
         orderBy: { index: "asc" },
         include: {
@@ -6435,7 +6436,12 @@ export async function getScoreboardData(tournamentId: string) {
     throw new Error("Sem permissão. Apenas administradores e gestores podem aceder ao placar.");
   }
 
-  return serialize(tournament);
+  // Use tournamentCourts if available, fallback to legacy courts
+  const effectiveCourts = tournament.tournamentCourts.length > 0
+    ? tournament.tournamentCourts.map((tc) => tc.court)
+    : tournament.courts;
+
+  return serialize({ ...tournament, courts: effectiveCourts });
 }
 
 export async function saveScoreboardMatch(
