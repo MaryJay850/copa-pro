@@ -652,9 +652,11 @@ export async function generateSchedule(tournamentId: string) {
     throw new Error("CONFIRM_REGENERATE");
   }
 
-  // Delete existing schedule and per-round teams
+  // Delete existing schedule, groups, and per-round teams
   await prisma.match.deleteMany({ where: { tournamentId } });
   await prisma.round.deleteMany({ where: { tournamentId } });
+  await prisma.teamGroupEntry.deleteMany({ where: { group: { tournamentId } } });
+  await prisma.tournamentGroup.deleteMany({ where: { tournamentId } });
   // For RANDOM_PER_ROUND, RANKED_SPLIT, AMERICANO, or SOBE_DESCE, also delete previously generated teams
   if (tournament.teamMode === "RANDOM_PER_ROUND" || tournament.teamMode === "RANKED_SPLIT" || tournament.teamMode === "AMERICANO" || tournament.teamMode === "SOBE_DESCE" || tournament.teamMode === "NONSTOP" || tournament.teamMode === "LADDER") {
     await prisma.team.deleteMany({ where: { tournamentId } });
@@ -872,9 +874,27 @@ export async function generateSchedule(tournamentId: string) {
         groupBTeamRefs.push({ id: team.id, index: i });
       }
 
+      // Create TournamentGroup records if GROUP_KNOCKOUT format
+      if (tournament.format === "GROUP_KNOCKOUT") {
+        const grpA = await prisma.tournamentGroup.create({
+          data: { tournamentId, name: "Grupo A", index: 0 },
+        });
+        for (const ref of groupATeamRefs) {
+          await prisma.teamGroupEntry.create({ data: { groupId: grpA.id, teamId: ref.id } });
+        }
+        const grpB = await prisma.tournamentGroup.create({
+          data: { tournamentId, name: "Grupo B", index: 1 },
+        });
+        for (const ref of groupBTeamRefs) {
+          await prisma.teamGroupEntry.create({ data: { groupId: grpB.id, teamId: ref.id } });
+        }
+      }
+
       // Generate round-robin pairings for each group using group-specific court counts
       const pairingsA = generateRoundRobinPairings(groupATeamRefs, groupACourts.length, tournament.matchesPerPair, seed + "_A", tournament.numberOfRounds || undefined);
       const pairingsB = generateRoundRobinPairings(groupBTeamRefs, groupBCourts.length, tournament.matchesPerPair, seed + "_B", tournament.numberOfRounds || undefined);
+
+      const isGroupKnockout = tournament.format === "GROUP_KNOCKOUT";
 
       // Merge pairings into combined rounds
       const maxRound = Math.max(
@@ -898,6 +918,7 @@ export async function generateSchedule(tournamentId: string) {
             tournamentId, roundId, courtId, slotIndex: p.slotIndex,
             teamAId: p.teamA.id, teamBId: p.teamB.id,
             status: "SCHEDULED", resultType: "UNDECIDED",
+            ...(isGroupKnockout && { bracketPhase: "GROUP" }),
           },
         });
       }
@@ -910,6 +931,7 @@ export async function generateSchedule(tournamentId: string) {
             tournamentId, roundId, courtId, slotIndex: p.slotIndex + 100, // offset to avoid collision
             teamAId: p.teamA.id, teamBId: p.teamB.id,
             status: "SCHEDULED", resultType: "UNDECIDED",
+            ...(isGroupKnockout && { bracketPhase: "GROUP" }),
           },
         });
       }
@@ -1156,6 +1178,93 @@ export async function generateSchedule(tournamentId: string) {
             teamBId: roundTeamIds[teamBIndex].id,
             status: "SCHEDULED",
             resultType: "UNDECIDED",
+          },
+        });
+      }
+    }
+  } else if (tournament.format === "GROUP_KNOCKOUT" && tournament.teamMode === "FIXED_TEAMS") {
+    // ── GROUP_KNOCKOUT + FIXED_TEAMS: split existing teams into groups, round-robin per group ──
+    const allTeams = tournament.teams.filter((t) => !t.roundId);
+    const numGroups = tournament.numberOfGroups || 2;
+
+    if (allTeams.length < numGroups * 2) {
+      throw new Error(`São necessárias pelo menos ${numGroups * 2} equipas para ${numGroups} grupos.`);
+    }
+
+    // Split teams evenly across groups
+    const teamsPerGroup = Math.floor(allTeams.length / numGroups);
+    const remainder = allTeams.length % numGroups;
+    const groupTeams: typeof allTeams[] = [];
+    let offset = 0;
+    for (let g = 0; g < numGroups; g++) {
+      const size = teamsPerGroup + (g < remainder ? 1 : 0);
+      groupTeams.push(allTeams.slice(offset, offset + size));
+      offset += size;
+    }
+
+    // Split courts across groups
+    const courtsPerGroup = Math.max(1, Math.floor(courts.length / numGroups));
+    const groupCourts: typeof courts[] = [];
+    for (let g = 0; g < numGroups; g++) {
+      const start = g * courtsPerGroup;
+      const end = g === numGroups - 1 ? courts.length : start + courtsPerGroup;
+      groupCourts.push(courts.slice(start, end));
+    }
+
+    const groupNames = "ABCDEFGH";
+    const roundMap = new Map<number, string>();
+
+    for (let g = 0; g < numGroups; g++) {
+      const groupName = `Grupo ${groupNames[g] || (g + 1)}`;
+
+      // Create TournamentGroup
+      const group = await prisma.tournamentGroup.create({
+        data: { tournamentId, name: groupName, index: g },
+      });
+
+      // Create TeamGroupEntry for each team in this group
+      for (const team of groupTeams[g]) {
+        await prisma.teamGroupEntry.create({
+          data: { groupId: group.id, teamId: team.id },
+        });
+      }
+
+      // Generate round-robin pairings for this group
+      const teamRefs: TeamRef[] = groupTeams[g].map((t, i) => ({
+        id: t.id,
+        index: i,
+      }));
+
+      const pairings = generateRoundRobinPairings(
+        teamRefs,
+        groupCourts[g].length,
+        tournament.matchesPerPair,
+        (tournament.randomSeed || "default") + `_G${g}`,
+        tournament.numberOfRounds || undefined
+      );
+
+      for (const p of pairings) {
+        if (!roundMap.has(p.roundIndex)) {
+          const round = await prisma.round.create({
+            data: { tournamentId, index: p.roundIndex },
+          });
+          roundMap.set(p.roundIndex, round.id);
+        }
+
+        const roundId = roundMap.get(p.roundIndex)!;
+        const courtId = groupCourts[g][p.courtIndex]?.id || null;
+
+        await prisma.match.create({
+          data: {
+            tournamentId,
+            roundId,
+            courtId,
+            slotIndex: p.slotIndex + g * 100,
+            teamAId: p.teamA.id,
+            teamBId: p.teamB.id,
+            status: "SCHEDULED",
+            resultType: "UNDECIDED",
+            bracketPhase: "GROUP",
           },
         });
       }
