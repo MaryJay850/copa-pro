@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
       teamSize: true,
       courtsCount: true,
       numberOfSets: true,
+      gamesPerSet: true,
       numberOfRounds: true,
       createdAt: true,
       league: { select: { id: true, name: true } },

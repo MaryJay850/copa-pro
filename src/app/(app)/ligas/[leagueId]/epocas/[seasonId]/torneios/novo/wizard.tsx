@@ -49,6 +49,7 @@ export function TournamentWizard({
       courtsCount: number;
       matchesPerPair: number;
       numberOfSets: number;
+      gamesPerSet?: number;
       teamMode: string;
       teamSize: number;
       randomSeed?: string;
@@ -86,6 +87,7 @@ export function TournamentWizard({
   );
   const [matchesPerPair, setMatchesPerPair] = useState(editMode?.initialData.matchesPerPair ?? 1);
   const [numberOfSets, setNumberOfSets] = useState(editMode?.initialData.numberOfSets ?? 1);
+  const [gamesPerSet, setGamesPerSet] = useState(editMode?.initialData.gamesPerSet ?? 0);
   const [teamSize, setTeamSize] = useState(editMode?.initialData.teamSize ?? 2);
   const [teamMode, setTeamMode] = useState<TeamMode>(
     (editMode?.initialData.teamMode as TeamMode) ?? "FIXED_TEAMS"
@@ -422,7 +424,7 @@ export function TournamentWizard({
     setError(null);
     try {
       const effectiveTeamMode = teamSize === 1 ? "FIXED_TEAMS" : teamMode;
-      const needsRounds = teamMode === "RANDOM_PER_ROUND" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || (teamMode === "RANKED_SPLIT" && rankedSplitSubMode === "per_round");
+      const needsRounds = teamMode === "RANDOM_PER_ROUND" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || (teamMode === "RANKED_SPLIT" && rankedSplitSubMode === "per_round") || teamMode === "FIXED_TEAMS";
       const needsSeed = ["RANDOM_TEAMS", "RANDOM_PER_ROUND", "RANKED_SPLIT", "AMERICANO", "SOBE_DESCE"].includes(teamMode);
       const isNonstop = teamMode === "NONSTOP";
       const isLadder = teamMode === "LADDER";
@@ -449,10 +451,11 @@ export function TournamentWizard({
         } : {}),
         matchesPerPair,
         numberOfSets,
+        gamesPerSet: gamesPerSet || undefined,
         teamSize,
         teamMode: effectiveTeamMode,
         randomSeed: needsSeed && teamSize === 2 ? randomSeed : undefined,
-        numberOfRounds: needsRounds ? numberOfRounds : undefined,
+        numberOfRounds: needsRounds ? (numberOfRounds || undefined) : undefined,
         rankedSplitSubMode: teamMode === "RANKED_SPLIT" ? rankedSplitSubMode : undefined,
         teams: (teamMode === "RANDOM_PER_ROUND" || teamMode === "RANKED_SPLIT" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE" || teamMode === "NONSTOP" || teamMode === "LADDER") ? [] : teams,
         allPlayerIds: selectionOrder,
@@ -1145,6 +1148,24 @@ export function TournamentWizard({
               </div>
             </div>
 
+            <div>
+              <FieldLabel label="Jogos por Set" tooltip="0 = livre (sem limite fixo). Valor > 0 = total fixo de jogos por set. Ex: 7 significa que cada set termina com soma = 7 (7-0, 6-1, 5-2, 4-3)." htmlFor="games-per-set" />
+              <div className="flex items-center gap-3 mt-1">
+                <input
+                  id="games-per-set"
+                  type="number"
+                  min={0}
+                  max={99}
+                  value={gamesPerSet}
+                  onChange={(e) => setGamesPerSet(Math.max(0, parseInt(e.target.value) || 0))}
+                  className="w-20 rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                <span className="text-xs text-text-muted">
+                  {gamesPerSet === 0 ? "Livre (sem restrição)" : `Total fixo: cada set soma ${gamesPerSet} jogos`}
+                </span>
+              </div>
+            </div>
+
             {/* Payment / Inscription Fee */}
             <div>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
@@ -1186,6 +1207,28 @@ export function TournamentWizard({
                       {mode === "FIXED_TEAMS" ? "Equipas Fixas" : mode === "RANDOM_TEAMS" ? "Equipas Aleatórias" : mode === "MANUAL_TEAMS" ? "Equipas Manuais" : mode === "RANDOM_PER_ROUND" ? "Aleatórias por Ronda" : mode === "RANKED_SPLIT" ? "Aleatórias por Nível" : mode === "AMERICANO" ? "Americano" : mode === "SOBE_DESCE" ? "Sobe e Desce" : mode === "NONSTOP" ? "Nonstop" : "Escada"}
                     </label>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {(teamMode === "FIXED_TEAMS" || teamSize === 1) && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 space-y-3">
+                <div>
+                  <FieldLabel label="Número de Rondas (fase de grupos)" tooltip="Por defeito, é gerado um round-robin completo (cada equipa joga contra todas). Pode limitar o número de rondas para torneios mais curtos. 0 = round-robin completo." htmlFor="num-rounds-fixed" />
+                  <div className="flex items-center gap-3 mt-1">
+                    <input
+                      id="num-rounds-fixed"
+                      type="number"
+                      min={0}
+                      max={99}
+                      value={numberOfRounds}
+                      onChange={(e) => setNumberOfRounds(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-20 rounded-lg border border-border bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                    <span className="text-xs text-blue-600">
+                      {numberOfRounds === 0 ? "Round-robin completo (todas as combinações)" : `Limitado a ${numberOfRounds} rondas`}
+                    </span>
+                  </div>
                 </div>
               </div>
             )}

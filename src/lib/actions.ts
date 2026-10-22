@@ -414,6 +414,7 @@ export async function createTournament(data: {
   tiebreakerCriteria?: string;
   matchesPerPair: number;
   numberOfSets: number;
+  gamesPerSet?: number;
   teamSize?: number;
   teamMode: string;
   randomSeed?: string;
@@ -468,6 +469,7 @@ export async function createTournament(data: {
       format: data.format || "ROUND_ROBIN",
       matchesPerPair: data.matchesPerPair,
       numberOfSets: data.numberOfSets,
+      gamesPerSet: data.gamesPerSet || 0,
       teamSize,
       teamMode: data.teamMode,
       randomSeed: data.randomSeed || null,
@@ -871,8 +873,8 @@ export async function generateSchedule(tournamentId: string) {
       }
 
       // Generate round-robin pairings for each group using group-specific court counts
-      const pairingsA = generateRoundRobinPairings(groupATeamRefs, groupACourts.length, tournament.matchesPerPair, seed + "_A");
-      const pairingsB = generateRoundRobinPairings(groupBTeamRefs, groupBCourts.length, tournament.matchesPerPair, seed + "_B");
+      const pairingsA = generateRoundRobinPairings(groupATeamRefs, groupACourts.length, tournament.matchesPerPair, seed + "_A", tournament.numberOfRounds || undefined);
+      const pairingsB = generateRoundRobinPairings(groupBTeamRefs, groupBCourts.length, tournament.matchesPerPair, seed + "_B", tournament.numberOfRounds || undefined);
 
       // Merge pairings into combined rounds
       const maxRound = Math.max(
@@ -1169,7 +1171,8 @@ export async function generateSchedule(tournamentId: string) {
       teamRefs,
       tournament.courtsCount,
       tournament.matchesPerPair,
-      tournament.randomSeed || undefined
+      tournament.randomSeed || undefined,
+      tournament.numberOfRounds || undefined
     );
 
     const roundMap = new Map<number, string>();
@@ -1521,7 +1524,8 @@ export async function forceRegenerateSchedule(tournamentId: string) {
       teamRefs,
       tournament.courtsCount,
       tournament.matchesPerPair,
-      tournament.randomSeed || undefined
+      tournament.randomSeed || undefined,
+      tournament.numberOfRounds || undefined
     );
 
     const roundMap = new Map<number, string>();
@@ -2129,7 +2133,8 @@ export async function saveMatchScore(
       allowDraws,
       numberOfSets,
       scores.set4A, scores.set4B,
-      scores.set5A, scores.set5B
+      scores.set5A, scores.set5B,
+      match.tournament.gamesPerSet ?? 0
     );
 
     if (validationError) return { success: false, error: validationError };
@@ -3058,6 +3063,7 @@ export async function updateTournament(data: {
   courtNames?: string[];
   matchesPerPair: number;
   numberOfSets: number;
+  gamesPerSet?: number;
   teamSize?: number;
   teamMode: string;
   randomSeed?: string;
@@ -3102,6 +3108,7 @@ export async function updateTournament(data: {
         courtsCount: data.courtsCount,
         matchesPerPair: data.matchesPerPair,
         numberOfSets: data.numberOfSets,
+        gamesPerSet: data.gamesPerSet ?? 0,
         teamSize,
         teamMode: data.teamMode,
         randomSeed: data.randomSeed || null,
@@ -5474,7 +5481,7 @@ export async function confirmMatchResult(submissionId: string) {
         include: {
           teamA: true,
           teamB: true,
-          tournament: { select: { id: true, numberOfSets: true, seasonId: true, season: { select: { allowDraws: true } } } },
+          tournament: { select: { id: true, numberOfSets: true, gamesPerSet: true, seasonId: true, season: { select: { allowDraws: true } } } },
         },
       },
     },
@@ -5624,7 +5631,8 @@ async function saveMatchScoreInternal(
     allowDraws,
     numberOfSets,
     scores.set4A, scores.set4B,
-    scores.set5A, scores.set5B
+    scores.set5A, scores.set5B,
+    match.tournament.gamesPerSet ?? 0
   );
   if (validationError) return { success: false, error: validationError };
 
@@ -5917,7 +5925,8 @@ export async function saveEasyMixScore(
     const validationError = validateMatchScores(
       scores.set1A, scores.set1B, scores.set2A, scores.set2B,
       scores.set3A, scores.set3B, allowDraws, numberOfSets,
-      scores.set4A, scores.set4B, scores.set5A, scores.set5B
+      scores.set4A, scores.set4B, scores.set5A, scores.set5B,
+      match.tournament.gamesPerSet ?? 0
     );
     if (validationError) return { success: false, error: validationError };
 
@@ -6353,7 +6362,8 @@ export async function saveScoreboardMatch(
       allowDraws,
       numberOfSets,
       scores.set4A, scores.set4B,
-      scores.set5A, scores.set5B
+      scores.set5A, scores.set5B,
+      match.tournament.gamesPerSet ?? 0
     );
 
     if (validationError) return { success: false, error: validationError };
@@ -6593,7 +6603,8 @@ export async function finishNonstopMatch(
       allowDraws,
       numberOfSets,
       scores.set4A, scores.set4B,
-      scores.set5A, scores.set5B
+      scores.set5A, scores.set5B,
+      match.tournament.gamesPerSet ?? 0
     );
     if (validationError) return { success: false, error: validationError };
 

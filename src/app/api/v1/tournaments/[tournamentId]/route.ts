@@ -134,6 +134,7 @@ export async function GET(
         teamSize: tournament.teamSize,
         courtsCount: tournament.courtsCount,
         numberOfSets: tournament.numberOfSets,
+        gamesPerSet: tournament.gamesPerSet,
         numberOfRounds: tournament.numberOfRounds,
         league: tournament.league,
         season: tournament.season,

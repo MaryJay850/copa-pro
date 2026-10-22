@@ -529,6 +529,7 @@ export function TournamentDetailContent({
                   <p className="text-xs text-text-muted">Sets</p>
                   <p className="text-sm font-medium text-text">
                     {tournament.numberOfSets === 1 ? "1 Set" : tournament.numberOfSets === 2 ? "2 Sets" : tournament.numberOfSets === 3 ? "Melhor de 3" : "Melhor de 5"}
+                    {tournament.gamesPerSet > 0 && ` (${tournament.gamesPerSet} jogos/set)`}
                   </p>
                 </div>
               </div>

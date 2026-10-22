@@ -306,12 +306,17 @@ export async function POST(req: NextRequest) {
       )
       .join("\n");
 
+    const gamesPerSet = tournament.gamesPerSet ?? 0;
+    const gamesPerSetInfo = gamesPerSet > 0
+      ? ` IMPORTANTE: cada set tem total fixo de ${gamesPerSet} jogos (a soma dos pontos de cada set deve ser exactamente ${gamesPerSet}).`
+      : "";
     const setsInfo =
-      numberOfSets === 1
+      (numberOfSets === 1
         ? "Cada jogo tem 1 set. Preenche apenas set1A e set1B. Os outros sets devem ser null."
         : numberOfSets === 2
           ? "Cada jogo tem 2 sets. Preenche set1A, set1B, set2A, set2B. Set 3 é null (não há)."
-          : "Cada jogo tem melhor de 3 sets. Preenche set1 e set2 sempre. Set 3 só se necessário (caso contrário null).";
+          : "Cada jogo tem melhor de 3 sets. Preenche set1 e set2 sempre. Set 3 só se necessário (caso contrário null).")
+      + gamesPerSetInfo;
 
     // If a specific court was selected, add context to the prompt
     const courtContext = courtId

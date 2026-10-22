@@ -25,7 +25,8 @@ export function generateRoundRobinPairings(
   teams: TeamRef[],
   courtsCount: number,
   matchesPerPair: number,
-  seed?: string
+  seed?: string,
+  maxRounds?: number
 ): MatchPairing[] {
   const n = teams.length;
   if (n < 2) return [];
@@ -71,6 +72,11 @@ export function generateRoundRobinPairings(
       round.map((p) => ({ teamA: p.teamB, teamB: p.teamA }))
     );
     allLogicalRounds = [...allLogicalRounds, ...reversedRounds];
+  }
+
+  // Truncate to maxRounds if specified
+  if (maxRounds && maxRounds > 0 && maxRounds < allLogicalRounds.length) {
+    allLogicalRounds = allLogicalRounds.slice(0, maxRounds);
   }
 
   // If seed provided, shuffle the logical rounds order

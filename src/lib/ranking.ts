@@ -284,6 +284,7 @@ export function validateMatchScores(
   set4B: number | null = null,
   set5A: number | null = null,
   set5B: number | null = null,
+  gamesPerSet: number = 0,
 ): string | null {
   const isValidScore = (s: number | null) => s === null || (Number.isInteger(s) && s >= 0 && s <= 99);
   const allSets: [number | null, number | null][] = [
@@ -293,6 +294,18 @@ export function validateMatchScores(
   for (const [a, b] of allSets) {
     if (!isValidScore(a) || !isValidScore(b)) {
       return "Pontuação inválida. Valores permitidos: 0-99.";
+    }
+  }
+
+  // Validate gamesPerSet constraint: each set's scores must sum to exactly gamesPerSet
+  if (gamesPerSet > 0) {
+    for (let i = 0; i < allSets.length; i++) {
+      const [a, b] = allSets[i];
+      if (a !== null && b !== null) {
+        if (a + b !== gamesPerSet) {
+          return `Set ${i + 1}: a soma dos jogos deve ser ${gamesPerSet} (total fixo). Atual: ${a + b}.`;
+        }
+      }
     }
   }
 

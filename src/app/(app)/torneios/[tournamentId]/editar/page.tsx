@@ -41,6 +41,7 @@ export default async function EditTournamentPage({
     courtNames,
     matchesPerPair: tournament.matchesPerPair,
     numberOfSets: tournament.numberOfSets,
+    gamesPerSet: tournament.gamesPerSet ?? 0,
     teamSize: tournament.teamSize ?? 2,
     teamMode: tournament.teamMode,
     randomSeed: tournament.randomSeed ?? undefined,

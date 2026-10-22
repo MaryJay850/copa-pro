@@ -31,6 +31,7 @@ type Tournament = {
   id: string;
   name: string;
   numberOfSets: number;
+  gamesPerSet: number;
   teamSize: number;
   startDate: string | null;
   courts: Court[];
@@ -142,6 +143,12 @@ export function ScoreboardClient({ tournament }: { tournament: Tournament }) {
   const confirmEnd = () => {
     setShowConfirmEnd(false);
     if (!currentMatch) return;
+
+    // Client-side gamesPerSet validation
+    if (tournament.gamesPerSet > 0 && scoreA + scoreB !== tournament.gamesPerSet) {
+      setErrorMsg(`A soma dos jogos deve ser ${tournament.gamesPerSet} (atual: ${scoreA + scoreB}).`);
+      return;
+    }
 
     const setsCompleted = [...savedSets, { a: scoreA, b: scoreB }];
 

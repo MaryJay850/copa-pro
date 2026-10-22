@@ -233,6 +233,7 @@ model Tournament {
   courtsCount    Int       @default(1) // Kept for backward compat, derived from tournamentCourts
   matchesPerPair Int       @default(1)
   numberOfSets   Int       @default(1)
+  gamesPerSet    Int       @default(0) // 0 = free-form, >0 = fixed total games per set (scores must sum to this)
   status         String    @default("DRAFT")
   randomSeed          String?
   numberOfRounds      Int?
