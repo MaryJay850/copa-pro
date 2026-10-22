@@ -511,6 +511,23 @@ export async function createTournament(data: {
     }
   }
 
+  // Resolve ad-hoc players (create Player records for temp IDs) — must happen before team/inscription creation
+  const adHocIdMap: Record<string, string> = {};
+  if (data.adHocPlayerNames && data.allPlayerIds) {
+    for (const [tempId, playerName] of Object.entries(data.adHocPlayerNames)) {
+      const player = await prisma.player.create({
+        data: { fullName: playerName.trim() },
+      });
+      adHocIdMap[tempId] = player.id;
+    }
+    data.allPlayerIds = data.allPlayerIds.map((id) => adHocIdMap[id] || id);
+    data.teams = data.teams.map((t) => ({
+      ...t,
+      player1Id: adHocIdMap[t.player1Id] || t.player1Id,
+      player2Id: t.player2Id ? (adHocIdMap[t.player2Id] || t.player2Id) : null,
+    }));
+  }
+
   // Create teams
   for (const t of data.teams) {
     await prisma.team.create({
@@ -522,25 +539,6 @@ export async function createTournament(data: {
         isRandomGenerated: data.teamMode === "RANDOM_TEAMS",
       },
     });
-  }
-
-  // Resolve ad-hoc players (create Player records for temp IDs)
-  const adHocIdMap: Record<string, string> = {};
-  if (data.adHocPlayerNames && data.allPlayerIds) {
-    for (const [tempId, playerName] of Object.entries(data.adHocPlayerNames)) {
-      const player = await prisma.player.create({
-        data: { fullName: playerName.trim() },
-      });
-      adHocIdMap[tempId] = player.id;
-    }
-    // Replace temp IDs with real IDs in allPlayerIds
-    data.allPlayerIds = data.allPlayerIds.map((id) => adHocIdMap[id] || id);
-    // Also replace in teams
-    data.teams = data.teams.map((t) => ({
-      ...t,
-      player1Id: adHocIdMap[t.player1Id] || t.player1Id,
-      player2Id: t.player2Id ? (adHocIdMap[t.player2Id] || t.player2Id) : null,
-    }));
   }
 
   // Create inscriptions (titulars + suplentes)
