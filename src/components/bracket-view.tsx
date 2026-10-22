@@ -21,12 +21,13 @@ type BracketMatch = {
 
 const phaseLabels: Record<string, string> = {
   QF: "Quartos de Final",
-  SF: "Semi-Finais",
+  SF: "Meias-Finais",
+  CLASSIFICATION: "Classificação",
   FINAL: "Final",
-  THIRD_PLACE: "3o/4o Lugar",
+  THIRD_PLACE: "3.º/4.º Lugar",
 };
 
-const phaseOrder = ["QF", "SF", "FINAL", "THIRD_PLACE"];
+const phaseOrder = ["QF", "SF", "CLASSIFICATION", "FINAL", "THIRD_PLACE"];
 
 function MatchBox({ match }: { match: BracketMatch }) {
   const isFinished = match.status === "FINISHED";
@@ -39,7 +40,7 @@ function MatchBox({ match }: { match: BracketMatch }) {
   const getScore = () => {
     if (!isFinished) return null;
     const sets: string[] = [];
-    for (let s = 1; s <= 3; s++) {
+    for (let s = 1; s <= 5; s++) {
       const a = (match as any)[`set${s}A`];
       const b = (match as any)[`set${s}B`];
       if (a !== null && b !== null) sets.push(`${a}-${b}`);

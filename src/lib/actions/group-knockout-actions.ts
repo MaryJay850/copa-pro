@@ -269,11 +269,12 @@ export async function advanceToKnockout(tournamentId: string) {
     where: { id: tournamentId },
     include: {
       matches: true,
+      courts: true,
       groups: {
         include: { entries: { include: { team: true } } },
         orderBy: { index: "asc" },
       },
-      tournamentCourts: { include: { court: true } },
+      tournamentCourts: { include: { court: true }, orderBy: { court: { orderIndex: "asc" } } },
     },
   });
 
@@ -293,48 +294,36 @@ export async function advanceToKnockout(tournamentId: string) {
 
   // Get standings
   const standings = await getGroupStandings(tournamentId);
-  const teamsAdvancing = tournament.teamsAdvancing || 1;
+  const teamsAdvancing = tournament.teamsAdvancing || 2;
+  const numGroups = tournament.groups.length;
 
-  // Collect advancing teams (top N from each group)
-  const advancingTeams: { teamId: string; groupIndex: number; position: number }[] = [];
+  // Build ranked teams per group: groupRanked[groupIndex][position] = teamId
+  const groupRanked: { teamId: string; teamName: string }[][] = [];
   for (const gs of standings) {
     const group = tournament.groups.find((g) => g.id === gs.groupId)!;
-    for (let i = 0; i < Math.min(teamsAdvancing, gs.standings.length); i++) {
-      advancingTeams.push({
-        teamId: gs.standings[i].teamId,
-        groupIndex: group.index,
-        position: i + 1,
-      });
-    }
+    groupRanked[group.index] = gs.standings.map((s: TeamStanding) => ({
+      teamId: s.teamId,
+      teamName: s.teamName,
+    }));
   }
 
-  const totalAdvancing = advancingTeams.length;
-
-  // Shuffle for random seeding
-  const rng = () => Math.random(); // Could use seedrandom for reproducibility
-  for (let i = advancingTeams.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [advancingTeams[i], advancingTeams[j]] = [advancingTeams[j], advancingTeams[i]];
-  }
-
-  // Delete existing knockout matches
+  // Delete existing knockout/classification matches and their rounds
   await prisma.match.deleteMany({
-    where: { tournamentId, bracketPhase: { in: ["QF", "SF", "FINAL", "THIRD_PLACE"] } },
+    where: { tournamentId, bracketPhase: { not: "GROUP" } },
   });
+  // Clean up empty rounds (rounds with no remaining matches)
+  const emptyRounds = await prisma.round.findMany({
+    where: { tournamentId, matches: { none: {} } },
+  });
+  if (emptyRounds.length > 0) {
+    await prisma.round.deleteMany({
+      where: { id: { in: emptyRounds.map((r) => r.id) } },
+    });
+  }
 
-  // Determine bracket structure
-  const hasQF = tournament.hasQuarterFinals && totalAdvancing >= 8;
-  const hasSF = tournament.hasSemiFinals && totalAdvancing >= 4;
-
-  // Get courts for knockout phases
-  const getKnockoutCourts = (phase: string) => {
-    const phaseCourts = tournament.tournamentCourts
-      .filter((tc) => tc.groupLabel === phase)
-      .map((tc) => tc.court);
-    if (phaseCourts.length > 0) return phaseCourts;
-    // Fallback: use all tournament courts
-    return tournament.tournamentCourts.map((tc) => tc.court);
-  };
+  const courts = tournament.tournamentCourts.length > 0
+    ? tournament.tournamentCourts.map((tc) => tc.court)
+    : tournament.courts;
 
   // Get max round index
   const lastRound = await prisma.round.findFirst({
@@ -343,141 +332,265 @@ export async function advanceToKnockout(tournamentId: string) {
   });
   let nextRoundIndex = (lastRound?.index || 0) + 1;
 
-  // Create knockout matches
-  if (hasQF) {
-    const qfRound = await prisma.round.create({
-      data: { tournamentId, index: nextRoundIndex++ },
-    });
-    const qfCourts = getKnockoutCourts("QF");
-    for (let i = 0; i < 4; i++) {
-      const teamA = advancingTeams[i * 2];
-      const teamB = advancingTeams[i * 2 + 1];
-      await prisma.match.create({
-        data: {
-          tournamentId,
-          roundId: qfRound.id,
-          courtId: qfCourts[i % qfCourts.length]?.id || null,
-          slotIndex: i,
+  // ── Classification matches: position N from group A vs position N from group B ──
+  // For positions beyond teamsAdvancing (e.g., 3rd vs 3rd = 5th/6th place)
+  if (numGroups === 2) {
+    const maxTeamsPerGroup = Math.max(groupRanked[0]?.length || 0, groupRanked[1]?.length || 0);
+
+    // Create classification round (all non-advancing position matches play simultaneously)
+    const classificationMatches: { teamAId: string; teamBId: string; label: string }[] = [];
+    for (let pos = teamsAdvancing; pos < maxTeamsPerGroup; pos++) {
+      const teamA = groupRanked[0]?.[pos];
+      const teamB = groupRanked[1]?.[pos];
+      if (teamA && teamB) {
+        const overallPos = (pos + 1) * 2 - 1; // 3rd in group = 5th/6th overall
+        classificationMatches.push({
           teamAId: teamA.teamId,
           teamBId: teamB.teamId,
-          status: "SCHEDULED",
-          resultType: "UNDECIDED",
-          bracketPhase: "QF",
-          bracketIndex: i,
-          ...(tournament.knockoutSets ? {} : {}),
-        },
-      });
+          label: `${overallPos}/${overallPos + 1}`,
+        });
+      }
     }
-  }
 
-  if (hasSF && !hasQF) {
-    // SF directly from group stage (4 teams)
-    const sfRound = await prisma.round.create({
-      data: { tournamentId, index: nextRoundIndex++ },
-    });
-    const sfCourts = getKnockoutCourts("SF");
-    for (let i = 0; i < 2; i++) {
-      const teamA = advancingTeams[i * 2];
-      const teamB = advancingTeams[i * 2 + 1];
-      await prisma.match.create({
-        data: {
-          tournamentId,
-          roundId: sfRound.id,
-          courtId: sfCourts[i % sfCourts.length]?.id || null,
-          slotIndex: i,
-          teamAId: teamA.teamId,
-          teamBId: teamB.teamId,
-          status: "SCHEDULED",
-          resultType: "UNDECIDED",
-          bracketPhase: "SF",
-          bracketIndex: i,
-        },
+    if (classificationMatches.length > 0) {
+      const classRound = await prisma.round.create({
+        data: { tournamentId, index: nextRoundIndex++ },
       });
+
+      // Classification matches use courts starting from index after SF courts
+      for (let i = 0; i < classificationMatches.length; i++) {
+        const cm = classificationMatches[i];
+        const courtIdx = teamsAdvancing + i; // offset past SF courts
+        await prisma.match.create({
+          data: {
+            tournamentId,
+            roundId: classRound.id,
+            courtId: courts[courtIdx % courts.length]?.id || null,
+            slotIndex: teamsAdvancing + i,
+            teamAId: cm.teamAId,
+            teamBId: cm.teamBId,
+            status: "SCHEDULED",
+            resultType: "UNDECIDED",
+            bracketPhase: "CLASSIFICATION",
+            bracketIndex: i,
+          },
+        });
+      }
+
+      // ── Semi-finals: 1st A vs 2nd B, 1st B vs 2nd A (same round as classification) ──
+      if (teamsAdvancing >= 2) {
+        // SF 0: 1st A vs 2nd B
+        await prisma.match.create({
+          data: {
+            tournamentId,
+            roundId: classRound.id,
+            courtId: courts[0]?.id || null,
+            slotIndex: 0,
+            teamAId: groupRanked[0][0].teamId,
+            teamBId: groupRanked[1][1].teamId,
+            status: "SCHEDULED",
+            resultType: "UNDECIDED",
+            bracketPhase: "SF",
+            bracketIndex: 0,
+          },
+        });
+
+        // SF 1: 1st B vs 2nd A
+        await prisma.match.create({
+          data: {
+            tournamentId,
+            roundId: classRound.id,
+            courtId: courts[1 % courts.length]?.id || null,
+            slotIndex: 1,
+            teamAId: groupRanked[1][0].teamId,
+            teamBId: groupRanked[0][1].teamId,
+            status: "SCHEDULED",
+            resultType: "UNDECIDED",
+            bracketPhase: "SF",
+            bracketIndex: 1,
+          },
+        });
+      }
     }
-  } else if (hasSF && hasQF) {
-    // SF: placeholder matches — will be filled when QF finishes
-    // For now, create with first available teams (will be updated on QF completion)
-    const sfRound = await prisma.round.create({
-      data: { tournamentId, index: nextRoundIndex++ },
-    });
-    const sfCourts = getKnockoutCourts("SF");
-    // We need placeholder teams — use first 4 advancing as placeholders
-    // They'll be overwritten when QF results come in
-    for (let i = 0; i < 2; i++) {
-      await prisma.match.create({
-        data: {
-          tournamentId,
-          roundId: sfRound.id,
-          courtId: sfCourts[i % sfCourts.length]?.id || null,
-          slotIndex: i,
-          teamAId: advancingTeams[0].teamId, // Placeholder
-          teamBId: advancingTeams[1].teamId, // Placeholder
-          status: "PENDING_TEAMS",
-          resultType: "UNDECIDED",
-          bracketPhase: "SF",
-          bracketIndex: i,
-        },
+
+    // ── Final round: Final + 3rd/4th place (placeholders until SF finishes) ──
+    if (teamsAdvancing >= 2) {
+      const finalRound = await prisma.round.create({
+        data: { tournamentId, index: nextRoundIndex++ },
       });
-    }
-  }
 
-  if (!hasQF && !hasSF && totalAdvancing === 2) {
-    // Direct final
-    const finalRound = await prisma.round.create({
-      data: { tournamentId, index: nextRoundIndex++ },
-    });
-    const finalCourts = getKnockoutCourts("FINAL");
-    await prisma.match.create({
-      data: {
-        tournamentId,
-        roundId: finalRound.id,
-        courtId: finalCourts[0]?.id || null,
-        slotIndex: 0,
-        teamAId: advancingTeams[0].teamId,
-        teamBId: advancingTeams[1].teamId,
-        status: "SCHEDULED",
-        resultType: "UNDECIDED",
-        bracketPhase: "FINAL",
-        bracketIndex: 0,
-      },
-    });
-  } else if (hasSF || hasQF) {
-    // Final placeholder
-    const finalRound = await prisma.round.create({
-      data: { tournamentId, index: nextRoundIndex++ },
-    });
-    const finalCourts = getKnockoutCourts("FINAL");
-    await prisma.match.create({
-      data: {
-        tournamentId,
-        roundId: finalRound.id,
-        courtId: finalCourts[0]?.id || null,
-        slotIndex: 0,
-        teamAId: advancingTeams[0].teamId, // Placeholder
-        teamBId: advancingTeams[1].teamId, // Placeholder
-        status: "PENDING_TEAMS",
-        resultType: "UNDECIDED",
-        bracketPhase: "FINAL",
-        bracketIndex: 0,
-      },
-    });
-
-    // 3rd place match if configured
-    if (tournament.hasThirdPlace && hasSF) {
+      // Final placeholder
       await prisma.match.create({
         data: {
           tournamentId,
           roundId: finalRound.id,
-          courtId: finalCourts[0]?.id || null,
+          courtId: courts[0]?.id || null,
+          slotIndex: 0,
+          teamAId: groupRanked[0][0].teamId, // Placeholder
+          teamBId: groupRanked[1][0].teamId, // Placeholder
+          status: "PENDING_TEAMS",
+          resultType: "UNDECIDED",
+          bracketPhase: "FINAL",
+          bracketIndex: 0,
+        },
+      });
+
+      // 3rd/4th place placeholder
+      await prisma.match.create({
+        data: {
+          tournamentId,
+          roundId: finalRound.id,
+          courtId: courts[1 % courts.length]?.id || null,
           slotIndex: 1,
-          teamAId: advancingTeams[0].teamId, // Placeholder
-          teamBId: advancingTeams[1].teamId, // Placeholder
+          teamAId: groupRanked[0][1].teamId, // Placeholder
+          teamBId: groupRanked[1][1].teamId, // Placeholder
           status: "PENDING_TEAMS",
           resultType: "UNDECIDED",
           bracketPhase: "THIRD_PLACE",
           bracketIndex: 0,
         },
       });
+    }
+  } else {
+    // ── Generic N-group bracket (existing logic for 3+ groups) ──
+    const advancingTeams: { teamId: string; groupIndex: number; position: number }[] = [];
+    for (let g = 0; g < numGroups; g++) {
+      for (let p = 0; p < Math.min(teamsAdvancing, groupRanked[g]?.length || 0); p++) {
+        advancingTeams.push({
+          teamId: groupRanked[g][p].teamId,
+          groupIndex: g,
+          position: p + 1,
+        });
+      }
+    }
+
+    const totalAdvancing = advancingTeams.length;
+    const hasQF = tournament.hasQuarterFinals && totalAdvancing >= 8;
+    const hasSF = tournament.hasSemiFinals && totalAdvancing >= 4;
+
+    if (hasQF) {
+      const qfRound = await prisma.round.create({
+        data: { tournamentId, index: nextRoundIndex++ },
+      });
+      for (let i = 0; i < 4; i++) {
+        const teamA = advancingTeams[i * 2];
+        const teamB = advancingTeams[i * 2 + 1];
+        if (!teamA || !teamB) continue;
+        await prisma.match.create({
+          data: {
+            tournamentId,
+            roundId: qfRound.id,
+            courtId: courts[i % courts.length]?.id || null,
+            slotIndex: i,
+            teamAId: teamA.teamId,
+            teamBId: teamB.teamId,
+            status: "SCHEDULED",
+            resultType: "UNDECIDED",
+            bracketPhase: "QF",
+            bracketIndex: i,
+          },
+        });
+      }
+    }
+
+    if (hasSF && !hasQF) {
+      const sfRound = await prisma.round.create({
+        data: { tournamentId, index: nextRoundIndex++ },
+      });
+      for (let i = 0; i < 2; i++) {
+        const teamA = advancingTeams[i * 2];
+        const teamB = advancingTeams[i * 2 + 1];
+        if (!teamA || !teamB) continue;
+        await prisma.match.create({
+          data: {
+            tournamentId,
+            roundId: sfRound.id,
+            courtId: courts[i % courts.length]?.id || null,
+            slotIndex: i,
+            teamAId: teamA.teamId,
+            teamBId: teamB.teamId,
+            status: "SCHEDULED",
+            resultType: "UNDECIDED",
+            bracketPhase: "SF",
+            bracketIndex: i,
+          },
+        });
+      }
+    } else if (hasSF && hasQF) {
+      const sfRound = await prisma.round.create({
+        data: { tournamentId, index: nextRoundIndex++ },
+      });
+      for (let i = 0; i < 2; i++) {
+        await prisma.match.create({
+          data: {
+            tournamentId,
+            roundId: sfRound.id,
+            courtId: courts[i % courts.length]?.id || null,
+            slotIndex: i,
+            teamAId: advancingTeams[0].teamId,
+            teamBId: advancingTeams[1].teamId,
+            status: "PENDING_TEAMS",
+            resultType: "UNDECIDED",
+            bracketPhase: "SF",
+            bracketIndex: i,
+          },
+        });
+      }
+    }
+
+    if (!hasQF && !hasSF && totalAdvancing === 2) {
+      const finalRound = await prisma.round.create({
+        data: { tournamentId, index: nextRoundIndex++ },
+      });
+      await prisma.match.create({
+        data: {
+          tournamentId,
+          roundId: finalRound.id,
+          courtId: courts[0]?.id || null,
+          slotIndex: 0,
+          teamAId: advancingTeams[0].teamId,
+          teamBId: advancingTeams[1].teamId,
+          status: "SCHEDULED",
+          resultType: "UNDECIDED",
+          bracketPhase: "FINAL",
+          bracketIndex: 0,
+        },
+      });
+    } else if (hasSF || hasQF) {
+      const finalRound = await prisma.round.create({
+        data: { tournamentId, index: nextRoundIndex++ },
+      });
+      await prisma.match.create({
+        data: {
+          tournamentId,
+          roundId: finalRound.id,
+          courtId: courts[0]?.id || null,
+          slotIndex: 0,
+          teamAId: advancingTeams[0].teamId,
+          teamBId: advancingTeams[1].teamId,
+          status: "PENDING_TEAMS",
+          resultType: "UNDECIDED",
+          bracketPhase: "FINAL",
+          bracketIndex: 0,
+        },
+      });
+
+      if (tournament.hasThirdPlace && hasSF) {
+        await prisma.match.create({
+          data: {
+            tournamentId,
+            roundId: finalRound.id,
+            courtId: courts[1 % courts.length]?.id || null,
+            slotIndex: 1,
+            teamAId: advancingTeams[0].teamId,
+            teamBId: advancingTeams[1].teamId,
+            status: "PENDING_TEAMS",
+            resultType: "UNDECIDED",
+            bracketPhase: "THIRD_PLACE",
+            bracketIndex: 0,
+          },
+        });
+      }
     }
   }
 
