@@ -41,6 +41,10 @@ interface MatchedResult {
   set2B: number | null;
   set3A: number | null;
   set3B: number | null;
+  set4A: number | null;
+  set4B: number | null;
+  set5A: number | null;
+  set5B: number | null;
   confidence: "high" | "low";
   status: "matched" | "unmatched";
   selected: boolean;
@@ -246,7 +250,7 @@ export function OcrResultsUpload({
 
   const updateScore = (
     index: number,
-    field: "set1A" | "set1B" | "set2A" | "set2B" | "set3A" | "set3B",
+    field: "set1A" | "set1B" | "set2A" | "set2B" | "set3A" | "set3B" | "set4A" | "set4B" | "set5A" | "set5B",
     value: string
   ) => {
     setResults((prev) =>
@@ -292,6 +296,10 @@ export function OcrResultsUpload({
           set2B: result.set2B,
           set3A: result.set3A,
           set3B: result.set3B,
+          set4A: result.set4A,
+          set4B: result.set4B,
+          set5A: result.set5A,
+          set5B: result.set5B,
         });
 
         if ("success" in res && !res.success) {
@@ -486,7 +494,7 @@ export function OcrResultsUpload({
                     <th className="pb-2 pr-2 w-12">Cod</th>
                     <th className="pb-2 pr-2">Ronda</th>
                     <th className="pb-2 pr-2">Equipa A</th>
-                    <th className="pb-2 pr-2 text-center" colSpan={numberOfSets === 1 ? 1 : numberOfSets === 2 ? 2 : 3}>
+                    <th className="pb-2 pr-2 text-center" colSpan={numberOfSets}>
                       Resultado
                     </th>
                     <th className="pb-2">Equipa B</th>
@@ -520,7 +528,7 @@ export function OcrResultsUpload({
                           R{r.roundIndex > 0 ? r.roundIndex : "?"}
                         </td>
                         <td className="py-2 pr-2 font-medium">{r.teamAName}</td>
-                        <td className="py-2 pr-1 text-center" colSpan={numberOfSets === 1 ? 1 : numberOfSets === 2 ? 2 : 3}>
+                        <td className="py-2 pr-1 text-center" colSpan={numberOfSets}>
                           <div className="flex items-center justify-center gap-1">
                             <ScoreInput
                               value={r.set1A}
@@ -561,6 +569,34 @@ export function OcrResultsUpload({
                                 <ScoreInput
                                   value={r.set3B}
                                   onChange={(v) => updateScore(i, "set3B", v)}
+                                  disabled={r.status === "unmatched"}
+                                />
+                              </>
+                            )}
+                            {numberOfSets >= 5 && (
+                              <>
+                                <span className="text-text-muted mx-1">/</span>
+                                <ScoreInput
+                                  value={r.set4A}
+                                  onChange={(v) => updateScore(i, "set4A", v)}
+                                  disabled={r.status === "unmatched"}
+                                />
+                                <span className="text-text-muted">-</span>
+                                <ScoreInput
+                                  value={r.set4B}
+                                  onChange={(v) => updateScore(i, "set4B", v)}
+                                  disabled={r.status === "unmatched"}
+                                />
+                                <span className="text-text-muted mx-1">/</span>
+                                <ScoreInput
+                                  value={r.set5A}
+                                  onChange={(v) => updateScore(i, "set5A", v)}
+                                  disabled={r.status === "unmatched"}
+                                />
+                                <span className="text-text-muted">-</span>
+                                <ScoreInput
+                                  value={r.set5B}
+                                  onChange={(v) => updateScore(i, "set5B", v)}
                                   disabled={r.status === "unmatched"}
                                 />
                               </>

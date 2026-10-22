@@ -18,7 +18,7 @@ export interface NonstopActiveMatch {
   courtName: string;
   team1: string[];
   team2: string[];
-  scores?: { set1A?: number; set1B?: number; set2A?: number; set2B?: number; set3A?: number; set3B?: number };
+  scores?: { set1A?: number; set1B?: number; set2A?: number; set2B?: number; set3A?: number; set3B?: number; set4A?: number; set4B?: number; set5A?: number; set5B?: number };
 }
 
 export function NonstopView({

@@ -44,6 +44,8 @@ export function EasyMixView({ tournament }: { tournament: any }) {
       if (match.set1A != null && match.set1B != null) { if (match.set1A > match.set1B) setsA++; else if (match.set1B > match.set1A) setsB++; }
       if (match.set2A != null && match.set2B != null) { if (match.set2A > match.set2B) setsA++; else if (match.set2B > match.set2A) setsB++; }
       if (match.set3A != null && match.set3B != null) { if (match.set3A > match.set3B) setsA++; else if (match.set3B > match.set3A) setsB++; }
+      if (match.set4A != null && match.set4B != null) { if (match.set4A > match.set4B) setsA++; else if (match.set4B > match.set4A) setsB++; }
+      if (match.set5A != null && match.set5B != null) { if (match.set5A > match.set5B) setsA++; else if (match.set5B > match.set5A) setsB++; }
 
       const ptsA = setsA * 2 + (match.resultType === "WIN_A" ? 3 : 0);
       const ptsB = setsB * 2 + (match.resultType === "WIN_B" ? 3 : 0);
@@ -80,6 +82,8 @@ export function EasyMixView({ tournament }: { tournament: any }) {
         set1A: s.set1A ?? null, set1B: s.set1B ?? null,
         set2A: s.set2A ?? null, set2B: s.set2B ?? null,
         set3A: s.set3A ?? null, set3B: s.set3B ?? null,
+        set4A: s.set4A ?? null, set4B: s.set4B ?? null,
+        set5A: s.set5A ?? null, set5B: s.set5B ?? null,
       });
       if (result.success) {
         toast.success("Resultado guardado!");
@@ -203,7 +207,7 @@ export function EasyMixView({ tournament }: { tournament: any }) {
               {round.matches.map((match: any) => {
                 const isFinished = match.status === "FINISHED";
                 const isEditing = editingMatch === match.id;
-                const s = scores[match.id] || { set1A: match.set1A, set1B: match.set1B, set2A: match.set2A, set2B: match.set2B, set3A: match.set3A, set3B: match.set3B };
+                const s = scores[match.id] || { set1A: match.set1A, set1B: match.set1B, set2A: match.set2A, set2B: match.set2B, set3A: match.set3A, set3B: match.set3B, set4A: match.set4A, set4B: match.set4B, set5A: match.set5A, set5B: match.set5B };
                 return (
                   <div key={match.id} className={`rounded-xl border p-3 space-y-2 ${isFinished ? "border-border bg-surface-alt" : "border-border"}`}>
                     <div className="flex items-center justify-between text-[10px] text-text-muted font-semibold uppercase">
@@ -234,13 +238,15 @@ export function EasyMixView({ tournament }: { tournament: any }) {
                           {match.set1A}-{match.set1B}
                           {match.set2A != null && `, ${match.set2A}-${match.set2B}`}
                           {match.set3A != null && `, ${match.set3A}-${match.set3B}`}
+                          {match.set4A != null && `, ${match.set4A}-${match.set4B}`}
+                          {match.set5A != null && `, ${match.set5A}-${match.set5B}`}
                         </span>
                       </div>
                     )}
 
                     {isEditing && (
                       <div className="space-y-1.5 pt-1">
-                        {[1, 2, 3].slice(0, tournament.numberOfSets).map((setNum) => (
+                        {[1, 2, 3, 4, 5].slice(0, tournament.numberOfSets).map((setNum) => (
                           <div key={setNum} className="flex items-center gap-2 text-xs">
                             <span className="text-text-muted w-8">Set {setNum}</span>
                             <input
@@ -276,6 +282,8 @@ export function EasyMixView({ tournament }: { tournament: any }) {
                               set1A: match.set1A, set1B: match.set1B,
                               set2A: match.set2A, set2B: match.set2B,
                               set3A: match.set3A, set3B: match.set3B,
+                              set4A: match.set4A, set4B: match.set4B,
+                              set5A: match.set5A, set5B: match.set5B,
                             },
                           }));
                           setEditingMatch(match.id);

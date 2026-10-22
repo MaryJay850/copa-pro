@@ -8,6 +8,10 @@ interface RecentMatch {
   set2B: number | null;
   set3A: number | null;
   set3B: number | null;
+  set4A: number | null;
+  set4B: number | null;
+  set5A: number | null;
+  set5B: number | null;
   resultType: string;
   playedAt: string | null;
   teamA: {
@@ -32,6 +36,8 @@ function formatScore(match: RecentMatch) {
   if (match.set1A != null && match.set1B != null) sets.push(`${match.set1A}-${match.set1B}`);
   if (match.set2A != null && match.set2B != null) sets.push(`${match.set2A}-${match.set2B}`);
   if (match.set3A != null && match.set3B != null) sets.push(`${match.set3A}-${match.set3B}`);
+  if (match.set4A != null && match.set4B != null) sets.push(`${match.set4A}-${match.set4B}`);
+  if (match.set5A != null && match.set5B != null) sets.push(`${match.set5A}-${match.set5B}`);
   return sets.join(" / ");
 }
 

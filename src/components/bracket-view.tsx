@@ -14,6 +14,8 @@ type BracketMatch = {
   set1A: number | null; set1B: number | null;
   set2A: number | null; set2B: number | null;
   set3A: number | null; set3B: number | null;
+  set4A: number | null; set4B: number | null;
+  set5A: number | null; set5B: number | null;
   court?: { name: string } | null;
 };
 

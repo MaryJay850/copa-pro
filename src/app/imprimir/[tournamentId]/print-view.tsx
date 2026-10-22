@@ -13,6 +13,8 @@ export function PrintView({ tournament, standings }: { tournament: any; standing
     if (m.set1A !== null) s.push(`${m.set1A}-${m.set1B}`);
     if (m.set2A !== null) s.push(`${m.set2A}-${m.set2B}`);
     if (m.set3A !== null) s.push(`${m.set3A}-${m.set3B}`);
+    if (m.set4A !== null) s.push(`${m.set4A}-${m.set4B}`);
+    if (m.set5A !== null) s.push(`${m.set5A}-${m.set5B}`);
     return s.join(" / ");
   };
 

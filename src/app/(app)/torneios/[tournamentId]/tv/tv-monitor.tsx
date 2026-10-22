@@ -71,6 +71,10 @@ export function TVMonitor({ tournament: initialTournament }: TVMonitorProps) {
       sets.push(`${match.set2A}-${match.set2B}`);
     if (match.set3A !== null && match.set3B !== null)
       sets.push(`${match.set3A}-${match.set3B}`);
+    if (match.set4A !== null && match.set4B !== null)
+      sets.push(`${match.set4A}-${match.set4B}`);
+    if (match.set5A !== null && match.set5B !== null)
+      sets.push(`${match.set5A}-${match.set5B}`);
     return sets.join("  ");
   };
 

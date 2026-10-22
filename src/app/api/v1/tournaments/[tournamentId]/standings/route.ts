@@ -84,6 +84,8 @@ export async function GET(
         [match.set1A, match.set1B],
         [match.set2A, match.set2B],
         [match.set3A, match.set3B],
+        [match.set4A, match.set4B],
+        [match.set5A, match.set5B],
       ];
       for (const [a, b] of sets) {
         if (a === null || b === null) continue;

@@ -1083,10 +1083,10 @@ export function TournamentWizard({
                           <div>
                             <label className="text-xs font-semibold text-purple-700">Sets nas Eliminatorias</label>
                             <div className="flex gap-3 mt-1">
-                              {[1, 2, 3].map((n) => (
+                              {[1, 2, 3, 5].map((n) => (
                                 <label key={n} className="flex items-center gap-2 text-xs cursor-pointer">
                                   <input type="radio" checked={knockoutSets === n} onChange={() => setKnockoutSets(n)} className="text-primary focus:ring-primary" />
-                                  {n === 1 ? "1 Set" : n === 2 ? "2 Sets" : "Melhor de 3"}
+                                  {n === 1 ? "1 Set" : n === 2 ? "2 Sets" : n === 3 ? "Melhor de 3" : "Melhor de 5"}
                                 </label>
                               ))}
                             </div>
@@ -1134,12 +1134,12 @@ export function TournamentWizard({
             </div>
 
             <div>
-              <FieldLabel label="Sets por Jogo" tooltip="1 Set: jogo rápido. 2 Sets: dois sets obrigatórios. Melhor de 3: ganha quem vencer 2 sets." />
+              <FieldLabel label="Sets por Jogo" tooltip="1 Set: jogo rápido. 2 Sets: dois sets obrigatórios. Melhor de 3: ganha quem vencer 2 sets. Melhor de 5: ganha quem vencer 3 sets." />
               <div className="flex gap-3 mt-1">
-                {[1, 2, 3].map((n) => (
+                {[1, 2, 3, 5].map((n) => (
                   <label key={n} className="flex items-center gap-2 text-sm cursor-pointer">
                     <input type="radio" checked={numberOfSets === n} onChange={() => setNumberOfSets(n)} className="text-primary focus:ring-primary" />
-                    {n === 1 ? "1 Set" : n === 2 ? "2 Sets" : "Melhor de 3"}
+                    {n === 1 ? "1 Set" : n === 2 ? "2 Sets" : n === 3 ? "Melhor de 3" : "Melhor de 5"}
                   </label>
                 ))}
               </div>
@@ -1594,7 +1594,7 @@ export function TournamentWizard({
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Modo de Jogo</span><span className="font-medium">{teamSize === 1 ? "Individual (1v1)" : "Pares (2v2)"}</span></div>
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Campos</span><span className="font-medium">{selectedCourtIds.length > 0 ? clubCourts.filter((c) => selectedCourtIds.includes(c.id)).map((c) => c.name).join(", ") : courtNames.slice(0, courtsCount).join(", ")}</span></div>
             <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Formato</span><span className="font-medium">{matchesPerPair === 1 ? "RR Simples" : "RR Duplo"}</span></div>
-            <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Sets</span><span className="font-medium">{numberOfSets === 1 ? "1 Set" : numberOfSets === 2 ? "2 Sets" : "Melhor de 3"}</span></div>
+            <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Sets</span><span className="font-medium">{numberOfSets === 1 ? "1 Set" : numberOfSets === 2 ? "2 Sets" : numberOfSets === 3 ? "Melhor de 3" : "Melhor de 5"}</span></div>
             {teamSize === 2 && <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Modo Equipas</span><span className="font-medium">{teamModeLabel(teamMode)}</span></div>}
             {(teamMode === "RANDOM_PER_ROUND" || teamMode === "AMERICANO" || teamMode === "SOBE_DESCE") && (
               <div className="flex justify-between py-2 border-b border-border"><span className="text-text-muted">Rondas</span><span className="font-medium">{numberOfRounds} rondas ({teamMode === "AMERICANO" ? "formato Americano" : teamMode === "SOBE_DESCE" ? "formato Sobe e Desce" : "equipas aleatórias por ronda"})</span></div>

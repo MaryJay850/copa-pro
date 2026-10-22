@@ -780,6 +780,8 @@ function TabJogador({
                         formatScore(m.set1A, m.set1B),
                         formatScore(m.set2A, m.set2B),
                         formatScore(m.set3A, m.set3B),
+                        formatScore(m.set4A, m.set4B),
+                        formatScore(m.set5A, m.set5B),
                       ].filter((s) => s !== "-");
 
                       // Determine if this player won/lost/drew
@@ -1065,6 +1067,8 @@ function TabTorneio({
                         formatScore(m.set1A, m.set1B),
                         formatScore(m.set2A, m.set2B),
                         formatScore(m.set3A, m.set3B),
+                        formatScore(m.set4A, m.set4B),
+                        formatScore(m.set5A, m.set5B),
                       ].filter((s) => s !== "-");
                       const evtLabel = eventLabel(m.event);
                       return (
@@ -1282,6 +1286,8 @@ function TabJogoAJogo({ data }: { data: AuditData }) {
                       formatScore(m.set1A, m.set1B),
                       formatScore(m.set2A, m.set2B),
                       formatScore(m.set3A, m.set3B),
+                      formatScore(m.set4A, m.set4B),
+                      formatScore(m.set5A, m.set5B),
                     ].filter((s) => s !== "-");
 
                     let rowBg = "";

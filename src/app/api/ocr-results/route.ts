@@ -14,6 +14,10 @@ interface OcrResult {
   set2B: number | null;
   set3A: number | null;
   set3B: number | null;
+  set4A: number | null;
+  set4B: number | null;
+  set5A: number | null;
+  set5B: number | null;
   confidence: "high" | "low";
 }
 
@@ -40,6 +44,10 @@ interface MatchedResult {
   set2B: number | null;
   set3A: number | null;
   set3B: number | null;
+  set4A: number | null;
+  set4B: number | null;
+  set5A: number | null;
+  set5B: number | null;
   confidence: "high" | "low";
   status: "matched" | "unmatched";
 }
@@ -426,6 +434,10 @@ export async function POST(req: NextRequest) {
           set2B: ocr.set2B,
           set3A: ocr.set3A,
           set3B: ocr.set3B,
+          set4A: ocr.set4A ?? null,
+          set4B: ocr.set4B ?? null,
+          set5A: ocr.set5A ?? null,
+          set5B: ocr.set5B ?? null,
           confidence: ocr.confidence,
           status: "matched" as const,
         };
@@ -444,6 +456,10 @@ export async function POST(req: NextRequest) {
         set2B: ocr.set2B,
         set3A: ocr.set3A,
         set3B: ocr.set3B,
+        set4A: ocr.set4A ?? null,
+        set4B: ocr.set4B ?? null,
+        set5A: ocr.set5A ?? null,
+        set5B: ocr.set5B ?? null,
         confidence: ocr.confidence,
         status: "unmatched" as const,
       };

@@ -14,6 +14,10 @@ type CalendarMatch = {
   set2B: number | null;
   set3A: number | null;
   set3B: number | null;
+  set4A: number | null;
+  set4B: number | null;
+  set5A: number | null;
+  set5B: number | null;
 };
 
 type CalendarRound = {
@@ -106,6 +110,12 @@ export function MatchCalendar({
                             : null,
                           m.set3A !== null
                             ? `${m.set3A}-${m.set3B}`
+                            : null,
+                          m.set4A !== null
+                            ? `${m.set4A}-${m.set4B}`
+                            : null,
+                          m.set5A !== null
+                            ? `${m.set5A}-${m.set5B}`
                             : null,
                         ].filter(Boolean)
                       : [];

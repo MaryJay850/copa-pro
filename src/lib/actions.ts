@@ -1635,6 +1635,8 @@ export async function getAmericanoStandings(tournamentId: string) {
         [match.set1A, match.set1B],
         [match.set2A, match.set2B],
         [match.set3A, match.set3B],
+        [match.set4A, match.set4B],
+        [match.set5A, match.set5B],
       ];
       for (const [a, b] of sets) {
         if (a !== null && b !== null) {
@@ -2014,6 +2016,10 @@ export async function setMatchEvent(
           set2B: null,
           set3A: null,
           set3B: null,
+          set4A: null,
+          set4B: null,
+          set5A: null,
+          set5B: null,
           status: "FINISHED",
           resultType: event === "WALKOVER_A" ? "WIN_A" : "WIN_B",
           winnerTeamId,
@@ -2031,6 +2037,8 @@ export async function setMatchEvent(
           set1A: null, set1B: null,
           set2A: null, set2B: null,
           set3A: null, set3B: null,
+          set4A: null, set4B: null,
+          set5A: null, set5B: null,
           status: "SCHEDULED",
           resultType: "UNDECIDED",
           winnerTeamId: null,
@@ -2087,6 +2095,10 @@ export async function saveMatchScore(
     set2B: number | null;
     set3A: number | null;
     set3B: number | null;
+    set4A: number | null;
+    set4B: number | null;
+    set5A: number | null;
+    set5B: number | null;
   }
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
@@ -2115,7 +2127,9 @@ export async function saveMatchScore(
       scores.set2A, scores.set2B,
       scores.set3A, scores.set3B,
       allowDraws,
-      numberOfSets
+      numberOfSets,
+      scores.set4A, scores.set4B,
+      scores.set5A, scores.set5B
     );
 
     if (validationError) return { success: false, error: validationError };
@@ -2126,7 +2140,9 @@ export async function saveMatchScore(
       scores.set2A, scores.set2B,
       scores.set3A, scores.set3B,
       allowDraws,
-      numberOfSets
+      numberOfSets,
+      scores.set4A, scores.set4B,
+      scores.set5A, scores.set5B
     );
 
     const winnerTeamId =
@@ -2198,6 +2214,8 @@ export async function saveMatchScore(
             scores.set1A != null && scores.set1B != null ? `${scores.set1A}-${scores.set1B}` : null,
             scores.set2A != null && scores.set2B != null ? `${scores.set2A}-${scores.set2B}` : null,
             scores.set3A != null && scores.set3B != null ? `${scores.set3A}-${scores.set3B}` : null,
+            scores.set4A != null && scores.set4B != null ? `${scores.set4A}-${scores.set4B}` : null,
+            scores.set5A != null && scores.set5B != null ? `${scores.set5A}-${scores.set5B}` : null,
           ].filter(Boolean).join(", ");
 
           await createNotificationBulk(userIds, {
@@ -2240,6 +2258,8 @@ export async function resetMatch(matchId: string): Promise<{ success: true } | {
         set1A: null, set1B: null,
         set2A: null, set2B: null,
         set3A: null, set3B: null,
+        set4A: null, set4B: null,
+        set5A: null, set5B: null,
         status: "SCHEDULED",
         resultType: "UNDECIDED",
         winnerTeamId: null,
@@ -2592,6 +2612,10 @@ export async function recomputeSeasonRanking(seasonId: string) {
         set2B: m.set2B,
         set3A: m.set3A,
         set3B: m.set3B,
+        set4A: m.set4A,
+        set4B: m.set4B,
+        set5A: m.set5A,
+        set5B: m.set5B,
         status: m.status,
         resultType: m.resultType,
         teamAId: m.teamAId,
@@ -2836,6 +2860,8 @@ export async function finishTournament(tournamentId: string) {
         if (m.set1A !== null && m.set1B !== null) sets.push({ a: m.set1A, b: m.set1B });
         if (m.set2A !== null && m.set2B !== null) sets.push({ a: m.set2A, b: m.set2B });
         if (m.set3A !== null && m.set3B !== null) sets.push({ a: m.set3A, b: m.set3B });
+        if (m.set4A !== null && m.set4B !== null) sets.push({ a: m.set4A, b: m.set4B });
+        if (m.set5A !== null && m.set5B !== null) sets.push({ a: m.set5A, b: m.set5B });
         let setsA = 0, setsB = 0;
         for (const s of sets) { if (s.a > s.b) setsA++; else if (s.b > s.a) setsB++; }
         if (sA) { sA.points += setsA * 2; }
@@ -2898,6 +2924,8 @@ export async function finishTournament(tournamentId: string) {
           if (m.set1A !== null && m.set1B !== null) sets.push({ a: m.set1A, b: m.set1B });
           if (m.set2A !== null && m.set2B !== null) sets.push({ a: m.set2A, b: m.set2B });
           if (m.set3A !== null && m.set3B !== null) sets.push({ a: m.set3A, b: m.set3B });
+          if (m.set4A !== null && m.set4B !== null) sets.push({ a: m.set4A, b: m.set4B });
+          if (m.set5A !== null && m.set5B !== null) sets.push({ a: m.set5A, b: m.set5B });
           let setsA = 0, setsB = 0;
           for (const s of sets) { if (s.a > s.b) setsA++; else if (s.b > s.a) setsB++; }
           if (sA) sA.points += setsA * 2;
@@ -4471,6 +4499,8 @@ export async function getLandingPageData() {
     if (m.set1A !== null && m.set1B !== null) scores.push(`${m.set1A}-${m.set1B}`);
     if (m.set2A !== null && m.set2B !== null) scores.push(`${m.set2A}-${m.set2B}`);
     if (m.set3A !== null && m.set3B !== null) scores.push(`${m.set3A}-${m.set3B}`);
+    if (m.set4A !== null && m.set4B !== null) scores.push(`${m.set4A}-${m.set4B}`);
+    if (m.set5A !== null && m.set5B !== null) scores.push(`${m.set5A}-${m.set5B}`);
 
     const p1A = m.teamA.player1.nickname || m.teamA.player1.fullName;
     const p2A = m.teamA.player2 ? (m.teamA.player2.nickname || m.teamA.player2.fullName) : null;
@@ -4712,6 +4742,8 @@ export async function getPlayerProfile(playerId: string) {
       [m.set1A, m.set1B],
       [m.set2A, m.set2B],
       [m.set3A, m.set3B],
+      [m.set4A, m.set4B],
+      [m.set5A, m.set5B],
     ].filter(([a, b]) => a !== null && b !== null) as [number, number][];
     for (const [a, b] of sets) {
       if (isTeamA) {
@@ -4805,7 +4837,7 @@ export async function getPlayerStats(playerId: string) {
     if (won) wins++; else losses++;
 
     // Sets
-    const sets: [number | null, number | null][] = [[match.set1A, match.set1B], [match.set2A, match.set2B], [match.set3A, match.set3B]];
+    const sets: [number | null, number | null][] = [[match.set1A, match.set1B], [match.set2A, match.set2B], [match.set3A, match.set3B], [match.set4A, match.set4B], [match.set5A, match.set5B]];
     for (const [a, b] of sets) {
       if (a === null || b === null) continue;
       const myScore = isTeamA ? a : b;
@@ -5307,6 +5339,8 @@ export async function getPlayerMatchHistory(
         m.set1A !== null ? `${m.set1A}-${m.set1B}` : null,
         m.set2A !== null ? `${m.set2A}-${m.set2B}` : null,
         m.set3A !== null ? `${m.set3A}-${m.set3B}` : null,
+        m.set4A !== null ? `${m.set4A}-${m.set4B}` : null,
+        m.set5A !== null ? `${m.set5A}-${m.set5B}` : null,
       ].filter(Boolean),
       result: won ? "WIN" : lost ? "LOSS" : "DRAW",
     };
@@ -5328,6 +5362,10 @@ export async function submitMatchResult(
     set2B: number | null;
     set3A: number | null;
     set3B: number | null;
+    set4A: number | null;
+    set4B: number | null;
+    set5A: number | null;
+    set5B: number | null;
   }
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
@@ -5376,7 +5414,11 @@ export async function submitMatchResult(
         existing.set2A === scores.set2A &&
         existing.set2B === scores.set2B &&
         existing.set3A === scores.set3A &&
-        existing.set3B === scores.set3B;
+        existing.set3B === scores.set3B &&
+        existing.set4A === scores.set4A &&
+        existing.set4B === scores.set4B &&
+        existing.set5A === scores.set5A &&
+        existing.set5B === scores.set5B;
 
       if (scoresMatch) {
         // Auto-confirm: both teams agree
@@ -5462,6 +5504,8 @@ export async function confirmMatchResult(submissionId: string) {
     set1A: submission.set1A, set1B: submission.set1B,
     set2A: submission.set2A, set2B: submission.set2B,
     set3A: submission.set3A, set3B: submission.set3B,
+    set4A: submission.set4A, set4B: submission.set4B,
+    set5A: submission.set5A, set5B: submission.set5B,
   };
 
   const result = determineResult(
@@ -5469,7 +5513,9 @@ export async function confirmMatchResult(submissionId: string) {
     scores.set2A, scores.set2B,
     scores.set3A, scores.set3B,
     match.tournament.season?.allowDraws ?? false,
-    match.tournament.numberOfSets
+    match.tournament.numberOfSets,
+    scores.set4A, scores.set4B,
+    scores.set5A, scores.set5B
   );
 
   const winnerTeamId = result.resultType === "WIN_A" ? match.teamAId
@@ -5561,6 +5607,10 @@ async function saveMatchScoreInternal(
     set2B: number | null;
     set3A: number | null;
     set3B: number | null;
+    set4A: number | null;
+    set4B: number | null;
+    set5A: number | null;
+    set5B: number | null;
   },
   match: any
 ): Promise<{ success: true } | { success: false; error: string }> {
@@ -5572,7 +5622,9 @@ async function saveMatchScoreInternal(
     scores.set2A, scores.set2B,
     scores.set3A, scores.set3B,
     allowDraws,
-    numberOfSets
+    numberOfSets,
+    scores.set4A, scores.set4B,
+    scores.set5A, scores.set5B
   );
   if (validationError) return { success: false, error: validationError };
 
@@ -5581,7 +5633,9 @@ async function saveMatchScoreInternal(
     scores.set2A, scores.set2B,
     scores.set3A, scores.set3B,
     allowDraws,
-    numberOfSets
+    numberOfSets,
+    scores.set4A, scores.set4B,
+    scores.set5A, scores.set5B
   );
 
   const winnerTeamId =
@@ -5847,7 +5901,7 @@ export async function getEasyMix(slug: string) {
 
 export async function saveEasyMixScore(
   matchId: string,
-  scores: { set1A: number | null; set1B: number | null; set2A: number | null; set2B: number | null; set3A: number | null; set3B: number | null }
+  scores: { set1A: number | null; set1B: number | null; set2A: number | null; set2B: number | null; set3A: number | null; set3B: number | null; set4A: number | null; set4B: number | null; set5A: number | null; set5B: number | null }
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
     const match = await prisma.match.findUnique({
@@ -5862,13 +5916,15 @@ export async function saveEasyMixScore(
 
     const validationError = validateMatchScores(
       scores.set1A, scores.set1B, scores.set2A, scores.set2B,
-      scores.set3A, scores.set3B, allowDraws, numberOfSets
+      scores.set3A, scores.set3B, allowDraws, numberOfSets,
+      scores.set4A, scores.set4B, scores.set5A, scores.set5B
     );
     if (validationError) return { success: false, error: validationError };
 
     const result = determineResult(
       scores.set1A!, scores.set1B!, scores.set2A, scores.set2B,
-      scores.set3A, scores.set3B, allowDraws, numberOfSets
+      scores.set3A, scores.set3B, allowDraws, numberOfSets,
+      scores.set4A, scores.set4B, scores.set5A, scores.set5B
     );
 
     const winnerTeamId =
@@ -6270,6 +6326,8 @@ export async function saveScoreboardMatch(
     set1A: number | null; set1B: number | null;
     set2A: number | null; set2B: number | null;
     set3A: number | null; set3B: number | null;
+    set4A: number | null; set4B: number | null;
+    set5A: number | null; set5B: number | null;
   }
 ): Promise<{ success: true } | { success: false; error: string }> {
   try {
@@ -6293,7 +6351,9 @@ export async function saveScoreboardMatch(
       scores.set2A, scores.set2B,
       scores.set3A, scores.set3B,
       allowDraws,
-      numberOfSets
+      numberOfSets,
+      scores.set4A, scores.set4B,
+      scores.set5A, scores.set5B
     );
 
     if (validationError) return { success: false, error: validationError };
@@ -6303,7 +6363,9 @@ export async function saveScoreboardMatch(
       scores.set2A, scores.set2B,
       scores.set3A, scores.set3B,
       allowDraws,
-      numberOfSets
+      numberOfSets,
+      scores.set4A, scores.set4B,
+      scores.set5A, scores.set5B
     );
 
     const winnerTeamId =
@@ -6503,6 +6565,10 @@ export async function finishNonstopMatch(
     set2B: number | null;
     set3A: number | null;
     set3B: number | null;
+    set4A: number | null;
+    set4B: number | null;
+    set5A: number | null;
+    set5B: number | null;
   }
 ): Promise<{ success: boolean; error?: string }> {
   try {
@@ -6525,7 +6591,9 @@ export async function finishNonstopMatch(
       scores.set2A, scores.set2B,
       scores.set3A, scores.set3B,
       allowDraws,
-      numberOfSets
+      numberOfSets,
+      scores.set4A, scores.set4B,
+      scores.set5A, scores.set5B
     );
     if (validationError) return { success: false, error: validationError };
 
@@ -6534,7 +6602,9 @@ export async function finishNonstopMatch(
       scores.set2A, scores.set2B,
       scores.set3A, scores.set3B,
       allowDraws,
-      numberOfSets
+      numberOfSets,
+      scores.set4A, scores.set4B,
+      scores.set5A, scores.set5B
     );
 
     const winnerTeamId =
@@ -6551,6 +6621,10 @@ export async function finishNonstopMatch(
         set2B: scores.set2B,
         set3A: scores.set3A,
         set3B: scores.set3B,
+        set4A: scores.set4A,
+        set4B: scores.set4B,
+        set5A: scores.set5A,
+        set5B: scores.set5B,
         status: "FINISHED",
         resultType: result.resultType,
         winnerTeamId,
@@ -6595,6 +6669,10 @@ export async function finishNonstopMatch(
           set2B: scores.set2B,
           set3A: scores.set3A,
           set3B: scores.set3B,
+          set4A: scores.set4A,
+          set4B: scores.set4B,
+          set5A: scores.set5A,
+          set5B: scores.set5B,
           status: "FINISHED",
           resultType: result.resultType,
           teamAId: match.teamAId,
@@ -6700,6 +6778,10 @@ export async function getNonstopQueueStatus(tournamentId: string) {
       set2B: m.set2B ?? undefined,
       set3A: m.set3A ?? undefined,
       set3B: m.set3B ?? undefined,
+      set4A: m.set4A ?? undefined,
+      set4B: m.set4B ?? undefined,
+      set5A: m.set5A ?? undefined,
+      set5B: m.set5B ?? undefined,
     },
   }));
 

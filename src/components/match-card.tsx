@@ -16,6 +16,10 @@ interface MatchCardProps {
     set2B: number | null;
     set3A: number | null;
     set3B: number | null;
+    set4A: number | null;
+    set4B: number | null;
+    set5A: number | null;
+    set5B: number | null;
     status: string;
     resultType: string;
     event?: string;
@@ -46,6 +50,10 @@ interface MatchCardProps {
     set2B: number | null;
     set3A: number | null;
     set3B: number | null;
+    set4A: number | null;
+    set4B: number | null;
+    set5A: number | null;
+    set5B: number | null;
     submitter: { email: string; player: { fullName: string } | null };
   } | null;
   currentUserId?: string;
@@ -62,6 +70,10 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
   const [set2B, setSet2B] = useState(match.set2B);
   const [set3A, setSet3A] = useState(match.set3A);
   const [set3B, setSet3B] = useState(match.set3B);
+  const [set4A, setSet4A] = useState(match.set4A);
+  const [set4B, setSet4B] = useState(match.set4B);
+  const [set5A, setSet5A] = useState(match.set5A);
+  const [set5B, setSet5B] = useState(match.set5B);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSubmitForm, setShowSubmitForm] = useState(false);
@@ -115,7 +127,7 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
     setSaving(true);
     setError(null);
     try {
-      const result = await saveMatchScore(match.id, { set1A, set1B, set2A, set2B, set3A, set3B });
+      const result = await saveMatchScore(match.id, { set1A, set1B, set2A, set2B, set3A, set3B, set4A, set4B, set5A, set5B });
       if (!result.success) {
         setError(result.error);
       }
@@ -136,6 +148,8 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
         setSet1A(null); setSet1B(null);
         setSet2A(null); setSet2B(null);
         setSet3A(null); setSet3B(null);
+        setSet4A(null); setSet4B(null);
+        setSet5A(null); setSet5B(null);
       }
     } catch (e: any) {
       setError(e.message || "Erro ao repor jogo.");
@@ -147,7 +161,7 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
     setSaving(true);
     setError(null);
     try {
-      const result = await submitMatchResult(match.id, { set1A, set1B, set2A, set2B, set3A, set3B });
+      const result = await submitMatchResult(match.id, { set1A, set1B, set2A, set2B, set3A, set3B, set4A, set4B, set5A, set5B });
       if (result.success) {
         toast.success("Resultado submetido! Aguarda confirmacao do adversario.");
         setShowSubmitForm(false);
@@ -257,6 +271,12 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
             {numberOfSets >= 3 && (
               <ScoreInput label="Set 3" valueA={set3A} valueB={set3B} onChangeA={setSet3A} onChangeB={setSet3B} disabled={saving} />
             )}
+            {numberOfSets >= 5 && (
+              <ScoreInput label="Set 4" valueA={set4A} valueB={set4B} onChangeA={setSet4A} onChangeB={setSet4B} disabled={saving} />
+            )}
+            {numberOfSets >= 5 && (
+              <ScoreInput label="Set 5" valueA={set5A} valueB={set5B} onChangeA={setSet5A} onChangeB={setSet5B} disabled={saving} />
+            )}
           </div>
           {error && <p className="text-xs text-danger">{error}</p>}
 
@@ -325,6 +345,18 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
               <span className="font-medium">{match.set3A} - {match.set3B}</span>
             </div>
           )}
+          {numberOfSets >= 5 && match.set4A != null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-text-muted text-xs">Set 4</span>
+              <span className="font-medium">{match.set4A} - {match.set4B}</span>
+            </div>
+          )}
+          {numberOfSets >= 5 && match.set5A != null && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-text-muted text-xs">Set 5</span>
+              <span className="font-medium">{match.set5A} - {match.set5B}</span>
+            </div>
+          )}
         </div>
       ) : (
         <>
@@ -349,6 +381,18 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-text-muted text-xs">Set 3</span>
                     <span className="font-medium">{pendingSubmission.set3A} - {pendingSubmission.set3B}</span>
+                  </div>
+                )}
+                {pendingSubmission.set4A != null && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-text-muted text-xs">Set 4</span>
+                    <span className="font-medium">{pendingSubmission.set4A} - {pendingSubmission.set4B}</span>
+                  </div>
+                )}
+                {pendingSubmission.set5A != null && (
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-text-muted text-xs">Set 5</span>
+                    <span className="font-medium">{pendingSubmission.set5A} - {pendingSubmission.set5B}</span>
                   </div>
                 )}
               </div>
@@ -387,6 +431,12 @@ export function MatchCard({ match, numberOfSets = 3, canEdit = true, currentPlay
                 )}
                 {numberOfSets >= 3 && (
                   <ScoreInput label="Set 3" valueA={set3A} valueB={set3B} onChangeA={setSet3A} onChangeB={setSet3B} disabled={saving} />
+                )}
+                {numberOfSets >= 5 && (
+                  <ScoreInput label="Set 4" valueA={set4A} valueB={set4B} onChangeA={setSet4A} onChangeB={setSet4B} disabled={saving} />
+                )}
+                {numberOfSets >= 5 && (
+                  <ScoreInput label="Set 5" valueA={set5A} valueB={set5B} onChangeA={setSet5A} onChangeB={setSet5B} disabled={saving} />
                 )}
               </div>
               {error && <p className="text-xs text-danger">{error}</p>}

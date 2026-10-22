@@ -54,7 +54,7 @@ export default async function PrintPage({ params }: { params: Promise<{ tourname
       const teamBPlayers = [match.teamB?.player1?.id, match.teamB?.player2?.id].filter(Boolean) as string[];
       [...teamAPlayers, ...teamBPlayers].forEach(pid => { const e = playerMap.get(pid); if (e) e.matches++; });
 
-      const sets = [[match.set1A, match.set1B], [match.set2A, match.set2B], [match.set3A, match.set3B]];
+      const sets = [[match.set1A, match.set1B], [match.set2A, match.set2B], [match.set3A, match.set3B], [match.set4A, match.set4B], [match.set5A, match.set5B]];
       for (const [a, b] of sets) {
         if (a === null || b === null) continue;
         if (a > b) { teamAPlayers.forEach(pid => { const e = playerMap.get(pid); if (e) { e.setsWon++; e.points += 2; } }); teamBPlayers.forEach(pid => { const e = playerMap.get(pid); if (e) e.setsLost++; }); }

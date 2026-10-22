@@ -356,6 +356,10 @@ model Match {
   set2B Int?
   set3A Int?
   set3B Int?
+  set4A Int?
+  set4B Int?
+  set5A Int?
+  set5B Int?
 
   status       String    @default("SCHEDULED")
   resultType   String    @default("UNDECIDED")
@@ -503,6 +507,10 @@ model MatchResultSubmission {
   set2B       Int?
   set3A       Int?
   set3B       Int?
+  set4A       Int?
+  set4B       Int?
+  set5A       Int?
+  set5B       Int?
   status      String   @default("PENDING")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

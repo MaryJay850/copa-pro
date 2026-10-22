@@ -19,6 +19,8 @@ type Match = {
   set1A: number | null; set1B: number | null;
   set2A: number | null; set2B: number | null;
   set3A: number | null; set3B: number | null;
+  set4A: number | null; set4B: number | null;
+  set5A: number | null; set5B: number | null;
   teamA: Team;
   teamB: Team;
   court: { id: string; name: string } | null;
@@ -144,12 +146,12 @@ export function ScoreboardClient({ tournament }: { tournament: Tournament }) {
     const setsCompleted = [...savedSets, { a: scoreA, b: scoreB }];
 
     if (currentSet < numberOfSets) {
-      // For best-of-3: check if someone already won 2 sets
-      if (numberOfSets === 3) {
+      // For best-of-N: check if someone already won majority of sets
+      if (numberOfSets === 3 || numberOfSets === 5) {
+        const setsToWin = Math.ceil(numberOfSets / 2);
         const setsA = setsCompleted.filter((s) => s.a > s.b).length;
         const setsB = setsCompleted.filter((s) => s.b > s.a).length;
-        if (setsA >= 2 || setsB >= 2) {
-          // Match is decided, save now
+        if (setsA >= setsToWin || setsB >= setsToWin) {
           saveAndAdvance(currentMatch, setsCompleted);
           return;
         }
@@ -175,6 +177,10 @@ export function ScoreboardClient({ tournament }: { tournament: Tournament }) {
         set2B: sets[1]?.b ?? null,
         set3A: sets[2]?.a ?? null,
         set3B: sets[2]?.b ?? null,
+        set4A: sets[3]?.a ?? null,
+        set4B: sets[3]?.b ?? null,
+        set5A: sets[4]?.a ?? null,
+        set5B: sets[4]?.b ?? null,
       };
 
       startTransition(async () => {

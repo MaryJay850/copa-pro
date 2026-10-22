@@ -528,7 +528,7 @@ export function TournamentDetailContent({
                 <div className="min-w-0">
                   <p className="text-xs text-text-muted">Sets</p>
                   <p className="text-sm font-medium text-text">
-                    {tournament.numberOfSets === 1 ? "1 Set" : tournament.numberOfSets === 2 ? "2 Sets" : "Melhor de 3"}
+                    {tournament.numberOfSets === 1 ? "1 Set" : tournament.numberOfSets === 2 ? "2 Sets" : tournament.numberOfSets === 3 ? "Melhor de 3" : "Melhor de 5"}
                   </p>
                 </div>
               </div>

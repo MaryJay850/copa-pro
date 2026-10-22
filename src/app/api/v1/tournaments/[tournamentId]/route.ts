@@ -116,6 +116,8 @@ export async function GET(
         set1: match.set1A !== null ? [match.set1A, match.set1B] : null,
         set2: match.set2A !== null ? [match.set2A, match.set2B] : null,
         set3: match.set3A !== null ? [match.set3A, match.set3B] : null,
+        set4: match.set4A !== null ? [match.set4A, match.set4B] : null,
+        set5: match.set5A !== null ? [match.set5A, match.set5B] : null,
       },
       winnerId: match.winnerTeamId,
     })),

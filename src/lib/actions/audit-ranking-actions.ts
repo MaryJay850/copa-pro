@@ -34,6 +34,10 @@ interface AuditMatch {
   set2B: number | null;
   set3A: number | null;
   set3B: number | null;
+  set4A: number | null;
+  set4B: number | null;
+  set5A: number | null;
+  set5B: number | null;
   teamAPlayer1: AuditPlayerInfo;
   teamAPlayer2: AuditPlayerInfo | null;
   teamBPlayer1: AuditPlayerInfo;
@@ -267,6 +271,10 @@ export async function getSeasonAuditData(seasonId: string): Promise<AuditData> {
         set2B: m.set2B,
         set3A: m.set3A,
         set3B: m.set3B,
+        set4A: m.set4A,
+        set4B: m.set4B,
+        set5A: m.set5A,
+        set5B: m.set5B,
         status: m.status,
         resultType: m.resultType,
         teamAId: m.teamAId,
@@ -326,6 +334,10 @@ export async function getSeasonAuditData(seasonId: string): Promise<AuditData> {
         set2B: m.set2B,
         set3A: m.set3A,
         set3B: m.set3B,
+        set4A: m.set4A,
+        set4B: m.set4B,
+        set5A: m.set5A,
+        set5B: m.set5B,
         teamAPlayer1: { id: m.teamA.player1.id, name: playerDisplayName(m.teamA.player1) },
         teamAPlayer2: m.teamA.player2
           ? { id: m.teamA.player2.id, name: playerDisplayName(m.teamA.player2) }

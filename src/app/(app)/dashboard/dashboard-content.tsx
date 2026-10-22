@@ -381,11 +381,15 @@ export function DashboardContent({ data }: { data: MyDashboardData | null }) {
                     match.set1A != null && match.set1B != null && match.set1A > match.set1B ? 1 : 0,
                     match.set2A != null && match.set2B != null && match.set2A > match.set2B ? 1 : 0,
                     match.set3A != null && match.set3B != null && match.set3A > match.set3B ? 1 : 0,
+                    match.set4A != null && match.set4B != null && match.set4A > match.set4B ? 1 : 0,
+                    match.set5A != null && match.set5B != null && match.set5A > match.set5B ? 1 : 0,
                   ].reduce((a: number, b: number) => a + b, 0);
                   const setsB = [
                     match.set1A != null && match.set1B != null && match.set1B > match.set1A ? 1 : 0,
                     match.set2A != null && match.set2B != null && match.set2B > match.set2A ? 1 : 0,
                     match.set3A != null && match.set3B != null && match.set3B > match.set3A ? 1 : 0,
+                    match.set4A != null && match.set4B != null && match.set4B > match.set4A ? 1 : 0,
+                    match.set5A != null && match.set5B != null && match.set5B > match.set5A ? 1 : 0,
                   ].reduce((a: number, b: number) => a + b, 0);
 
                   const myWon = isTeamA ? setsA > setsB : setsB > setsA;
@@ -395,6 +399,8 @@ export function DashboardContent({ data }: { data: MyDashboardData | null }) {
                   if (match.set1A != null && match.set1B != null) scores.push(`${match.set1A}-${match.set1B}`);
                   if (match.set2A != null && match.set2B != null) scores.push(`${match.set2A}-${match.set2B}`);
                   if (match.set3A != null && match.set3B != null) scores.push(`${match.set3A}-${match.set3B}`);
+                  if (match.set4A != null && match.set4B != null) scores.push(`${match.set4A}-${match.set4B}`);
+                  if (match.set5A != null && match.set5B != null) scores.push(`${match.set5A}-${match.set5B}`);
 
                   return (
                     <div key={match.id} className="bg-surface p-3 space-y-1.5">
